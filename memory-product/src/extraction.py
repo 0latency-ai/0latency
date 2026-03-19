@@ -28,6 +28,9 @@ Extract ONLY information that would be useful in future conversations. Skip:
 - Routine pleasantries and filler
 - Information that's only relevant to the immediate exchange
 - Duplicates of things already in the existing memory context (provided below)
+- Hypothetical statements ("what if...", "imagine if...", "could we...") — unless the user explicitly decides to pursue them
+- Sarcastic or joking statements — do NOT store jokes as facts
+- Speculative future plans that haven't been committed to
 
 For each extracted memory, provide:
 1. **headline**: One-line summary (10-20 tokens). Must be self-contained and meaningful.
@@ -40,19 +43,35 @@ For each extracted memory, provide:
    - "task": Something that needs to be done. Action items, todos, follow-ups, deadlines.
    - "correction": A previously held belief/fact was wrong and is now updated. The old fact and new fact must both be stated.
    - "relationship": A connection between people, organizations, or concepts.
+   - "identity": Core identity information — names (people, pets, places), roles, permanent attributes. These NEVER decay.
 5. **importance**: 0.0-1.0. How important is this for future interactions?
-   - 0.9-1.0: Critical (identity, non-negotiable rules, key business decisions, user preferences about agent behavior)
+   - 0.9-1.0: Critical (identity facts like names/roles, non-negotiable rules, key business decisions, user preferences about agent behavior)
    - 0.7-0.8: Important (business decisions, project milestones, key contacts)
    - 0.4-0.6: Moderate (contextual facts, minor details)
    - 0.1-0.3: Low (passing mentions, temporary context)
-6. **entities**: List of people, projects, organizations, or concepts mentioned
-7. **project**: Which project/area this relates to (if any)
-8. **categories**: 1-3 auto-inferred tags
-9. **scope**: Hierarchical path like /project/subarea (e.g., /pfl-academy/oklahoma, /personal/preferences)
+6. **confidence**: 0.0-1.0. How confident are you this is a real fact vs hypothetical/joke/uncertain?
+   - 0.9-1.0: Stated directly and clearly as fact
+   - 0.6-0.8: Likely true but inferred or implied
+   - 0.3-0.5: Uncertain — might be hypothetical, sarcastic, or conditional
+   - 0.0-0.2: Probably not a real fact — clearly hypothetical or joking
+7. **entities**: List of people, projects, organizations, or concepts mentioned
+8. **project**: Which project/area this relates to (if any)
+9. **categories**: 1-3 auto-inferred tags
+10. **scope**: Hierarchical path like /project/subarea (e.g., /pfl-academy/oklahoma, /personal/preferences)
+11. **temporal_type**: How does this fact relate to time?
+    - "permanent": Always true (names, identities, preferences) — should never decay
+    - "current": True now but could change (current projects, current status)
+    - "event": Something that happened at a specific time (dinner tonight, meeting yesterday)
+    - "goal": A future aspiration or target ($1M ARR goal)
 
-If a new fact CONTRADICTS or UPDATES a previously known fact, mark it as type "correction" and include both the old fact and the new fact in the full_content.
+CONTRADICTION CHECK: Before extracting, compare against the existing memory context below. If a new statement CONTRADICTS an existing memory:
+- Mark the new memory as type "correction"
+- Include BOTH the old fact and new fact in full_content
+- Set the field "contradicts" to the headline of the contradicted memory
 
-Respond with a JSON array of memory objects. If there's nothing worth extracting, return an empty array [].
+If nothing worth extracting, return an empty array [].
+
+Respond with a JSON array of memory objects.
 
 EXISTING MEMORY CONTEXT (to avoid duplicates):
 {existing_context}
@@ -247,9 +266,29 @@ def extract_memories(
         memory_type = mem.get("memory_type", "fact")
         
         # Validate memory_type
-        valid_types = {"fact", "decision", "preference", "task", "correction", "relationship"}
+        valid_types = {"fact", "decision", "preference", "task", "correction", "relationship", "identity"}
         if memory_type not in valid_types:
             memory_type = "fact"
+        
+        # Get confidence — skip low-confidence extractions (hypotheticals, jokes)
+        confidence = max(0.0, min(1.0, float(mem.get("confidence", 0.8))))
+        if confidence < 0.3:
+            continue  # Don't store things we're not sure about
+        
+        # Get temporal type
+        temporal_type = mem.get("temporal_type", "current")
+        if temporal_type not in {"permanent", "current", "event", "goal"}:
+            temporal_type = "current"
+        
+        # Auto-upgrade to identity type for permanent personal facts
+        if temporal_type == "permanent" and memory_type == "fact":
+            memory_type = "identity"
+        
+        # Build metadata with new fields
+        metadata = {
+            "temporal_type": temporal_type,
+            "contradicts": mem.get("contradicts"),
+        }
         
         # Build the structured memory object
         memory_obj = {
@@ -260,7 +299,7 @@ def extract_memories(
             "full_content": full_content,
             "memory_type": memory_type,
             "importance": max(0.0, min(1.0, float(mem.get("importance", 0.5)))),
-            "confidence": max(0.0, min(1.0, float(mem.get("confidence", 0.8)))),
+            "confidence": confidence,
             "entities": mem.get("entities", []),
             "project": mem.get("project"),
             "categories": mem.get("categories", []),
@@ -269,6 +308,7 @@ def extract_memories(
             "source_turn": turn_id,
             "extracted_at": now,
             "valid_from": now,
+            "metadata": metadata,
         }
         
         validated.append(memory_obj)

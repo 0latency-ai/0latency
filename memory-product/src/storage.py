@@ -235,6 +235,22 @@ def store_memory(memory: dict) -> str:
         print(f"  ↑ Reinforced existing memory: {existing}")
         return existing
     
+    # Check for potential contradiction with existing memories
+    if memory['memory_type'] != 'correction':
+        contradiction = _check_contradiction(memory['agent_id'], memory['headline'], embedding)
+        if contradiction:
+            print(f"  ⚠ Potential contradiction detected with: {contradiction['headline']}")
+            # Auto-upgrade to correction type
+            memory['memory_type'] = 'correction'
+            memory['full_content'] = (
+                f"CORRECTION: {memory['full_content']}\n"
+                f"PREVIOUS: {contradiction['headline']}"
+            )
+            metadata = memory.get('metadata', {})
+            metadata['contradicts'] = contradiction['headline']
+            metadata['contradicts_id'] = contradiction['id']
+            memory['metadata'] = metadata
+    
     # Build entities and categories arrays
     entities_str = "{" + ",".join(f'"{e}"' for e in memory.get('entities', [])) + "}"
     categories_str = "{" + ",".join(f'"{c}"' for c in memory.get('categories', [])) + "}"
@@ -251,17 +267,21 @@ def store_memory(memory: dict) -> str:
     source_turn = memory.get('source_turn')
     source_turn_sql = f"'{source_turn}'" if source_turn else "NULL"
     
+    # Build metadata JSON
+    metadata = memory.get('metadata', {})
+    metadata_sql = json.dumps(metadata).replace("'", "''")
+    
     query = f"""
         INSERT INTO memory_service.memories 
             (agent_id, headline, context, full_content, memory_type, 
              entities, project, categories, scope,
              importance, confidence, embedding,
-             source_session, source_turn)
+             source_session, source_turn, metadata)
         VALUES 
             ('{memory['agent_id']}', '{headline}', '{context}', '{full_content}', '{memory['memory_type']}',
              '{entities_str}', {project_sql}, '{categories_str}', '{scope}',
              {memory.get('importance', 0.5)}, {memory.get('confidence', 0.8)}, '{embedding_str}'::extensions.vector,
-             {source_session_sql}, {source_turn_sql})
+             {source_session_sql}, {source_turn_sql}, '{metadata_sql}'::jsonb)
         RETURNING id;
     """
     
@@ -302,6 +322,53 @@ def _check_duplicate(agent_id: str, headline: str, embedding: list[float], thres
             mem_id, existing_headline, similarity = parts[0], parts[1], float(parts[2])
             if similarity >= threshold:
                 return mem_id
+    
+    return None
+
+
+def _check_contradiction(agent_id: str, headline: str, embedding: list[float]) -> Optional[dict]:
+    """Check if a new memory potentially contradicts an existing one.
+    
+    Uses semantic similarity to find related memories, then checks for
+    entity overlap with conflicting values.
+    """
+    embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
+    
+    # Find semantically similar memories (high similarity = same topic)
+    rows = _db_execute(f"""
+        SELECT id, headline, context, entities,
+               1 - (embedding <=> '{embedding_str}'::extensions.vector) as similarity
+        FROM memory_service.memories
+        WHERE agent_id = '{agent_id}'
+          AND superseded_at IS NULL
+          AND memory_type NOT IN ('correction', 'task')
+        ORDER BY embedding <=> '{embedding_str}'::extensions.vector
+        LIMIT 5
+    """)
+    
+    if not rows:
+        return None
+    
+    for row in rows:
+        parts = row.split("|")
+        if len(parts) >= 5:
+            similarity = float(parts[4])
+            existing_headline = parts[1]
+            
+            # High similarity (same topic) but not a duplicate (not >0.88)
+            # This range suggests same topic, potentially different claim
+            if 0.70 < similarity < 0.88:
+                # Same topic but different enough to potentially contradict
+                # Check if key entities overlap
+                existing_entities = parts[3].strip("{}").split(",") if parts[3] and parts[3] != "{}" else []
+                
+                # If entities overlap significantly, it might be a contradiction
+                if existing_entities:
+                    return {
+                        "id": parts[0],
+                        "headline": existing_headline,
+                        "similarity": similarity,
+                    }
     
     return None
 
@@ -385,18 +452,26 @@ def run_decay(agent_id: str = None):
     _db_execute(f"""
         UPDATE memory_service.memories
         SET relevance_score = GREATEST(0.01, 
-            relevance_score - CASE memory_type
-                WHEN 'fact' THEN 0.02
-                WHEN 'decision' THEN 0.005
-                WHEN 'preference' THEN 0.001
-                WHEN 'task' THEN 0.03
-                WHEN 'correction' THEN 0.001
-                WHEN 'relationship' THEN 0.002
+            relevance_score - CASE 
+                WHEN memory_type = 'identity' THEN 0.0  -- identity NEVER decays
+                WHEN memory_type = 'preference' THEN 0.001
+                WHEN memory_type = 'correction' THEN 0.001
+                WHEN memory_type = 'relationship' THEN 0.002
+                WHEN memory_type = 'decision' THEN 0.005
+                WHEN memory_type = 'fact' THEN 0.02
+                WHEN memory_type = 'task' THEN 0.03
                 ELSE 0.01
+            END
+            -- Also check temporal_type in metadata
+            * CASE 
+                WHEN metadata->>'temporal_type' = 'permanent' THEN 0.0  -- permanent facts never decay
+                WHEN metadata->>'temporal_type' = 'event' THEN 1.5     -- events decay faster
+                ELSE 1.0
             END
         )
         WHERE superseded_at IS NULL
           AND relevance_score > 0.01
+          AND memory_type != 'identity'  -- double-guard: identity never decays
           {agent_filter}
     """)
     

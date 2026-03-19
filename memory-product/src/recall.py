@@ -149,7 +149,9 @@ def recall(
         )
         
         # Type bonuses
-        if c["memory_type"] in ("correction", "preference"):
+        if c["memory_type"] == "identity":
+            composite *= 1.5  # Identity facts are always critical
+        elif c["memory_type"] in ("correction", "preference"):
             composite *= 1.3  # Prevent errors and frustration
         elif c["memory_type"] == "decision" and days_since < 7:
             composite *= 1.2  # Recent decisions are actionable
@@ -353,7 +355,7 @@ def _retrieve_candidates(agent_id: str, embedding_str: str, context_text: str) -
         WHERE agent_id = '{agent_id}'
           AND superseded_at IS NULL
           AND importance > 0.8
-          AND id NOT IN ({','.join(f"'{k}'" for k in candidates.keys()) if candidates else "'none'"})
+          AND id NOT IN ({','.join(f"'{k}'" for k in candidates.keys()) if candidates else "'00000000-0000-0000-0000-000000000000'"})
         ORDER BY importance DESC
         LIMIT 10
     """)
@@ -386,7 +388,7 @@ def _retrieve_candidates(agent_id: str, embedding_str: str, context_text: str) -
         WHERE agent_id = '{agent_id}'
           AND superseded_at IS NULL
           AND last_accessed > now() - interval '48 hours'
-          AND id NOT IN ({','.join(f"'{k}'" for k in candidates.keys()) if candidates else "'none'"})
+          AND id NOT IN ({','.join(f"'{k}'" for k in candidates.keys()) if candidates else "'00000000-0000-0000-0000-000000000000'"})
         ORDER BY last_accessed DESC
         LIMIT 10
     """)
