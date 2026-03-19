@@ -1,0 +1,512 @@
+[
+  {
+    "email": "superintendent@bvsd.org",
+    "name": "Christopher King",
+    "organization": "Boulder Valley School District",
+    "title": "Superintendent",
+    "state": "Colorado",
+    "zerobounce_status": "do_not_mail",
+    "zerobounce_sub_status": "role_based_catch_all",
+    "did_you_mean": null
+  },
+  {
+    "email": "jenny@dsstpublicschools.org",
+    "name": "Jenny Kantola",
+    "organization": "DSST Public Schools",
+    "title": "Campus Director of Curriculum and Instruction, Cole MS",
+    "state": "Colorado",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "jwirt@epsd.org",
+    "name": "Jennifer Wirt",
+    "organization": "Englewood Public School District",
+    "title": "Curriculum Specialist",
+    "state": "Colorado",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "epayne@freedomacademyaz.org",
+    "name": "Erin Payne",
+    "organization": "Freedom Academy",
+    "title": "Director of Curriculum Development",
+    "state": "Colorado",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "award@npk12.org",
+    "name": "Amy Ward",
+    "organization": "North Park School District R-1",
+    "title": "Superintendent",
+    "state": "Colorado",
+    "zerobounce_status": "do_not_mail",
+    "zerobounce_sub_status": "role_based",
+    "did_you_mean": null
+  },
+  {
+    "email": "julia.roark@d49.org",
+    "name": "Julia Roark",
+    "organization": "School District 49",
+    "title": "Falcon Zone Superintendent",
+    "state": "Colorado",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "mary.guinn@d49.org",
+    "name": "Mary Guinn",
+    "organization": "School District 49",
+    "title": "Deputy Superintendent",
+    "state": "Colorado",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "robert.felice@d49.org",
+    "name": "Robert Felice",
+    "organization": "School District 49",
+    "title": "Assistant Superintendent",
+    "state": "Colorado",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "laura.earles@eku.edu",
+    "name": "Laura Earles",
+    "organization": "Axon",
+    "title": "Director, EKU English Language Instruction Program",
+    "state": "Kentucky",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "jimmy.brehm@fayette.kyschools.us",
+    "name": "Brehm Jimmy",
+    "organization": "Fayette County Public Schools (KY)",
+    "title": "Director of Curriculum and Assessment",
+    "state": "Kentucky",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "rita.byrd@fortthomas.kyschools.us",
+    "name": "Rita Byrd",
+    "organization": "Fort Thomas Independent Schools",
+    "title": "Assistant Superintendent",
+    "state": "Kentucky",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "davidraleigh@franklincountyohio.gov",
+    "name": "David Raleigh",
+    "organization": "Franklin County Public Schools",
+    "title": "Assistant Superintendent",
+    "state": "Kentucky",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "dorothy.perkins@gallatin.kyschools.us",
+    "name": "Dot Perkins",
+    "organization": "Gallatin County Schools",
+    "title": "Superintendent",
+    "state": "Kentucky",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "andy.dotson@cvul.org",
+    "name": "Andy Dotson",
+    "organization": "Harrison County Schools",
+    "title": "Superintendent",
+    "state": "Kentucky",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "rebecca.johnson@henderson.kyschools.us",
+    "name": "Rebecca Johnson",
+    "organization": "Henderson County Public Schools",
+    "title": "Director of Instruction",
+    "state": "Kentucky",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "lynne.wheat@jefferson.kyschools.us",
+    "name": "Lynne Wheat",
+    "organization": "Jefferson County Public Schools",
+    "title": "Assistant Superintendent",
+    "state": "Kentucky",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "sylvia.starkey@education.ky.gov",
+    "name": "Sylvia Starkey",
+    "organization": "Kentucky Department of Education",
+    "title": "Director",
+    "state": "Kentucky",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "elowe@leafspringschool.com",
+    "name": "Erin Lowe",
+    "organization": "LeafSpring Schools Kentucky",
+    "title": "Curriculum Director",
+    "state": "Kentucky",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "superintendent@keysschools.com",
+    "name": "Amy Superintendent",
+    "organization": "Monroe County School District",
+    "title": "Superintendent",
+    "state": "Kentucky",
+    "zerobounce_status": "do_not_mail",
+    "zerobounce_sub_status": "role_based",
+    "did_you_mean": null
+  },
+  {
+    "email": "roberta@nashacademy.com",
+    "name": "Roberta Smoodin",
+    "organization": "Nash Academy Of Animal Arts",
+    "title": "Director of Online Curriculum, Director of Education, Online Instructor",
+    "state": "Kentucky",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "does_not_accept_mail",
+    "did_you_mean": null
+  },
+  {
+    "email": "patricia.putty@scott.kyschools.us",
+    "name": "Patricia Putty",
+    "organization": "Scott County Public Schools",
+    "title": "Superintendent",
+    "state": "Kentucky",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "jb@metrotech.edu",
+    "name": "James Branscum",
+    "organization": "Metro Tech",
+    "title": "Superintendent",
+    "state": "Oklahoma",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "ggriffin@millwoodps.org",
+    "name": "Gloria Griffin",
+    "organization": "Millwood Public Schools",
+    "title": "Superintendent",
+    "state": "Oklahoma",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "charrison@millwoodschool.org",
+    "name": "Christine Harrison",
+    "organization": "Millwood School",
+    "title": "Director of Teaching and Learning",
+    "state": "Oklahoma",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "lori.williamson@sylvanlearning.com",
+    "name": "Lori Williamson",
+    "organization": "Sylvan Learning",
+    "title": "Director of Education",
+    "state": "Oklahoma",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "gkrohn@aldineisd.org",
+    "name": "Gail Krohn",
+    "organization": "Aldine ISD",
+    "title": "Superintendent",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "dcitty@aledoisd.org",
+    "name": "Derek Citty",
+    "organization": "Aledo ISD",
+    "title": "Superintendent",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "vstautinger@amcsmontessori.org",
+    "name": "Virginia Stautinger",
+    "organization": "Alief Montessori Community School",
+    "title": "Primary Curriculum Director",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "linda.sims@breckenridgeisd.org",
+    "name": "Linda Sims",
+    "organization": "Breckenridge ISD",
+    "title": "Director of Curriculum and Instruction",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "kspikes@ctcslions.com",
+    "name": "Kelley Spikes",
+    "organization": "Central Texas Christian School",
+    "title": "Curriculum Director",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "mshaner@cisd.org",
+    "name": "Marti Shaner",
+    "organization": "Corsicana Independent School District",
+    "title": "Asst. Superintendent Curriculum and Instruction",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "pamela.edwards@cfisd.net",
+    "name": "Pam Edwards",
+    "organization": "Cypress-Fairbanks ISD",
+    "title": "Director of Secondary Curriculum and Instruction",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "vicki.landua@cfisd.net",
+    "name": "Vicki Landua",
+    "organization": "Cypress-Fairbanks ISD",
+    "title": "Director of Instruction",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "wjackson@dallasisd.org",
+    "name": "Warren Jackson",
+    "organization": "Dallas Independent School District",
+    "title": "ROTC Instructor / Social Studies",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "lnanez@eisd.net",
+    "name": "Lilia Nanez",
+    "organization": "Edgewood ISD",
+    "title": "Chief Academic Officer",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "herron@fortbendisd.com",
+    "name": "Olwen Herron",
+    "organization": "Fort Bend ISD",
+    "title": "Chief Academic Officer",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "mike@hpisd.org",
+    "name": "Mike Rockwood",
+    "organization": "Highland Park ISD",
+    "title": "Superintendent",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "superintendent@isg.edu.sa",
+    "name": "Rhonda Norris",
+    "organization": "International Schools Group (ISG)",
+    "title": "Superintendent",
+    "state": "Texas",
+    "zerobounce_status": "do_not_mail",
+    "zerobounce_sub_status": "role_based",
+    "did_you_mean": null
+  },
+  {
+    "email": "doreenlaurie@katyisd.org",
+    "name": "Doreen Laurie",
+    "organization": "Katy ISD",
+    "title": "Educator- Social Studies",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "kellymiller@katyisd.org",
+    "name": "Kelly Miller",
+    "organization": "Katy ISD",
+    "title": "Instruction",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "astephenson@lamar.edu",
+    "name": "Andrea Stephenson",
+    "organization": "Lamar University",
+    "title": "Director of Curriculum and Accreditation",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "jcerda@laredoisd.org",
+    "name": "J Cerda",
+    "organization": "Laredo Independent School District",
+    "title": "CTE Director",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "smithc@marshallisd.com",
+    "name": "Cassandra Smith",
+    "organization": "Marshall Independent School District",
+    "title": "Career and Technical Education Director",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "shirleyf@marshallisd.com",
+    "name": "Fletcher Shirley",
+    "organization": "Marshall Independent School District",
+    "title": "AVID District Director/Curriculum Specialist",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "geralyn.elmore@pflugervilleisd.net",
+    "name": "Geralyn Elmore",
+    "organization": "Pflugerville ISD",
+    "title": "Director Career and Technical Education",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "does_not_accept_mail",
+    "did_you_mean": null
+  },
+  {
+    "email": "ghobbs@prestonwoodchristian.org",
+    "name": "Gwen Hobbs",
+    "organization": "Prestonwood Christian Academy",
+    "title": "Director of Curriculum",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "mmonica@esc2.net",
+    "name": "Mahfouz Monica",
+    "organization": "REGION 5 EDUCATION SERVICE CENTER",
+    "title": "Director Curriculum, Instruction and Assessment",
+    "state": "Texas",
+    "zerobounce_status": "do_not_mail",
+    "zerobounce_sub_status": "disposable",
+    "did_you_mean": null
+  },
+  {
+    "email": "patsy.palos-cavazos@sheldonisd.com",
+    "name": "Patsy Palos-Cavazos",
+    "organization": "Sheldon ISD",
+    "title": "Chief Academic Officer",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "brenda.cox@tisd.org",
+    "name": "Brenda Cox",
+    "organization": "Temple ISD",
+    "title": "Curriculum Director",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "george.rislov@tea.texas.gov",
+    "name": "George Rislov",
+    "organization": "Texas Education Agency",
+    "title": "Managing Director, Curriculum",
+    "state": "Texas",
+    "zerobounce_status": "invalid",
+    "zerobounce_sub_status": "mailbox_not_found",
+    "did_you_mean": null
+  },
+  {
+    "email": "sarah.kelly@goddardschools.com",
+    "name": "Sarah Kelly",
+    "organization": "The Goddard School",
+    "title": "Educational Director",
+    "state": "Texas",
+    "zerobounce_status": "do_not_mail",
+    "zerobounce_sub_status": "disposable",
+    "did_you_mean": null
+  }
+]

@@ -1,0 +1,5002 @@
+[
+  {
+    "email": "aalter@psdschools.org",
+    "status": "valid",
+    "domain": "psdschools.org",
+    "detail": "MX: psdschools-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "abarg@wanerconstruction.com",
+    "status": "valid",
+    "domain": "wanerconstruction.com",
+    "detail": "MX: wanerconstruction-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "abby@vilask12.org",
+    "status": "valid",
+    "domain": "vilask12.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "aclark@placeservicesinc.com",
+    "status": "valid",
+    "domain": "placeservicesinc.com",
+    "detail": "MX: placeservicesinc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "acole@rfschools.com",
+    "status": "valid",
+    "domain": "rfschools.com",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "adam.green@naccconstruction.com",
+    "status": "valid",
+    "domain": "naccconstruction.com",
+    "detail": "MX: naccconstruction-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "adam.smith@denvergov.org",
+    "status": "valid",
+    "domain": "denvergov.org",
+    "detail": "MX: mxa-00322801.gslb.pphosted.com, mxb-00322801.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "pphosted"
+  },
+  {
+    "email": "agallanos@kakeschools.com",
+    "status": "valid",
+    "domain": "kakeschools.com",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "aj.eleniewski@brinkmanconstruction.com",
+    "status": "valid",
+    "domain": "brinkmanconstruction.com",
+    "detail": "MX: mx1-us1.ppe-hosted.com, mx2-us1.ppe-hosted.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "akreiger@psdschools.org",
+    "status": "valid",
+    "domain": "psdschools.org",
+    "detail": "MX: psdschools-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "alandis@benchmarkgc.com",
+    "status": "valid",
+    "domain": "benchmarkgc.com",
+    "detail": "MX: benchmarkgc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "alane@debeque.k12.co.us",
+    "status": "valid",
+    "domain": "debeque.k12.co.us",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "alawson@wpsdk12.org",
+    "status": "valid",
+    "domain": "wpsdk12.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "alisa.schleder@d11.org",
+    "status": "valid",
+    "domain": "d11.org",
+    "detail": "MX: mxa-00034603.gslb.pphosted.com, mxb-00034603.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "amagdaleno@suntecconcrete.com",
+    "status": "valid",
+    "domain": "suntecconcrete.com",
+    "detail": "MX: suntecconcrete-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "amarker@wanerconstruction.com",
+    "status": "valid",
+    "domain": "wanerconstruction.com",
+    "detail": "MX: wanerconstruction-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "amartinez1@district70.org",
+    "status": "valid",
+    "domain": "district70.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "amrosengren@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "andrew.abner@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "aprom@haagglobal.com",
+    "status": "valid",
+    "domain": "haagglobal.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "ar.henneke@goalac.org",
+    "status": "valid",
+    "domain": "goalac.org",
+    "detail": "MX: goalac-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "arthur.sampson@mortenson.com",
+    "status": "valid",
+    "domain": "mortenson.com",
+    "detail": "MX: mxa-00184201.gslb.pphosted.com, mxb-00184201.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "pphosted"
+  },
+  {
+    "email": "ashley.brand@scienceandtech.org",
+    "status": "valid",
+    "domain": "scienceandtech.org",
+    "detail": "MX: scienceandtech-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "atucker@hsd2.org",
+    "status": "valid",
+    "domain": "hsd2.org",
+    "detail": "MX: usb-smtp-inbound-1.mimecast.com, usb-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "mimecast"
+  },
+  {
+    "email": "award@npk12.org",
+    "status": "valid",
+    "domain": "npk12.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "awhetstine@lewispalmer.org",
+    "status": "valid",
+    "domain": "lewispalmer.org",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "mimecast"
+  },
+  {
+    "email": "awillis@activerelease.com",
+    "status": "valid",
+    "domain": "activerelease.com",
+    "detail": "MX: mx1-us1.ppe-hosted.com, mx2-us1.ppe-hosted.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "bartj@kenny-electric.com",
+    "status": "valid",
+    "domain": "kenny-electric.com",
+    "detail": "MX: kennyelectric-com01c.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "ben.hoffner@greystar.com",
+    "status": "valid",
+    "domain": "greystar.com",
+    "detail": "MX: mxa-00294d01.gslb.pphosted.com, mxb-00294d01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "pphosted"
+  },
+  {
+    "email": "bgriffin@bootsconstruction.com",
+    "status": "valid",
+    "domain": "bootsconstruction.com",
+    "detail": "MX: bootsconstruction.com.mx1-na.mailanyone.net, bootsconstruction.com.mx2-na.mailanyone.net, bootsconstruction.com.mx3-na.mailanyone.net (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "bhampton@nunnconstruction.com",
+    "status": "valid",
+    "domain": "nunnconstruction.com",
+    "detail": "MX: nunnconstruction-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "bhostetler@dwhomes.com",
+    "status": "valid",
+    "domain": "dwhomes.com",
+    "detail": "MX: d149071a.ess.barracudanetworks.com, d149071b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "bivens_m@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "bkingsley@psdschools.org",
+    "status": "valid",
+    "domain": "psdschools.org",
+    "detail": "MX: psdschools-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "bkreye@swinerton.com",
+    "status": "valid",
+    "domain": "swinerton.com",
+    "detail": "MX: swinerton-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "bkrier@garney.com",
+    "status": "valid",
+    "domain": "garney.com",
+    "detail": "MX: garney-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "blombardo@ranelson.com",
+    "status": "valid",
+    "domain": "ranelson.com",
+    "detail": "MX: ranelson-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "bmuse@eaton.k12.co.us",
+    "status": "valid",
+    "domain": "eaton.k12.co.us",
+    "detail": "MX: ASPMX.L.GOOGLE.COM, ALT1.ASPMX.L.GOOGLE.COM, ALT2.ASPMX.L.GOOGLE.COM (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "bnewlan@arcomurray.com",
+    "status": "valid",
+    "domain": "arcomurray.com",
+    "detail": "MX: arcomurray-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "bob.todd@brinkmanconstruction.com",
+    "status": "valid",
+    "domain": "brinkmanconstruction.com",
+    "detail": "MX: mx1-us1.ppe-hosted.com, mx2-us1.ppe-hosted.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "borealis_jacob@svvsd.org",
+    "status": "valid",
+    "domain": "svvsd.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "bowersm@lonestar.k12.co.us",
+    "status": "valid",
+    "domain": "lonestar.k12.co.us",
+    "detail": "MX: smtp.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "brandon.hernandez@usengineering.com",
+    "status": "valid",
+    "domain": "usengineering.com",
+    "detail": "MX: usengineering-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "brandon.kliesen@richmondamerican.com",
+    "status": "valid",
+    "domain": "richmondamerican.com",
+    "detail": "MX: mxa-00150f02.gslb.pphosted.com, mxb-00150f02.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "pphosted"
+  },
+  {
+    "email": "brandonwi@hausmannconstruction.com",
+    "status": "valid",
+    "domain": "hausmannconstruction.com",
+    "detail": "MX: mx1-us2.ppe-hosted.com, mx2-us2.ppe-hosted.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "brent.barnes@swinerton.com",
+    "status": "valid",
+    "domain": "swinerton.com",
+    "detail": "MX: swinerton-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "brent.carswell@d11.org",
+    "status": "valid",
+    "domain": "d11.org",
+    "detail": "MX: mxa-00034603.gslb.pphosted.com, mxb-00034603.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "bret.heller@tsd.org",
+    "status": "valid",
+    "domain": "tsd.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "brian.hunsicker@ghphipps.com",
+    "status": "valid",
+    "domain": "ghphipps.com",
+    "detail": "MX: ghphipps-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "brian.zamarripa@canoncityschools.org",
+    "status": "valid",
+    "domain": "canoncityschools.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "brian@aspensnowmass.com",
+    "status": "valid",
+    "domain": "aspensnowmass.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "brian@balancedgolf.net",
+    "status": "valid",
+    "domain": "balancedgolf.net",
+    "detail": "MX: alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "brittany.harrington@thompsonschools.org",
+    "status": "valid",
+    "domain": "thompsonschools.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "brittany.welzant@anheuser-busch.com",
+    "status": "valid",
+    "domain": "anheuser-busch.com",
+    "detail": "MX: eu-smtp-inbound-1.mimecast.com, eu-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "britton@beckbuilds.com",
+    "status": "valid",
+    "domain": "beckbuilds.com",
+    "detail": "MX: beckbuilds-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "bryan.eichorst@flintco.com",
+    "status": "valid",
+    "domain": "flintco.com",
+    "detail": "MX: flintco-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "bscott@crossland.com",
+    "status": "valid",
+    "domain": "crossland.com",
+    "detail": "MX: d104271a.ess.barracudanetworks.com, d104271b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "btierney@randcc.com",
+    "status": "valid",
+    "domain": "randcc.com",
+    "detail": "MX: randcc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "bwarren@awmain.com",
+    "status": "valid",
+    "domain": "awmain.com",
+    "detail": "MX: awmain-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "bwcarew@drhorton.com",
+    "status": "valid",
+    "domain": "drhorton.com",
+    "detail": "MX: prpt.drhorton.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "bzeigler@weoneil.com",
+    "status": "valid",
+    "domain": "weoneil.com",
+    "detail": "MX: weoneil-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "calvin.parkin@whiting-turner.com",
+    "status": "valid",
+    "domain": "whiting-turner.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "carrie.stephenson@mcsd.org",
+    "status": "valid",
+    "domain": "mcsd.org",
+    "detail": "MX: mcsd-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "catherine.jarnot@eagleschools.net",
+    "status": "valid",
+    "domain": "eagleschools.net",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "catherine.n@d11.org",
+    "status": "valid",
+    "domain": "d11.org",
+    "detail": "MX: mxa-00034603.gslb.pphosted.com, mxb-00034603.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "cbates@thompsonthrift.com",
+    "status": "valid",
+    "domain": "thompsonthrift.com",
+    "detail": "MX: mx1-us1.ppe-hosted.com, mx2-us1.ppe-hosted.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "unknown"
+  },
+  {
+    "email": "cbennett@mcrtrust.com",
+    "status": "valid",
+    "domain": "mcrtrust.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "cbrown@scienceinteractive.com",
+    "status": "valid",
+    "domain": "scienceinteractive.com",
+    "detail": "MX: scienceinteractive-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "cbyrd@fciol.com",
+    "status": "valid",
+    "domain": "fciol.com",
+    "detail": "MX: fciol-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "cchristensen@markyoungconstruction.com",
+    "status": "valid",
+    "domain": "markyoungconstruction.com",
+    "detail": "MX: d323831a.ess.barracudanetworks.com, d323831b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "ccollins@enconfieldservices.com",
+    "status": "valid",
+    "domain": "enconfieldservices.com",
+    "detail": "MX: d171293a.ess.barracudanetworks.com, d171293b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "cdevries@carmelpartners.com",
+    "status": "valid",
+    "domain": "carmelpartners.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "cecily.klein@imaginelearning.com",
+    "status": "valid",
+    "domain": "imaginelearning.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "mimecast"
+  },
+  {
+    "email": "centwistle@stallionis.com",
+    "status": "valid",
+    "domain": "stallionis.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "cgonzales@bauenstudios.com",
+    "status": "valid",
+    "domain": "bauenstudios.com",
+    "detail": "MX: bauenstudios-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "chad.herrera@tdindustries.com",
+    "status": "valid",
+    "domain": "tdindustries.com",
+    "detail": "MX: tdindustries-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "chad.krug@lamarschools.org",
+    "status": "valid",
+    "domain": "lamarschools.org",
+    "detail": "MX: mx1-us.emailsecurity.app, mx2-us.emailsecurity.app (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "unknown"
+  },
+  {
+    "email": "chadpitts@sheridanschools.org",
+    "status": "valid",
+    "domain": "sheridanschools.org",
+    "detail": "MX: aspmx.l.google.com, ALT1.aspmx.l.google.com, ALT2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "chaeuptle@ibmc.edu",
+    "status": "valid",
+    "domain": "ibmc.edu",
+    "detail": "MX: ibmc-edu.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "chamilton@csigc.com",
+    "status": "valid",
+    "domain": "csigc.com",
+    "detail": "MX: csigc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "chancewarren@haselden.com",
+    "status": "valid",
+    "domain": "haselden.com",
+    "detail": "MX: haselden-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "charles_kahle@svvsd.org",
+    "status": "valid",
+    "domain": "svvsd.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "chris.jackson@orrprotection.com",
+    "status": "valid",
+    "domain": "orrprotection.com",
+    "detail": "MX: orrprotection-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "chris.selle@meeker.k12.co.us",
+    "status": "valid",
+    "domain": "meeker.k12.co.us",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "chrislong@tcco.com",
+    "status": "valid",
+    "domain": "tcco.com",
+    "detail": "MX: tcco-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "cjcampbell@fransenpittman.com",
+    "status": "valid",
+    "domain": "fransenpittman.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "cody.covey@whiting-turner.com",
+    "status": "valid",
+    "domain": "whiting-turner.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "cody.moehler@us.af.mil",
+    "status": "valid",
+    "domain": "us.af.mil",
+    "detail": "MX: pri-usaf-eemsg.eemsg.mail.mil, pri-nipr.eemsg.mail.mil, sec-nipr.eemsg.mail.mil (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "colin@odysseydenver.org",
+    "status": "valid",
+    "domain": "odysseydenver.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "colson@durangoschools.org",
+    "status": "valid",
+    "domain": "durangoschools.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "corey.evans@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "corey.wise@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "courtney.lincoln@egsd.org",
+    "status": "valid",
+    "domain": "egsd.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "cramos@kbhome.com",
+    "status": "valid",
+    "domain": "kbhome.com",
+    "detail": "MX: mxa-00141101.gslb.pphosted.com, mxb-00141101.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "pphosted"
+  },
+  {
+    "email": "crojas@confluenceco.com",
+    "status": "valid",
+    "domain": "confluenceco.com",
+    "detail": "MX: confluenceco-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "csimmons@randcc.com",
+    "status": "valid",
+    "domain": "randcc.com",
+    "detail": "MX: randcc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "csinner@haydenschools.org",
+    "status": "valid",
+    "domain": "haydenschools.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "cstubits@fciol.com",
+    "status": "valid",
+    "domain": "fciol.com",
+    "detail": "MX: fciol-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "cynthia.bezek@communitybiblestudy.org",
+    "status": "valid",
+    "domain": "communitybiblestudy.org",
+    "detail": "MX: communitybiblestudy-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "dales@hwhouston.com",
+    "status": "valid",
+    "domain": "hwhouston.com",
+    "detail": "MX: mx1-us1.ppe-hosted.com, mx2-us1.ppe-hosted.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "dandrews@greeleyschools.org",
+    "status": "valid",
+    "domain": "greeleyschools.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "danelle.hiatt@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "danny.stansbury@mears.com",
+    "status": "valid",
+    "domain": "mears.com",
+    "detail": "MX: mears-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "david.baratta@kiewit.com",
+    "status": "valid",
+    "domain": "kiewit.com",
+    "detail": "MX: kiewit-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "david.judd@manzanola.k12.co.us",
+    "status": "valid",
+    "domain": "manzanola.k12.co.us",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "david.malone@d11.org",
+    "status": "valid",
+    "domain": "d11.org",
+    "detail": "MX: mxa-00034603.gslb.pphosted.com, mxb-00034603.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "dbidgood@shames.com",
+    "status": "valid",
+    "domain": "shames.com",
+    "detail": "MX: shames.sendio.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "dconnell@bayfield.k12.co.us",
+    "status": "valid",
+    "domain": "bayfield.k12.co.us",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "dcrass@wanerconstruction.com",
+    "status": "valid",
+    "domain": "wanerconstruction.com",
+    "detail": "MX: wanerconstruction-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "deanna.vandermeer@d51schools.org",
+    "status": "valid",
+    "domain": "d51schools.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "dee.mcdonald@fastrackids.com",
+    "status": "valid",
+    "domain": "fastrackids.com",
+    "detail": "MX: fastrackids-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "denille.l@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "derekg@jrbutlerinc.com",
+    "status": "valid",
+    "domain": "jrbutlerinc.com",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "dereksmuin@haselden.com",
+    "status": "valid",
+    "domain": "haselden.com",
+    "detail": "MX: haselden-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "diane.lefly@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "dkrawczyk@nordicpcl.com",
+    "status": "valid",
+    "domain": "nordicpcl.com",
+    "detail": "MX: nordicpcl-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "dmelchior@vertixbuilders.com",
+    "status": "valid",
+    "domain": "vertixbuilders.com",
+    "detail": "MX: vertixbuilders-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "dmeyer@i2construction.com",
+    "status": "valid",
+    "domain": "i2construction.com",
+    "detail": "MX: d326045a.ess.barracudanetworks.com, d326045b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "dmosley@ejcm.com",
+    "status": "valid",
+    "domain": "ejcm.com",
+    "detail": "MX: ejcm-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "dominic@srebuilds.com",
+    "status": "valid",
+    "domain": "srebuilds.com",
+    "detail": "MX: srebuilds-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "donovanschenck@haselden.com",
+    "status": "valid",
+    "domain": "haselden.com",
+    "detail": "MX: haselden-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "dprice@maxwellbuilders.net",
+    "status": "valid",
+    "domain": "maxwellbuilders.net",
+    "detail": "MX: mx1-us1.ppe-hosted.com, mx2-us1.ppe-hosted.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "dps_superintendent@dpsk12.org",
+    "status": "valid",
+    "domain": "dpsk12.org",
+    "detail": "MX: mxa-00315903.gslb.pphosted.com, mxb-00315903.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "drfarrar@allianceconstruction.com",
+    "status": "valid",
+    "domain": "allianceconstruction.com",
+    "detail": "MX: mx-01-us-west-2.prod.hydra.sophos.com, mx-02-us-west-2.prod.hydra.sophos.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "dschafer@howelldenver.com",
+    "status": "valid",
+    "domain": "howelldenver.com",
+    "detail": "MX: HowellDenver-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "dstoneberg@jhlconstructors.com",
+    "status": "valid",
+    "domain": "jhlconstructors.com",
+    "detail": "MX: jhlconstructors-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "dsullivan@howelldenver.com",
+    "status": "valid",
+    "domain": "howelldenver.com",
+    "detail": "MX: HowellDenver-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "dustin.olson@kiewit.com",
+    "status": "valid",
+    "domain": "kiewit.com",
+    "detail": "MX: kiewit-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "dwoodard@thegarrettco.com",
+    "status": "valid",
+    "domain": "thegarrettco.com",
+    "detail": "MX: thegarrettco-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "ebucklan@msudenver.edu",
+    "status": "valid",
+    "domain": "msudenver.edu",
+    "detail": "MX: msudenver-edu.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "ed@markelhomes.com",
+    "status": "valid",
+    "domain": "markelhomes.com",
+    "detail": "MX: markelhomes-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "edoldham@theranchcc.com",
+    "status": "valid",
+    "domain": "theranchcc.com",
+    "detail": "MX: theranchcc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "eduardoz@mckinstry.com",
+    "status": "valid",
+    "domain": "mckinstry.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "edward.quinones@dhe.state.co.us",
+    "status": "valid",
+    "domain": "dhe.state.co.us",
+    "detail": "MX: dhe-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "eforsman@fciol.com",
+    "status": "valid",
+    "domain": "fciol.com",
+    "detail": "MX: fciol-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "egajdosik@vertixbuilders.com",
+    "status": "valid",
+    "domain": "vertixbuilders.com",
+    "detail": "MX: vertixbuilders-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "elmason@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "emily.dorr@weldre4.org",
+    "status": "valid",
+    "domain": "weldre4.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "emily.lavery@d11.org",
+    "status": "valid",
+    "domain": "d11.org",
+    "detail": "MX: mxa-00034603.gslb.pphosted.com, mxb-00034603.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "emma.jablow@dsstpublicschools.org",
+    "status": "valid",
+    "domain": "dsstpublicschools.org",
+    "detail": "MX: dsstpublicschools-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "eowen@haydenschools.org",
+    "status": "valid",
+    "domain": "haydenschools.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "epayne@freedomacademyaz.org",
+    "status": "valid",
+    "domain": "freedomacademyaz.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "eramirez@cortez.k12.co.us",
+    "status": "valid",
+    "domain": "cortez.k12.co.us",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "eric.eds@dsstpublicschools.org",
+    "status": "valid",
+    "domain": "dsstpublicschools.org",
+    "detail": "MX: dsstpublicschools-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "erin.ferguson@brookfieldrp.com",
+    "status": "valid",
+    "domain": "brookfieldrp.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "erooney@ranelson.com",
+    "status": "valid",
+    "domain": "ranelson.com",
+    "detail": "MX: ranelson-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "esander@fciol.com",
+    "status": "valid",
+    "domain": "fciol.com",
+    "detail": "MX: fciol-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "ewhite@psdschools.org",
+    "status": "valid",
+    "domain": "psdschools.org",
+    "detail": "MX: psdschools-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "felipe.vergara@zocalodevelopment.com",
+    "status": "valid",
+    "domain": "zocalodevelopment.com",
+    "detail": "MX: zocalodevelopment-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "felipem@dpr.com",
+    "status": "valid",
+    "domain": "dpr.com",
+    "detail": "MX: mx1.hc6294-7.iphmx.com, mx2.hc6294-7.iphmx.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "flipg@shaefferhyde.com",
+    "status": "valid",
+    "domain": "shaefferhyde.com",
+    "detail": "MX: shaefferhyde-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "fmadera@fdcorp.com",
+    "status": "valid",
+    "domain": "fdcorp.com",
+    "detail": "MX: fdcorp-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "fraleyj@yumaschools.net",
+    "status": "valid",
+    "domain": "yumaschools.net",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "frank.brennan@ngcgroupinc.com",
+    "status": "valid",
+    "domain": "ngcgroupinc.com",
+    "detail": "MX: ngcgroupinc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "gabriel_ramos@cargill.com",
+    "status": "valid",
+    "domain": "cargill.com",
+    "detail": "MX: mxa-001c3202.gslb.pphosted.com, mxb-001c3202.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "pphosted"
+  },
+  {
+    "email": "gary_ingram@nps.gov",
+    "status": "valid",
+    "domain": "nps.gov",
+    "detail": "MX: nps-gov.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "gdelahoy@pcl.com",
+    "status": "valid",
+    "domain": "pcl.com",
+    "detail": "MX: pcl-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "gebhart_m@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "geraldine.patrone@pueblocityschools.us",
+    "status": "valid",
+    "domain": "pueblocityschools.us",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "gianna.castoria@scienceandtech.org",
+    "status": "valid",
+    "domain": "scienceandtech.org",
+    "detail": "MX: scienceandtech-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "gina.perez@asd20.org",
+    "status": "valid",
+    "domain": "asd20.org",
+    "detail": "MX: asd20-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "glendy.calderon@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "gordon.pritz@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "grayson.godwin@swinerton.com",
+    "status": "valid",
+    "domain": "swinerton.com",
+    "detail": "MX: swinerton-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "grayson@bigvalleyconstruction.com",
+    "status": "valid",
+    "domain": "bigvalleyconstruction.com",
+    "detail": "MX: bigvalleyconstruction-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "gregory.freel@haskell.com",
+    "status": "valid",
+    "domain": "haskell.com",
+    "detail": "MX: haskell-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "gthompson@ssd2.org",
+    "status": "valid",
+    "domain": "ssd2.org",
+    "detail": "MX: ssd2-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "gvidal@a-p.com",
+    "status": "valid",
+    "domain": "a-p.com",
+    "detail": "MX: ap-com0c.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "hartman_s@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "hartman_s@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "heather.ayluardo@dsstpublicschools.org",
+    "status": "valid",
+    "domain": "dsstpublicschools.org",
+    "detail": "MX: dsstpublicschools-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "heidi.curoe@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "hgonzalez@keeleyconstruction.com",
+    "status": "valid",
+    "domain": "keeleyconstruction.com",
+    "detail": "MX: keeleyconstruction-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "hoffmana@wsd3.org",
+    "status": "valid",
+    "domain": "wsd3.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "hogan_e@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "hschreiner@fciol.com",
+    "status": "valid",
+    "domain": "fciol.com",
+    "detail": "MX: fciol-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "iolson@psdschools.org",
+    "status": "valid",
+    "domain": "psdschools.org",
+    "detail": "MX: psdschools-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "j.bridgman@saundersinc.com",
+    "status": "valid",
+    "domain": "saundersinc.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "j.martinez@saundersinc.com",
+    "status": "valid",
+    "domain": "saundersinc.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "j.owens@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "jack@workshop-colorado.com",
+    "status": "valid",
+    "domain": "workshop-colorado.com",
+    "detail": "MX: d253226a.ess.barracudanetworks.com, d253226b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "jacksonc@mckinstry.com",
+    "status": "valid",
+    "domain": "mckinstry.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "jacob.nowlan@dnllc.com",
+    "status": "valid",
+    "domain": "dnllc.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "jacquelin.medina@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "jake.january@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "jake.peckham@pgarnold.com",
+    "status": "valid",
+    "domain": "pgarnold.com",
+    "detail": "MX: pgarnold-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "james.fryxell@catamountinc.com",
+    "status": "valid",
+    "domain": "catamountinc.com",
+    "detail": "MX: catamountinc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jane.brand@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "janelle.maynard@weitz.com",
+    "status": "valid",
+    "domain": "weitz.com",
+    "detail": "MX: mxa-0039f201.gslb.pphosted.com, mxb-0039f201.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "pphosted"
+  },
+  {
+    "email": "jarvizo@i2construction.com",
+    "status": "valid",
+    "domain": "i2construction.com",
+    "detail": "MX: d326045a.ess.barracudanetworks.com, d326045b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "jason.koester@sjdenver.org",
+    "status": "valid",
+    "domain": "sjdenver.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "javinbaker@district70.org",
+    "status": "valid",
+    "domain": "district70.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "jberglin@a-p.com",
+    "status": "valid",
+    "domain": "a-p.com",
+    "detail": "MX: ap-com0c.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jbranham@swinerton.com",
+    "status": "valid",
+    "domain": "swinerton.com",
+    "detail": "MX: swinerton-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jcarreon@weoneil.com",
+    "status": "valid",
+    "domain": "weoneil.com",
+    "detail": "MX: weoneil-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jchaplain@psdschools.org",
+    "status": "valid",
+    "domain": "psdschools.org",
+    "detail": "MX: psdschools-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "jdaugherty@epic-construction.com",
+    "status": "valid",
+    "domain": "epic-construction.com",
+    "detail": "MX: epicconstruction-com01b.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jean.kavanagh@dsstpublicschools.org",
+    "status": "valid",
+    "domain": "dsstpublicschools.org",
+    "detail": "MX: dsstpublicschools-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "jeanice.swift@d11.org",
+    "status": "valid",
+    "domain": "d11.org",
+    "detail": "MX: mxa-00034603.gslb.pphosted.com, mxb-00034603.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "jeff.allen@mccauleyconstructors.com",
+    "status": "valid",
+    "domain": "mccauleyconstructors.com",
+    "detail": "MX: mail.mccauleyconstructors.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "jeff.clampitt@woodpartners.com",
+    "status": "valid",
+    "domain": "woodpartners.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "jengel@a-p.com",
+    "status": "valid",
+    "domain": "a-p.com",
+    "detail": "MX: ap-com0c.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jennifer.brown@asd20.org",
+    "status": "valid",
+    "domain": "asd20.org",
+    "detail": "MX: asd20-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "jennifer.hinkle@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "jenny@dsstpublicschools.org",
+    "status": "valid",
+    "domain": "dsstpublicschools.org",
+    "detail": "MX: dsstpublicschools-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "jeremiah.villalobos@kiewit.com",
+    "status": "valid",
+    "domain": "kiewit.com",
+    "detail": "MX: kiewit-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jeremy.bailey@brookfieldrp.com",
+    "status": "valid",
+    "domain": "brookfieldrp.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "jeremy.witthuhn@millstoneweber.com",
+    "status": "valid",
+    "domain": "millstoneweber.com",
+    "detail": "MX: millstoneweber-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jessica@worked.com",
+    "status": "valid",
+    "domain": "worked.com",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "jgotto@wps.org",
+    "status": "valid",
+    "domain": "wps.org",
+    "detail": "MX: usb-smtp-inbound-1.mimecast.com, usb-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "mimecast"
+  },
+  {
+    "email": "jhampton@jhlconstructors.com",
+    "status": "valid",
+    "domain": "jhlconstructors.com",
+    "detail": "MX: jhlconstructors-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jhieb@jhlconstructors.com",
+    "status": "valid",
+    "domain": "jhlconstructors.com",
+    "detail": "MX: jhlconstructors-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jhillman@fciol.com",
+    "status": "valid",
+    "domain": "fciol.com",
+    "detail": "MX: fciol-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jhonatanreyes@pcl.com",
+    "status": "valid",
+    "domain": "pcl.com",
+    "detail": "MX: pcl-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jim.milam@mwhconstructors.com",
+    "status": "valid",
+    "domain": "mwhconstructors.com",
+    "detail": "MX: mwhconstructors-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jinger.haberer@asd20.org",
+    "status": "valid",
+    "domain": "asd20.org",
+    "detail": "MX: asd20-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "jiron-garcia_s@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "jjmlsna@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "jjohannesen@i2construction.com",
+    "status": "valid",
+    "domain": "i2construction.com",
+    "detail": "MX: d326045a.ess.barracudanetworks.com, d326045b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "jkoslosky@harveycleary.com",
+    "status": "valid",
+    "domain": "harveycleary.com",
+    "detail": "MX: harveycleary-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jlamb@flatironcorp.com",
+    "status": "valid",
+    "domain": "flatironcorp.com",
+    "detail": "MX: flatironcorp-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jmackling@pcl.com",
+    "status": "valid",
+    "domain": "pcl.com",
+    "detail": "MX: pcl-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jmalisani@a-p.com",
+    "status": "valid",
+    "domain": "a-p.com",
+    "detail": "MX: ap-com0c.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jmcintire@pcl.com",
+    "status": "valid",
+    "domain": "pcl.com",
+    "detail": "MX: pcl-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jmontoya@whitecg.com",
+    "status": "valid",
+    "domain": "whitecg.com",
+    "detail": "MX: whitecg-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jnekl@blattnerenergy.com",
+    "status": "valid",
+    "domain": "blattnerenergy.com",
+    "detail": "MX: blattnerenergy-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jnelson@gunnisonschools.net",
+    "status": "valid",
+    "domain": "gunnisonschools.net",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "joanna_polzin@engschools.net",
+    "status": "valid",
+    "domain": "engschools.net",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "jodum@bransonschoolonline.com",
+    "status": "valid",
+    "domain": "bransonschoolonline.com",
+    "detail": "MX: aspmx.l.google.com, alt3.aspmx.l.google.com, alt4.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "jody.cameron@d11.org",
+    "status": "valid",
+    "domain": "d11.org",
+    "detail": "MX: mxa-00034603.gslb.pphosted.com, mxb-00034603.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "joe.brenkert@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "joe.kirkendall@mdacsms.com",
+    "status": "valid",
+    "domain": "mdacsms.com",
+    "detail": "MX: mdacsms-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "joeyr@atswelding.com",
+    "status": "valid",
+    "domain": "atswelding.com",
+    "detail": "MX: atswelding-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "johnson_r@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "jonah.manson@opus-group.com",
+    "status": "valid",
+    "domain": "opus-group.com",
+    "detail": "MX: mx1.hc6783-81.iphmx.com, mx2.hc6783-81.iphmx.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "jonclark@fransenpittman.com",
+    "status": "valid",
+    "domain": "fransenpittman.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "jonetted@psdschools.org",
+    "status": "valid",
+    "domain": "psdschools.org",
+    "detail": "MX: psdschools-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "jordanvickers@haselden.com",
+    "status": "valid",
+    "domain": "haselden.com",
+    "detail": "MX: haselden-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "joshua.nosan@flintco.com",
+    "status": "valid",
+    "domain": "flintco.com",
+    "detail": "MX: flintco-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "joshua@i-kota.com",
+    "status": "valid",
+    "domain": "i-kota.com",
+    "detail": "MX: mx1-us1.ppe-hosted.com, mx2-us1.ppe-hosted.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "jpalomeque@wwclyde.net",
+    "status": "valid",
+    "domain": "wwclyde.net",
+    "detail": "MX: wwclyde-net.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jperry5@cherrycreekschools.org",
+    "status": "valid",
+    "domain": "cherrycreekschools.org",
+    "detail": "MX: d146248a.ess.barracudanetworks.com, d146248b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "barracuda"
+  },
+  {
+    "email": "jpotter@pcl.com",
+    "status": "valid",
+    "domain": "pcl.com",
+    "detail": "MX: pcl-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jrugani@teachlikeachampion.org",
+    "status": "valid",
+    "domain": "teachlikeachampion.org",
+    "detail": "MX: teachlikeachampion-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "jschatz@lewispalmer.org",
+    "status": "valid",
+    "domain": "lewispalmer.org",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "mimecast"
+  },
+  {
+    "email": "jsciacca@skimonarch.com",
+    "status": "valid",
+    "domain": "skimonarch.com",
+    "detail": "MX: skimonarch-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jspence@pcl.com",
+    "status": "valid",
+    "domain": "pcl.com",
+    "detail": "MX: pcl-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jsteele@jeffco.k12.co.us",
+    "status": "valid",
+    "domain": "jeffco.k12.co.us",
+    "detail": "MX: mxa-00261101.gslb.pphosted.com, mxb-00261101.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "jstephens@st-annes.org",
+    "status": "valid",
+    "domain": "st-annes.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "judson_stacy@svvsd.org",
+    "status": "valid",
+    "domain": "svvsd.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "julia.roark@d49.org",
+    "status": "valid",
+    "domain": "d49.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "julie.mclean@jeffco.k12.co.us",
+    "status": "valid",
+    "domain": "jeffco.k12.co.us",
+    "detail": "MX: mxa-00261101.gslb.pphosted.com, mxb-00261101.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "justin.smith@millstoneweber.com",
+    "status": "valid",
+    "domain": "millstoneweber.com",
+    "detail": "MX: millstoneweber-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jwayman@gmcs.org",
+    "status": "valid",
+    "domain": "gmcs.org",
+    "detail": "MX: mx1.hc5907-40.iphmx.com, mx2.hc5907-40.iphmx.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "jwermerskirchen@swinerton.com",
+    "status": "valid",
+    "domain": "swinerton.com",
+    "detail": "MX: swinerton-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jwirt@epsd.org",
+    "status": "valid",
+    "domain": "epsd.org",
+    "detail": "MX: epsd-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "jwitczak@arcisgolf.com",
+    "status": "valid",
+    "domain": "arcisgolf.com",
+    "detail": "MX: arcisgolf-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "jwoodward@henselphelps.com",
+    "status": "valid",
+    "domain": "henselphelps.com",
+    "detail": "MX: mail3.henselphelps.com, mail4.henselphelps.com, mail5.henselphelps.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "jwright@iwrna.com",
+    "status": "valid",
+    "domain": "iwrna.com",
+    "detail": "MX: iwrna-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "kapushion_jackie@svvsd.org",
+    "status": "valid",
+    "domain": "svvsd.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "karen@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "kate.monteith@cccs.edu",
+    "status": "valid",
+    "domain": "cccs.edu",
+    "detail": "MX: cccs-edu.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "katherine.myers@thompsonschools.org",
+    "status": "valid",
+    "domain": "thompsonschools.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "kblank@bahagc.com",
+    "status": "valid",
+    "domain": "bahagc.com",
+    "detail": "MX: bahagc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "kbryan@swinerton.com",
+    "status": "valid",
+    "domain": "swinerton.com",
+    "detail": "MX: swinerton-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "kcheser@durangoschools.org",
+    "status": "valid",
+    "domain": "durangoschools.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "kchristiansen@thompsonthrift.com",
+    "status": "valid",
+    "domain": "thompsonthrift.com",
+    "detail": "MX: mx1-us1.ppe-hosted.com, mx2-us1.ppe-hosted.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "unknown"
+  },
+  {
+    "email": "kclanton@swinerton.com",
+    "status": "valid",
+    "domain": "swinerton.com",
+    "detail": "MX: swinerton-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "kct@lakecityschool.org",
+    "status": "valid",
+    "domain": "lakecityschool.org",
+    "detail": "MX: alt1.aspmx.l.google.com, alt2.aspmx.l.google.com, aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "kcubbage@golftec.com",
+    "status": "valid",
+    "domain": "golftec.com",
+    "detail": "MX: east.smtp.mx.o365.serverdata.net (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "kdigiaco@usc.edu",
+    "status": "valid",
+    "domain": "usc.edu",
+    "detail": "MX: mx0a-00164701.pphosted.com, mx0b-00164701.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "kellym@taylorkohrs.com",
+    "status": "valid",
+    "domain": "taylorkohrs.com",
+    "detail": "MX: mx1-us1.ppe-hosted.com, mx2-us1.ppe-hosted.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "kenburger@beckgroup.com",
+    "status": "valid",
+    "domain": "beckgroup.com",
+    "detail": "MX: d53443a.ess.barracudanetworks.com, d53443b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "ketzer_lucas@dpsk12.org",
+    "status": "valid",
+    "domain": "dpsk12.org",
+    "detail": "MX: mxa-00315903.gslb.pphosted.com, mxb-00315903.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "kevin.copher@weldre4.org",
+    "status": "valid",
+    "domain": "weldre4.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "kgruber@fransenpittman.com",
+    "status": "valid",
+    "domain": "fransenpittman.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "kimberly.stalcup@pinnaclecharterschool.org",
+    "status": "valid",
+    "domain": "pinnaclecharterschool.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "kjohnson@ccu.edu",
+    "status": "valid",
+    "domain": "ccu.edu",
+    "detail": "MX: mxa-004f2901.gslb.pphosted.com, mxb-004f2901.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "klitzau@pebc.org",
+    "status": "valid",
+    "domain": "pebc.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "klreuss@coloradomesa.edu",
+    "status": "valid",
+    "domain": "coloradomesa.edu",
+    "detail": "MX: coloradomesa-edu.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "kmcclure@lprconstruction.com",
+    "status": "valid",
+    "domain": "lprconstruction.com",
+    "detail": "MX: lprconstruction-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "kmccullough@bryanconstruction.com",
+    "status": "valid",
+    "domain": "bryanconstruction.com",
+    "detail": "MX: bryanconstruction-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "kmsodarojensen@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "kosek@gejohnson.com",
+    "status": "valid",
+    "domain": "gejohnson.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "krogers@hsd2.org",
+    "status": "valid",
+    "domain": "hsd2.org",
+    "detail": "MX: usb-smtp-inbound-1.mimecast.com, usb-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "mimecast"
+  },
+  {
+    "email": "krussell@mazzucacontracting.com",
+    "status": "valid",
+    "domain": "mazzucacontracting.com",
+    "detail": "MX: mazzucacontracting-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "krystal.rasmussen@d11.org",
+    "status": "valid",
+    "domain": "d11.org",
+    "detail": "MX: mxa-00034603.gslb.pphosted.com, mxb-00034603.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "kthompson@catamountinc.com",
+    "status": "valid",
+    "domain": "catamountinc.com",
+    "detail": "MX: catamountinc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "ktischler@icicolorado.com",
+    "status": "valid",
+    "domain": "icicolorado.com",
+    "detail": "MX: icicolorado-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "kurts@taylorkohrs.com",
+    "status": "valid",
+    "domain": "taylorkohrs.com",
+    "detail": "MX: mx1-us1.ppe-hosted.com, mx2-us1.ppe-hosted.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "kylenelson@powerdesigninc.us",
+    "status": "valid",
+    "domain": "powerdesigninc.us",
+    "detail": "MX: powerdesigninc-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "larry.lyder@swink.k12.co.us",
+    "status": "valid",
+    "domain": "swink.k12.co.us",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "lauren.lacomb@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "lauren.mohoric@d11.org",
+    "status": "valid",
+    "domain": "d11.org",
+    "detail": "MX: mxa-00034603.gslb.pphosted.com, mxb-00034603.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "lauren.szczesny@aspenacademy.org",
+    "status": "valid",
+    "domain": "aspenacademy.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "lchance@ccu.edu",
+    "status": "valid",
+    "domain": "ccu.edu",
+    "detail": "MX: mxa-004f2901.gslb.pphosted.com, mxb-004f2901.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "ldickerman@a-p.com",
+    "status": "valid",
+    "domain": "a-p.com",
+    "detail": "MX: ap-com0c.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "lee.collins@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "lfiedler@fransenpittman.com",
+    "status": "valid",
+    "domain": "fransenpittman.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "lfoley@mcrtrust.com",
+    "status": "valid",
+    "domain": "mcrtrust.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "lgrissom@psdschools.org",
+    "status": "valid",
+    "domain": "psdschools.org",
+    "detail": "MX: psdschools-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "lhorva@hsd2.org",
+    "status": "valid",
+    "domain": "hsd2.org",
+    "detail": "MX: usb-smtp-inbound-1.mimecast.com, usb-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "mimecast"
+  },
+  {
+    "email": "lindsey.gish@scienceandtech.org",
+    "status": "valid",
+    "domain": "scienceandtech.org",
+    "detail": "MX: scienceandtech-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "link_k@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "lisa.cannon@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "lisa.medler@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "lisa@socialstudiessuccess.com",
+    "status": "valid",
+    "domain": "socialstudiessuccess.com",
+    "detail": "MX: mail.techsurgeons.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "ljones@lps.k12.co.us",
+    "status": "valid",
+    "domain": "lps.k12.co.us",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "lolin@bc-builders.com",
+    "status": "valid",
+    "domain": "bc-builders.com",
+    "detail": "MX: d249423a.ess.barracudanetworks.com, d249423b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "lora.delacruz@bvsd.org",
+    "status": "valid",
+    "domain": "bvsd.org",
+    "detail": "MX: mxa-0053b301.gslb.pphosted.com, mxb-0053b301.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "lori.smith@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "lrossback@durangoschools.org",
+    "status": "valid",
+    "domain": "durangoschools.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "lspruce@hsd2.org",
+    "status": "valid",
+    "domain": "hsd2.org",
+    "detail": "MX: usb-smtp-inbound-1.mimecast.com, usb-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "mimecast"
+  },
+  {
+    "email": "luis@mayaconsultingllc.com",
+    "status": "valid",
+    "domain": "mayaconsultingllc.com",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "lyn.gorrindo@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "lyon_jennifer@svvsd.org",
+    "status": "valid",
+    "domain": "svvsd.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "m.cody@brushschools.org",
+    "status": "valid",
+    "domain": "brushschools.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "m.dziedzic@saundersinc.com",
+    "status": "valid",
+    "domain": "saundersinc.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "m.vaidyanath@saundersinc.com",
+    "status": "valid",
+    "domain": "saundersinc.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "madcock@jhlconstructors.com",
+    "status": "valid",
+    "domain": "jhlconstructors.com",
+    "detail": "MX: jhlconstructors-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "mallorya@mapleton.us",
+    "status": "valid",
+    "domain": "mapleton.us",
+    "detail": "MX: mapleton-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "marci.appleton@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "margaret.kirkpatrick@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "martinez_r@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "mary.gomez@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "mary.guinn@d49.org",
+    "status": "valid",
+    "domain": "d49.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "mary.renton@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "mathew.neal@moffatsd.org",
+    "status": "valid",
+    "domain": "moffatsd.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "matt.gorsuch@charteredcompanies.com",
+    "status": "valid",
+    "domain": "charteredcompanies.com",
+    "detail": "MX: charteredcompanies-com.inbound.emailservice.io, charteredcompanies-com.inbound.emailservice.cc, charteredcompanies-com.inbound.emailservice.co (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "unknown"
+  },
+  {
+    "email": "matt@pmgconstruction.com",
+    "status": "valid",
+    "domain": "pmgconstruction.com",
+    "detail": "MX: aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "matthew.jones@eagleschools.net",
+    "status": "valid",
+    "domain": "eagleschools.net",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "mbashaw@a-p.com",
+    "status": "valid",
+    "domain": "a-p.com",
+    "detail": "MX: ap-com0c.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "mcmullenr@limonbadgers.com",
+    "status": "valid",
+    "domain": "limonbadgers.com",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "mcquadepaul@saddlebackgolf.com",
+    "status": "valid",
+    "domain": "saddlebackgolf.com",
+    "detail": "MX: saddlebackgolf-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "mdickson@tcco.com",
+    "status": "valid",
+    "domain": "tcco.com",
+    "detail": "MX: tcco-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "melder@rmsel.org",
+    "status": "valid",
+    "domain": "rmsel.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "melisa.rewold-thuon@eagleschools.net",
+    "status": "valid",
+    "domain": "eagleschools.net",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "melissa.houston@us.af.mil",
+    "status": "valid",
+    "domain": "us.af.mil",
+    "detail": "MX: pri-usaf-eemsg.eemsg.mail.mil, pri-nipr.eemsg.mail.mil, sec-nipr.eemsg.mail.mil (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "meyer_jeremy@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "mgiles@aurorak12.org",
+    "status": "valid",
+    "domain": "aurorak12.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "mhazelton@epsd.org",
+    "status": "valid",
+    "domain": "epsd.org",
+    "detail": "MX: epsd-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "michael.champion.3@us.af.mil",
+    "status": "valid",
+    "domain": "us.af.mil",
+    "detail": "MX: pri-usaf-eemsg.eemsg.mail.mil, pri-nipr.eemsg.mail.mil, sec-nipr.eemsg.mail.mil (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "michael.gaal@d11.org",
+    "status": "valid",
+    "domain": "d11.org",
+    "detail": "MX: mxa-00034603.gslb.pphosted.com, mxb-00034603.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "mike.lams@sheahomes.com",
+    "status": "valid",
+    "domain": "sheahomes.com",
+    "detail": "MX: sheahomes-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "mikel.wiley@scoutep.com",
+    "status": "valid",
+    "domain": "scoutep.com",
+    "detail": "MX: mx1.hc4070-49.iphmx.com, mx2.hc4070-49.iphmx.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "mj.kamin@jedunn.com",
+    "status": "valid",
+    "domain": "jedunn.com",
+    "detail": "MX: mxa-00000401.gslb.pphosted.com, mxb-00000401.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "mkorus@ssccolorado.com",
+    "status": "valid",
+    "domain": "ssccolorado.com",
+    "detail": "MX: ssccolorado-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "mlangiewicz@drhorton.com",
+    "status": "valid",
+    "domain": "drhorton.com",
+    "detail": "MX: prpt.drhorton.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "mlee@diesslinstructures.com",
+    "status": "valid",
+    "domain": "diesslinstructures.com",
+    "detail": "MX: diesslinstructures-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "mmcbride@fciol.com",
+    "status": "valid",
+    "domain": "fciol.com",
+    "detail": "MX: fciol-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "mmcmahon@fciol.com",
+    "status": "valid",
+    "domain": "fciol.com",
+    "detail": "MX: fciol-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "motero@arcomurray.com",
+    "status": "valid",
+    "domain": "arcomurray.com",
+    "detail": "MX: arcomurray-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "mstiffler@allresco.com",
+    "status": "valid",
+    "domain": "allresco.com",
+    "detail": "MX: allresco-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "mzalmai@laytonconstruction.com",
+    "status": "valid",
+    "domain": "laytonconstruction.com",
+    "detail": "MX: laytonconstruction-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "mzehner@hsd2.org",
+    "status": "valid",
+    "domain": "hsd2.org",
+    "detail": "MX: usb-smtp-inbound-1.mimecast.com, usb-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "mimecast"
+  },
+  {
+    "email": "nathan_souder@nps.gov",
+    "status": "valid",
+    "domain": "nps.gov",
+    "detail": "MX: nps-gov.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "nburgard@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "nelson.dubon@scienceandtech.org",
+    "status": "valid",
+    "domain": "scienceandtech.org",
+    "detail": "MX: scienceandtech-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "nhentges@pcl.com",
+    "status": "valid",
+    "domain": "pcl.com",
+    "detail": "MX: pcl-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "nlemmond@d49.org",
+    "status": "valid",
+    "domain": "d49.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "nsauer@randcc.com",
+    "status": "valid",
+    "domain": "randcc.com",
+    "detail": "MX: randcc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "obrien_jennifer@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "p.dees@saundersinc.com",
+    "status": "valid",
+    "domain": "saundersinc.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "pablo@deneuveconstruction.com",
+    "status": "valid",
+    "domain": "deneuveconstruction.com",
+    "detail": "MX: deneuveconstruction-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "paga_p@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "patricia.tritt@amr.net",
+    "status": "valid",
+    "domain": "amr.net",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "paul.f@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "pcribari@cherrycreekschools.org",
+    "status": "valid",
+    "domain": "cherrycreekschools.org",
+    "detail": "MX: d146248a.ess.barracudanetworks.com, d146248b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "barracuda"
+  },
+  {
+    "email": "pdieters@fciol.com",
+    "status": "valid",
+    "domain": "fciol.com",
+    "detail": "MX: fciol-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "perfettideany_dina@svvsd.org",
+    "status": "valid",
+    "domain": "svvsd.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "pete.waller@zocalodevelopment.com",
+    "status": "valid",
+    "domain": "zocalodevelopment.com",
+    "detail": "MX: zocalodevelopment-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "phagerty@snyderbuilding.com",
+    "status": "valid",
+    "domain": "snyderbuilding.com",
+    "detail": "MX: snyderbuilding-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "philip.qualman@eagleschools.net",
+    "status": "valid",
+    "domain": "eagleschools.net",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "philts@d49.org",
+    "status": "valid",
+    "domain": "d49.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "pkasper@dolores.k12.co.us",
+    "status": "valid",
+    "domain": "dolores.k12.co.us",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, ms26347186.msv1.invalid.outlook.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "pkemmesat@bristleconeconstruction.com",
+    "status": "valid",
+    "domain": "bristleconeconstruction.com",
+    "detail": "MX: bristleconeconstruction-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "pnuber@golftec.com",
+    "status": "valid",
+    "domain": "golftec.com",
+    "detail": "MX: east.smtp.mx.o365.serverdata.net (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "proach@sonnenalp.com",
+    "status": "valid",
+    "domain": "sonnenalp.com",
+    "detail": "MX: sonnenalp-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "quitter_k@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "ramiroa@westernspecialtycontractors.com",
+    "status": "valid",
+    "domain": "westernspecialtycontractors.com",
+    "detail": "MX: d180954a.ess.barracudanetworks.com, d180954b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "rbarros@pcl.com",
+    "status": "valid",
+    "domain": "pcl.com",
+    "detail": "MX: pcl-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "rbrown@markyoungconstruction.com",
+    "status": "valid",
+    "domain": "markyoungconstruction.com",
+    "detail": "MX: d323831a.ess.barracudanetworks.com, d323831b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "rbrown@vertixbuilders.com",
+    "status": "valid",
+    "domain": "vertixbuilders.com",
+    "detail": "MX: vertixbuilders-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "rdenileon@treehousebuilds.com",
+    "status": "valid",
+    "domain": "treehousebuilds.com",
+    "detail": "MX: treehousebuilds-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "rebecca.bradley@topgolf.com",
+    "status": "valid",
+    "domain": "topgolf.com",
+    "detail": "MX: mxa-00739501.gslb.pphosted.com, mxb-00739501.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "pphosted"
+  },
+  {
+    "email": "reggie.sanchez@topgolf.com",
+    "status": "valid",
+    "domain": "topgolf.com",
+    "detail": "MX: mxa-00739501.gslb.pphosted.com, mxb-00739501.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "pphosted"
+  },
+  {
+    "email": "rgiglia@tcco.com",
+    "status": "valid",
+    "domain": "tcco.com",
+    "detail": "MX: tcco-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "riley_b@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "rking@gables.com",
+    "status": "valid",
+    "domain": "gables.com",
+    "detail": "MX: gables-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "rlovato@lajunta.k12.co.us",
+    "status": "valid",
+    "domain": "lajunta.k12.co.us",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "rnilsson@lps.k12.co.us",
+    "status": "valid",
+    "domain": "lps.k12.co.us",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "rob.anderson@bvsd.org",
+    "status": "valid",
+    "domain": "bvsd.org",
+    "detail": "MX: mxa-0053b301.gslb.pphosted.com, mxb-0053b301.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "robert.felice@d49.org",
+    "status": "valid",
+    "domain": "d49.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "robinp@bsd29j.com",
+    "status": "valid",
+    "domain": "bsd29j.com",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "roice.hanks@jedunn.com",
+    "status": "valid",
+    "domain": "jedunn.com",
+    "detail": "MX: mxa-00000401.gslb.pphosted.com, mxb-00000401.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "rons@cadregc.com",
+    "status": "valid",
+    "domain": "cadregc.com",
+    "detail": "MX: cadregc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "roy.schoen@neenan.com",
+    "status": "valid",
+    "domain": "neenan.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "rpilbeam@jhlconstructors.com",
+    "status": "valid",
+    "domain": "jhlconstructors.com",
+    "detail": "MX: jhlconstructors-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "rqario@prizmes.com",
+    "status": "valid",
+    "domain": "prizmes.com",
+    "detail": "MX: d347124a.ess.barracudanetworks.com, d347124b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "rropken@vertixbuilders.com",
+    "status": "valid",
+    "domain": "vertixbuilders.com",
+    "detail": "MX: vertixbuilders-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "rskrbina@pcl.com",
+    "status": "valid",
+    "domain": "pcl.com",
+    "detail": "MX: pcl-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "rthomas@harwest.com",
+    "status": "valid",
+    "domain": "harwest.com",
+    "detail": "MX: harwest-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "ruven.stein@msccinc.com",
+    "status": "valid",
+    "domain": "msccinc.com",
+    "detail": "MX: msccinc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "rwadsworth@skybluebuilders.com",
+    "status": "valid",
+    "domain": "skybluebuilders.com",
+    "detail": "MX: mx1-us1.ppe-hosted.com, mx2-us1.ppe-hosted.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "ryan.mondragon@kiewit.com",
+    "status": "valid",
+    "domain": "kiewit.com",
+    "detail": "MX: kiewit-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "saeed_shane@svvsd.org",
+    "status": "valid",
+    "domain": "svvsd.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "sallen@mwgolden.com",
+    "status": "valid",
+    "domain": "mwgolden.com",
+    "detail": "MX: mwgolden-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "sam.burgess@barnard-inc.com",
+    "status": "valid",
+    "domain": "barnard-inc.com",
+    "detail": "MX: barnardinc-com01i.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "sandra.pilcher@ppsel.org",
+    "status": "valid",
+    "domain": "ppsel.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "sarah.mattison@bvsd.org",
+    "status": "valid",
+    "domain": "bvsd.org",
+    "detail": "MX: mxa-0053b301.gslb.pphosted.com, mxb-0053b301.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "sarah.scott@d11.org",
+    "status": "valid",
+    "domain": "d11.org",
+    "detail": "MX: mxa-00034603.gslb.pphosted.com, mxb-00034603.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "sarah@vault-prep.com",
+    "status": "valid",
+    "domain": "vault-prep.com",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "sbarlow@howelldenver.com",
+    "status": "valid",
+    "domain": "howelldenver.com",
+    "detail": "MX: HowellDenver-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "sbenjamin@hanoverhornets.org",
+    "status": "valid",
+    "domain": "hanoverhornets.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "sbudzon@district70.org",
+    "status": "valid",
+    "domain": "district70.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "scarlson@calconci.com",
+    "status": "valid",
+    "domain": "calconci.com",
+    "detail": "MX: mx1-us1.ppe-hosted.com, mx2-us1.ppe-hosted.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "sclark@drhorton.com",
+    "status": "valid",
+    "domain": "drhorton.com",
+    "detail": "MX: prpt.drhorton.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "scline@golftec.com",
+    "status": "valid",
+    "domain": "golftec.com",
+    "detail": "MX: east.smtp.mx.o365.serverdata.net (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "scoopwood@tcco.com",
+    "status": "valid",
+    "domain": "tcco.com",
+    "detail": "MX: tcco-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "scott.lebel@superiorrow.com",
+    "status": "valid",
+    "domain": "superiorrow.com",
+    "detail": "MX: superiorrow-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "scott.nielsen@weldre5j.org",
+    "status": "valid",
+    "domain": "weldre5j.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "scott@oldmixonco.com",
+    "status": "valid",
+    "domain": "oldmixonco.com",
+    "detail": "MX: mx1-us1.ppe-hosted.com, mx2-us1.ppe-hosted.com, ALT2.ASPMX.L.GOOGLE.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "sdavidson@auroraacademycharter.com",
+    "status": "valid",
+    "domain": "auroraacademycharter.com",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "sean.skaggs@jedunn.com",
+    "status": "valid",
+    "domain": "jedunn.com",
+    "detail": "MX: mxa-00000401.gslb.pphosted.com, mxb-00000401.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "seth@terrafirmacustomhomes.com",
+    "status": "valid",
+    "domain": "terrafirmacustomhomes.com",
+    "detail": "MX: terrafirmacustomhomes-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "sethkor@haselden.com",
+    "status": "valid",
+    "domain": "haselden.com",
+    "detail": "MX: haselden-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "sethv@cadregc.com",
+    "status": "valid",
+    "domain": "cadregc.com",
+    "detail": "MX: cadregc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "shalee@steamboatfamilydoc.com",
+    "status": "valid",
+    "domain": "steamboatfamilydoc.com",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "sharon.triolo-moloney@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "shawn@montarebuilders.com",
+    "status": "valid",
+    "domain": "montarebuilders.com",
+    "detail": "MX: montarebuilders-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "shelby.foster@bnbuilders.com",
+    "status": "valid",
+    "domain": "bnbuilders.com",
+    "detail": "MX: d91902a.ess.barracudanetworks.com, d91902b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "shenderson@hansenconst.com",
+    "status": "valid",
+    "domain": "hansenconst.com",
+    "detail": "MX: hansenconst-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "shenola.kilby@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "shodgson@sargent.k12.co.us",
+    "status": "valid",
+    "domain": "sargent.k12.co.us",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "sipochri@cscslions.org",
+    "status": "valid",
+    "domain": "cscslions.org",
+    "detail": "MX: cscslions-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "sjones@fciol.com",
+    "status": "valid",
+    "domain": "fciol.com",
+    "detail": "MX: fciol-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "smasewicz@weldgov.com",
+    "status": "valid",
+    "domain": "weldgov.com",
+    "detail": "MX: mxa-00144202.gslb.pphosted.com, mxb-00144202.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "smctaggart@servicewestinc.com",
+    "status": "valid",
+    "domain": "servicewestinc.com",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "spetersen@asd20.org",
+    "status": "valid",
+    "domain": "asd20.org",
+    "detail": "MX: asd20-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "srichardson@garfieldre2.net",
+    "status": "valid",
+    "domain": "garfieldre2.net",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "sscheer@thompsonschools.org",
+    "status": "valid",
+    "domain": "thompsonschools.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "sstipkovich@tcco.com",
+    "status": "valid",
+    "domain": "tcco.com",
+    "detail": "MX: tcco-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "ssullivan@redrockscountryclub.org",
+    "status": "valid",
+    "domain": "redrockscountryclub.org",
+    "detail": "MX: redrockscountryclub-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "statton_m@cde.state.co.us",
+    "status": "valid",
+    "domain": "cde.state.co.us",
+    "detail": "MX: cde-state-co-us.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "stephenie.b@mortenson.com",
+    "status": "valid",
+    "domain": "mortenson.com",
+    "detail": "MX: mxa-00184201.gslb.pphosted.com, mxb-00184201.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "pphosted"
+  },
+  {
+    "email": "steve.watkins@ghphipps.com",
+    "status": "valid",
+    "domain": "ghphipps.com",
+    "detail": "MX: ghphipps-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "superintendent@bvsd.org",
+    "status": "valid",
+    "domain": "bvsd.org",
+    "detail": "MX: mxa-0053b301.gslb.pphosted.com, mxb-0053b301.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "susan.farr@d11.org",
+    "status": "valid",
+    "domain": "d11.org",
+    "detail": "MX: mxa-00034603.gslb.pphosted.com, mxb-00034603.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "suzanna.alvarado@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "tacker@catamountinc.com",
+    "status": "valid",
+    "domain": "catamountinc.com",
+    "detail": "MX: catamountinc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "tacy.killingsworth@asd20.org",
+    "status": "valid",
+    "domain": "asd20.org",
+    "detail": "MX: asd20-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "outlook"
+  },
+  {
+    "email": "tanya.klein@state.co.us",
+    "status": "valid",
+    "domain": "state.co.us",
+    "detail": "MX: mxa-000dbe01.gslb.pphosted.com, mxb-000dbe01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "taylor.motsenbocker@jordyconstruction.com",
+    "status": "valid",
+    "domain": "jordyconstruction.com",
+    "detail": "MX: d186863a.ess.barracudanetworks.com, d186863b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "taylorwright@haselden.com",
+    "status": "valid",
+    "domain": "haselden.com",
+    "detail": "MX: haselden-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "tbarnhart@jjkllc.com",
+    "status": "valid",
+    "domain": "jjkllc.com",
+    "detail": "MX: jjkllc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "tbarrett@wwclyde.net",
+    "status": "valid",
+    "domain": "wwclyde.net",
+    "detail": "MX: wwclyde-net.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "tbarth@garney.com",
+    "status": "valid",
+    "domain": "garney.com",
+    "detail": "MX: garney-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "tbode@garney.com",
+    "status": "valid",
+    "domain": "garney.com",
+    "detail": "MX: garney-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "teague_tori@svvsd.org",
+    "status": "valid",
+    "domain": "svvsd.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": true,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "teberhardt@fciol.com",
+    "status": "valid",
+    "domain": "fciol.com",
+    "detail": "MX: fciol-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "tgaughan@hyderinc.com",
+    "status": "valid",
+    "domain": "hyderinc.com",
+    "detail": "MX: hyderinc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "thawkins@hsd2.org",
+    "status": "valid",
+    "domain": "hsd2.org",
+    "detail": "MX: usb-smtp-inbound-1.mimecast.com, usb-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "mimecast"
+  },
+  {
+    "email": "thentz@tcco.com",
+    "status": "valid",
+    "domain": "tcco.com",
+    "detail": "MX: tcco-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "timm@dunamis-energy.com",
+    "status": "valid",
+    "domain": "dunamis-energy.com",
+    "detail": "MX: d285979a.ess.barracudanetworks.com, d285979b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "timsortman@haselden.com",
+    "status": "valid",
+    "domain": "haselden.com",
+    "detail": "MX: haselden-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "tjones@dcsdk12.org",
+    "status": "valid",
+    "domain": "dcsdk12.org",
+    "detail": "MX: mxa-00286902.gslb.pphosted.com, mxb-00286902.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "tmcclure@evgre.com",
+    "status": "valid",
+    "domain": "evgre.com",
+    "detail": "MX: evgre-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "tmertz@cityscaperesidential.com",
+    "status": "valid",
+    "domain": "cityscaperesidential.com",
+    "detail": "MX: cityscaperesidential-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "tmulberry@aspenk12.net",
+    "status": "valid",
+    "domain": "aspenk12.net",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "tnaeem@csdb.org",
+    "status": "valid",
+    "domain": "csdb.org",
+    "detail": "MX: d143270a.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "barracuda"
+  },
+  {
+    "email": "toanderson@arcomurray.com",
+    "status": "valid",
+    "domain": "arcomurray.com",
+    "detail": "MX: arcomurray-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "tracy.dorland@jeffco.k12.co.us",
+    "status": "valid",
+    "domain": "jeffco.k12.co.us",
+    "detail": "MX: mxa-00261101.gslb.pphosted.com, mxb-00261101.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "trae.field@whiting-turner.com",
+    "status": "valid",
+    "domain": "whiting-turner.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "trambo@fransenpittman.com",
+    "status": "valid",
+    "domain": "fransenpittman.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "travis.stanley@jedunn.com",
+    "status": "valid",
+    "domain": "jedunn.com",
+    "detail": "MX: mxa-00000401.gslb.pphosted.com, mxb-00000401.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "tredwayl@gejohnson.com",
+    "status": "valid",
+    "domain": "gejohnson.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "trevor@acsseeding.com",
+    "status": "valid",
+    "domain": "acsseeding.com",
+    "detail": "MX: acsseeding-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "trudy.tool@d11.org",
+    "status": "valid",
+    "domain": "d11.org",
+    "detail": "MX: mxa-00034603.gslb.pphosted.com, mxb-00034603.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "pphosted"
+  },
+  {
+    "email": "tschneider@schneidersales.com",
+    "status": "valid",
+    "domain": "schneidersales.com",
+    "detail": "MX: mx2-us1.ppe-hosted.com, mx1-us1.ppe-hosted.com (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "ttraggorth@fciol.com",
+    "status": "valid",
+    "domain": "fciol.com",
+    "detail": "MX: fciol-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "twalker@golftec.com",
+    "status": "valid",
+    "domain": "golftec.com",
+    "detail": "MX: east.smtp.mx.o365.serverdata.net (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "tyler.farley@sampson-construction.com",
+    "status": "valid",
+    "domain": "sampson-construction.com",
+    "detail": "MX: d225816a.ess.barracudanetworks.com, d225816b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "tylerhamilton@beckgroup.com",
+    "status": "valid",
+    "domain": "beckgroup.com",
+    "detail": "MX: d53443a.ess.barracudanetworks.com, d53443b.ess.barracudanetworks.com (provider: barracuda)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "barracuda"
+  },
+  {
+    "email": "valentina@denverlanguageschool.org",
+    "status": "valid",
+    "domain": "denverlanguageschool.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "vdownie@golftec.com",
+    "status": "valid",
+    "domain": "golftec.com",
+    "detail": "MX: east.smtp.mx.o365.serverdata.net (provider: unknown)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "unknown"
+  },
+  {
+    "email": "vnmontoya@pcl.com",
+    "status": "valid",
+    "domain": "pcl.com",
+    "detail": "MX: pcl-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "wafa@continentalcontractors.com",
+    "status": "valid",
+    "domain": "continentalcontractors.com",
+    "detail": "MX: continentalcontractors-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "walpm@gejohnson.com",
+    "status": "valid",
+    "domain": "gejohnson.com",
+    "detail": "MX: us-smtp-inbound-1.mimecast.com, us-smtp-inbound-2.mimecast.com (provider: mimecast)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "mimecast"
+  },
+  {
+    "email": "wpierce@sd27j.net",
+    "status": "valid",
+    "domain": "sd27j.net",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "wwhitaker@weoneil.com",
+    "status": "valid",
+    "domain": "weoneil.com",
+    "detail": "MX: weoneil-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "wwinterling@csigc.com",
+    "status": "valid",
+    "domain": "csigc.com",
+    "detail": "MX: csigc-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "yardingj@concretestrategies.com",
+    "status": "valid",
+    "domain": "concretestrategies.com",
+    "detail": "MX: mxa-001b4c01.gslb.pphosted.com, mxb-001b4c01.gslb.pphosted.com (provider: pphosted)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "pphosted"
+  },
+  {
+    "email": "ybarredo@gseconstruction.com",
+    "status": "valid",
+    "domain": "gseconstruction.com",
+    "detail": "MX: gseconstruction-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "ydurmus@lotusschool.org",
+    "status": "valid",
+    "domain": "lotusschool.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  },
+  {
+    "email": "ylien@dlspto.org",
+    "status": "valid",
+    "domain": "dlspto.org",
+    "detail": "MX: ASPMX.L.GOOGLE.COM, ALT1.ASPMX.L.GOOGLE.COM, ALT2.ASPMX.L.GOOGLE.COM (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "google"
+  },
+  {
+    "email": "zach.spalj@rlwest.org",
+    "status": "valid",
+    "domain": "rlwest.org",
+    "detail": "MX: rlwest-org.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "zalves@swinerton.com",
+    "status": "valid",
+    "domain": "swinerton.com",
+    "detail": "MX: swinerton-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "zavier@botterillx.com",
+    "status": "valid",
+    "domain": "botterillx.com",
+    "detail": "MX: botterillx-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "zfowler@pcl.com",
+    "status": "valid",
+    "domain": "pcl.com",
+    "detail": "MX: pcl-com.mail.protection.outlook.com (provider: outlook)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": false,
+    "provider": "outlook"
+  },
+  {
+    "email": "zfrahn@aurorak12.org",
+    "status": "valid",
+    "domain": "aurorak12.org",
+    "detail": "MX: aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com (provider: google)",
+    "already_sent": false,
+    "known_bounced": false,
+    "is_education": true,
+    "provider": "google"
+  }
+]

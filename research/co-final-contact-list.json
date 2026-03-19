@@ -1,0 +1,1890 @@
+[
+  {
+    "name": "Aaron Hoffman",
+    "email": "aaron.hoffman@wsd3.org",
+    "title": "Superintendent",
+    "organization": "Widefield 3",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Aaron Hoffman",
+    "email": "hoffmana@wsd3.org",
+    "title": "Superintendent",
+    "organization": "Widefield School District 3",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Abby Pettinger",
+    "email": "abby@vilask12.org",
+    "title": "Superintendent",
+    "organization": "Vilas School District RE-5",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Adam Hartman",
+    "email": "adam.hartman@canoncityschools.org",
+    "title": "Superintendent",
+    "organization": "Canon City RE-1",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Alesa Reed",
+    "email": "areed@dolores.k12.co.us",
+    "title": "Superintendent",
+    "organization": "Dolores RE-4A",
+    "source": "scrape_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Alex Marrero",
+    "email": "alex.marrero@dpsk12.org",
+    "title": "Superintendent",
+    "organization": "Denver County 1",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Alex Marrero",
+    "email": "dps_superintendent@dpsk12.org",
+    "title": "Superintendent",
+    "organization": "Denver Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Alisa Schleder",
+    "email": "alisa.schleder@d11.org",
+    "title": "K-12 Curriculum & Instruction Facilitator",
+    "organization": "Colorado Springs School District 11",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Aljean Tucker",
+    "email": "atucker@hsd2.org",
+    "title": "Assisstant Superintendent, Curriculum, Instruction, Assessment",
+    "organization": "Harrison School District 2",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Allison Alter",
+    "email": "aalter@psdschools.org",
+    "title": "Visual Arts Curriculum Facilitator",
+    "organization": "Poudre School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Allyson Mallory",
+    "email": "mallorya@mapleton.us",
+    "title": "Director of Curriculum, Instruction & Professional Development",
+    "organization": "Mapleton Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Amanda Kreiger",
+    "email": "akreiger@psdschools.org",
+    "title": "Director of Curriculum & Instruction",
+    "organization": "Poudre School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Amber Whetstine",
+    "email": "awhetstine@lewispalmer.org",
+    "title": "Superintendent",
+    "organization": "Lewis-Palmer School District 38",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Andrew Abner",
+    "email": "andrew.abner@dcsdk12.org",
+    "title": "Deputy Superintendent",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Anji Gallanos",
+    "email": "agallanos@kakeschools.com",
+    "title": "Superintendent",
+    "organization": "KAKE CITY SCHOOL DISTRICT",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Anna Cole",
+    "email": "acole@rfschools.com",
+    "title": "Superintendent",
+    "organization": "Roaring Fork School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Anthony Martinez",
+    "email": "amartinez1@district70.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "PUEBLO COUNTY SCHOOL DISTRICT 70",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Aryn Henneke",
+    "email": "ar.henneke@goalac.org",
+    "title": "Sr. Director of Curriculum and Support",
+    "organization": "GOAL Academy",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Ashley Brand",
+    "email": "ashley.brand@scienceandtech.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "DSST Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Ashley Lawson",
+    "email": "alawson@wpsdk12.org",
+    "title": "Instructional Resource Teacher/Curriculum Leader",
+    "organization": "Woodland Park School District RE-2",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Audra Lane",
+    "email": "alane@debeque.k12.co.us",
+    "title": "Superintendent",
+    "organization": "Debeque School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Autumn Rosengren",
+    "email": "amrosengren@dcsdk12.org",
+    "title": "Science Curriculum Council Member",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Brad Ray",
+    "email": "brad.ray@egsd.org",
+    "title": "Superintendent",
+    "organization": "East Grand 2",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Brehan Riley",
+    "email": "riley_b@cde.state.co.us",
+    "title": "Executive Director of School Nutrition",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Brent Carswell",
+    "email": "brent.carswell@d11.org",
+    "title": "Online Curriculum Editor",
+    "organization": "Colorado Springs School District 11",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Bret Heller",
+    "email": "bret.heller@thompsonschools.org",
+    "title": "Superintendent",
+    "organization": "Thompson R2-J",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Bret Heller",
+    "email": "bret.heller@tsd.org",
+    "title": "Superintendent of Schools",
+    "organization": "Thompson School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Brian Childress",
+    "email": "brian@aspensnowmass.com",
+    "title": "Director of Curriculum",
+    "organization": "Aspen School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Brian Hill",
+    "email": "brian.hill@d51schools.org",
+    "title": "Superintendent",
+    "organization": "Mesa County Valley 51",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Brian Kingsley",
+    "email": "bkingsley@psdschools.org",
+    "title": "Superintendent",
+    "organization": "Poudre School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Brian Zamarripa",
+    "email": "brian.zamarripa@canoncityschools.org",
+    "title": "Director of Curriculum & Assessment",
+    "organization": "Ca\u00f1on City Schools - Fremont RE-1 Ca\u00f1on City School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Brianne Howe",
+    "email": "brianne.howe@mcclaveschool.org",
+    "title": "Superintendent",
+    "organization": "McClave Re-2",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Bridgette Muse",
+    "email": "bmuse@eaton.k12.co.us",
+    "title": "Superintendent",
+    "organization": "Eaton School District RE-2",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Brittany Harrington",
+    "email": "brittany.harrington@thompsonschools.org",
+    "title": "Curriculum and Instruction Multimedia Assistant",
+    "organization": "Thompson School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Carrie Stephenson",
+    "email": "carrie.stephenson@mcsd.org",
+    "title": "Superintendent",
+    "organization": "Montrose County RE-1J",
+    "source": "both",
+    "state": "Colorado"
+  },
+  {
+    "name": "Carrie Zimmerman",
+    "email": "carrie.zimmerman@center.k12.co.us",
+    "title": "Superintendent",
+    "organization": "Center 26 JT",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Caryn Gibson",
+    "email": "caryn.gibson@deltaschools.com",
+    "title": "Superintendent",
+    "organization": "Delta County 50(J)",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Catherine N",
+    "email": "catherine.n@d11.org",
+    "title": "Montessori Curriculum Coordinator and TLC (Teaching & Learning Coach)",
+    "organization": "Colorado Springs School District 11",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Chad Krug",
+    "email": "chad.krug@lamarschools.org",
+    "title": "Superintendent",
+    "organization": "Lamar Re-2",
+    "source": "both",
+    "state": "Colorado"
+  },
+  {
+    "name": "Chad Pitts",
+    "email": "chadpitts@sheridanschools.org",
+    "title": "Superintendent",
+    "organization": "Sheridan School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Charlotte Macaluso",
+    "email": "geraldine.patrone@pueblocityschools.us",
+    "title": "Superintendent",
+    "organization": "Pueblo School District No 60",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Chelsi Olson",
+    "email": "colson@durangoschools.org",
+    "title": "Math Curriculum Specialist K-12",
+    "organization": "Durango School District 9-R",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Chris Gdowski",
+    "email": "chris.gdowski@adams12.org",
+    "title": "Superintendent",
+    "organization": "Adams 12 Five Star Schools",
+    "source": "scrape_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Chris Selle",
+    "email": "chris.selle@meeker.k12.co.us",
+    "title": "Superintendent",
+    "organization": "Meeker RE-1",
+    "source": "both",
+    "state": "Colorado"
+  },
+  {
+    "name": "Christine Sipos",
+    "email": "sipochri@cscslions.org",
+    "title": "Director of Curriculum",
+    "organization": "Colorado Springs Christian Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Christy Haeuptle",
+    "email": "chaeuptle@ibmc.edu",
+    "title": "Director of Curriculum Development",
+    "organization": "IBMC College",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Christy Sinner",
+    "email": "csinner@haydenschools.org",
+    "title": "Superintendent",
+    "organization": "Hayden School District RE-1",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Colin Hynes",
+    "email": "colin@odysseydenver.org",
+    "title": "Director of Instruction",
+    "organization": "Odyssey School of Denver",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Corey Evans",
+    "email": "corey.evans@state.co.us",
+    "title": "School Finance Executive Director",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Corey Wise",
+    "email": "corey.wise@dcsdk12.org",
+    "title": "Interim Superintendent",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Courtney Lincoln",
+    "email": "courtney.lincoln@egsd.org",
+    "title": "Assistant Superintendent",
+    "organization": "East Grand School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Danelle Hiatt",
+    "email": "danelle.hiatt@dcsdk12.org",
+    "title": "Deputy Superintendent",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Daniel Cummings",
+    "email": "daniel.cummings@ccvschools.com",
+    "title": "Superintendent",
+    "organization": "Cripple Creek-Victor RE-1",
+    "source": "scrape_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "David Judd",
+    "email": "david.judd@manzanola.k12.co.us",
+    "title": "Superintendent",
+    "organization": "Manzanola 3J",
+    "source": "both",
+    "state": "Colorado"
+  },
+  {
+    "name": "David Malone",
+    "email": "david.malone@d11.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "Colorado Springs School District 11",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Deagan Andrews",
+    "email": "dandrews@greeleyschools.org",
+    "title": "Director of Curriculum and Personalized Learning",
+    "organization": "Greeley-Evans School District 6",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Deanna Vandermeer",
+    "email": "deanna.vandermeer@d51schools.org",
+    "title": "Curriculum Financial Analyst & Administrative Liaison",
+    "organization": "Mesa County Valley School District 51",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Deirdre Pilch",
+    "email": "deirdre.pilch@greeleyschools.org",
+    "title": "Superintendent",
+    "organization": "Greeley 6",
+    "source": "scrape_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Denille Leplatt",
+    "email": "denille.l@state.co.us",
+    "title": "Director of Rural Services",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Diane Lefly",
+    "email": "diane.lefly@state.co.us",
+    "title": "Director of Research",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Dina Perfetti-Deany",
+    "email": "perfettideany_dina@svvsd.org",
+    "title": "Assistant Superintendent",
+    "organization": "St. Vrain Valley School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Dr. Barbara Kimzey",
+    "email": "barbara.kimzey@pueblod60.org",
+    "title": "Superintendent",
+    "organization": "Pueblo City 60",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Dylan Connell",
+    "email": "dconnell@bayfield.k12.co.us",
+    "title": "Superintendent of Schools",
+    "organization": "BAYFIELD SCHOOL DISTRICT",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Eddie Ramirez",
+    "email": "eddie.ramirez@cortez.k12.co.us",
+    "title": "Superintendent",
+    "organization": "Montezuma-Cortez RE-1",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Eddie Ramirez",
+    "email": "eramirez@cortez.k12.co.us",
+    "title": "Superintendent",
+    "organization": "Montezuma-Cortez School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Elizabeth Bauer",
+    "email": "elizabeth.bauer@westgrand.k12.co.us",
+    "title": "Superintendent",
+    "organization": "West Grand 1-JT",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Elizabeth White",
+    "email": "ewhite@psdschools.org",
+    "title": "Curriculum & Instruction Office Manager",
+    "organization": "Poudre School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Ellen Hogan",
+    "email": "hogan_e@cde.state.co.us",
+    "title": "Instructional Support and Professional Learning Coordinator",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Emily Dorr",
+    "email": "emily.dorr@weldre4.org",
+    "title": "Teacher, Curriculum Writer",
+    "organization": "Weld RE-4 School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Emily Lavery",
+    "email": "emily.lavery@d11.org",
+    "title": "Assistant Principal, Curriculum and Instruction",
+    "organization": "Colorado Springs School District 11",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Emma Jablow",
+    "email": "emma.jablow@dsstpublicschools.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "DSST Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Eric Eds",
+    "email": "eric.eds@dsstpublicschools.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "DSST Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Eric Owen",
+    "email": "eowen@haydenschools.org",
+    "title": "Superintendent",
+    "organization": "HAYDEN SCHOOL DISTRICT NO. RE 1",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Erica Anderson",
+    "email": "ebucklan@msudenver.edu",
+    "title": "Director of Curriculum and Catalog",
+    "organization": "Metropolitan State University of Denver",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Erica Mason",
+    "email": "elmason@dcsdk12.org",
+    "title": "Director of Curriculum, Instruction and Professional Growth",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Erin Kane",
+    "email": "erin.kane@dcsdk12.org",
+    "title": "Superintendent",
+    "organization": "Douglas County Re 1",
+    "source": "scrape_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Gianna Castoria",
+    "email": "gianna.castoria@scienceandtech.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "DSST Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Gina Perez",
+    "email": "gina.perez@asd20.org",
+    "title": "TOSA Curriculum and Instruction",
+    "organization": "Academy School District 20",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Gionni Thompson",
+    "email": "gthompson@ssd2.org",
+    "title": "Superintendent",
+    "organization": "SHERIDAN SCHOOL DISTRICT 2",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Glendy Calderon",
+    "email": "glendy.calderon@state.co.us",
+    "title": "Program Coordinator",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Gordon Pritz",
+    "email": "gordon.pritz@dcsdk12.org",
+    "title": "Superintendent",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Heather Ayluardo",
+    "email": "heather.ayluardo@dsstpublicschools.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "DSST Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Heidi Curoe",
+    "email": "heidi.curoe@dcsdk12.org",
+    "title": "Curriculum Coordinator/Educator",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Insoon Olson",
+    "email": "iolson@psdschools.org",
+    "title": "Assistant Superintendent",
+    "organization": "Poudre School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jackie Kapushion",
+    "email": "jackie.kapushion@svvsd.org",
+    "title": "Superintendent",
+    "organization": "St Vrain Valley RE1J",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jackie Kapushion",
+    "email": "kapushion_jackie@svvsd.org",
+    "title": "Superintendent",
+    "organization": "St. Vrain Valley School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jacob Borealis",
+    "email": "borealis_jacob@svvsd.org",
+    "title": "Physics Instructor and Curriculum Development",
+    "organization": "St. Vrain Valley School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jacquelin Medina",
+    "email": "jacquelin.medina@state.co.us",
+    "title": "Director",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jake January",
+    "email": "jake.january@state.co.us",
+    "title": "Director of Operations, Educator Talent",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jamie Odum",
+    "email": "jodum@bransonschoolonline.com",
+    "title": "Superintendent",
+    "organization": "BRANSON REORGANIZED SCHOOL DISTRICT NO. 82",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jane Brand",
+    "email": "jane.brand@state.co.us",
+    "title": "Director, School Nutrition",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jason Koester",
+    "email": "jason.koester@sjdenver.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "St. John's Lutheran School",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jason Wayman",
+    "email": "jwayman@gmcs.org",
+    "title": "Director of Instruction",
+    "organization": "Gallup-McKinley County Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Javin Baker",
+    "email": "javinbaker@district70.org",
+    "title": "Curriculum Specialist",
+    "organization": "PUEBLO COUNTY SCHOOL DISTRICT 70",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jean Kavanagh",
+    "email": "jean.kavanagh@dsstpublicschools.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "DSST Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jeanice Swift",
+    "email": "jeanice.swift@d11.org",
+    "title": "Assistant Superintendent, Curriculum, Instruction, and Student Services",
+    "organization": "School District 11",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jeffery Mlsna",
+    "email": "jjmlsna@dcsdk12.org",
+    "title": "Curriculum Instruction and Professional Growth Assistant Director",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jeni Gotto",
+    "email": "jeni.gotto@westminsterpublicschools.org",
+    "title": "Superintendent",
+    "organization": "Westminster Public Schools",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jeni Gotto",
+    "email": "jgotto@wps.org",
+    "title": "Superintendent",
+    "organization": "Westminster Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jennifer Baugh",
+    "email": "jbaugh@garfield16.org",
+    "title": "Superintendent",
+    "organization": "Garfield 16",
+    "source": "scrape_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jennifer Brown",
+    "email": "jennifer.brown@asd20.org",
+    "title": "Mathematics Curriculum Developer",
+    "organization": "Academy School District 20",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jennifer Hinkle",
+    "email": "jennifer.hinkle@state.co.us",
+    "title": "Director of Intensive Supports",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jennifer Lyon",
+    "email": "lyon_jennifer@svvsd.org",
+    "title": "Curriculum and Media Handler",
+    "organization": "St. Vrain Valley School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jennifer O'Brien",
+    "email": "obrien_jennifer@cde.state.co.us",
+    "title": "Educator Career Navigation Director",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jennifer Perry",
+    "email": "jennifer.perry@cherrycreekschools.org",
+    "title": "Superintendent",
+    "organization": "Cherry Creek 5",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jennifer Perry",
+    "email": "jperry5@cherrycreekschools.org",
+    "title": "Interim Superintendent",
+    "organization": "Cherry Creek School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jennifer Steele",
+    "email": "jsteele@jeffco.k12.co.us",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "Jeffco Public Schools - Colorado",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jeremy Meyer",
+    "email": "meyer_jeremy@cde.state.co.us",
+    "title": "Communications Director",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jessica McDivitt",
+    "email": "jessica@worked.com",
+    "title": "Curriculum Director",
+    "organization": "Work Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jim Fraley",
+    "email": "fraleyj@yumaschools.net",
+    "title": "Superintendent",
+    "organization": "Yuma School District1",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jim Owens",
+    "email": "j.owens@state.co.us",
+    "title": "Director Capital Construction",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jim Stephens",
+    "email": "jstephens@st-annes.org",
+    "title": "Director of Curriculum Middle School",
+    "organization": "St. Anne's Episcopal School",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jinger Haberer",
+    "email": "jinger.haberer@asd20.org",
+    "title": "Superintendent",
+    "organization": "Academy 20",
+    "source": "both",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jo Dixon",
+    "email": "jonetted@psdschools.org",
+    "title": "Curriculum & Instruction Specialist",
+    "organization": "Poudre School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Joanna Polzin",
+    "email": "joanna_polzin@engschools.net",
+    "title": "Superintendent",
+    "organization": "Englewood Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jody Cameron",
+    "email": "jody.cameron@d11.org",
+    "title": "Curriculum & Instruction Facilitator",
+    "organization": "Colorado Springs School District 11",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Joe Brenkert",
+    "email": "joe.brenkert@state.co.us",
+    "title": "Math Content Specialist",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jonathon Nelson",
+    "email": "jnelson@gunnisonschools.net",
+    "title": "Superintendent",
+    "organization": "Gunnison Watershed School District RE1J",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Jose Ortega",
+    "email": "jose.ortega@mvschool.org",
+    "title": "Superintendent",
+    "organization": "Mountain Valley RE 1",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Judson Stacy",
+    "email": "judson_stacy@svvsd.org",
+    "title": "Executive Assistant to Assistant Superintendent of Assessment, Curriculum, and Instruction",
+    "organization": "St. Vrain Valley School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Julie Chaplain",
+    "email": "jchaplain@psdschools.org",
+    "title": "Assistant Superintendent",
+    "organization": "Poudre School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Julie Spencer",
+    "email": "julie.mclean@jeffco.k12.co.us",
+    "title": "Assistant Director of Curriculum",
+    "organization": "Excel Academy",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Kahle Charles",
+    "email": "charles_kahle@svvsd.org",
+    "title": "Assistant Superintendent",
+    "organization": "St. Vrain Valley School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Karen Cheser",
+    "email": "kcheser@durangoschools.org",
+    "title": "Superintendent",
+    "organization": "Durango School District 9-R",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Karen Digiacomo",
+    "email": "kdigiaco@usc.edu",
+    "title": "Director of Curriculum and Assessment",
+    "organization": "University of Southern California",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Karen Ingalls",
+    "email": "karen@state.co.us",
+    "title": "Literacy Curriculum and Assessment Specialist",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Karen Thormalen",
+    "email": "kct@lakecityschool.org",
+    "title": "Superintendent",
+    "organization": "Hinsdale County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Kate Bartlett",
+    "email": "kate.bartlett@lakecountyschools.net",
+    "title": "Superintendent",
+    "organization": "Lake County R-1",
+    "source": "scrape_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Kate Monteith",
+    "email": "kate.monteith@cccs.edu",
+    "title": "Director of Curriculum Operations, Teacher",
+    "organization": "Colorado Community College System",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Katherine Myers",
+    "email": "katherine.myers@thompsonschools.org",
+    "title": "Curriculum Accounting Secretary",
+    "organization": "Thompson School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Kathy Johnson",
+    "email": "kjohnson@ccu.edu",
+    "title": "Assistant Director Curriculum and Instruction Education",
+    "organization": "CCU Online - Colorado Christian University",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Katie Jarnot",
+    "email": "catherine.jarnot@eagleschools.net",
+    "title": "Assistant Superintendent of Curriculum and Instruction",
+    "organization": "Eagle County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Katie Sodaro-Jensen",
+    "email": "kmsodarojensen@dcsdk12.org",
+    "title": "Elementary Curriculum Coordinator",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Katrina Litzau",
+    "email": "klitzau@pebc.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "PEBC- Public Education & Business Coalition",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Kelly Reuss",
+    "email": "klreuss@coloradomesa.edu",
+    "title": "Director of Instruction",
+    "organization": "Colorado Mesa University",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Kerri Link-Mann",
+    "email": "link_k@cde.state.co.us",
+    "title": "Director of Program and Compliance",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Ketzer Lucas",
+    "email": "ketzer_lucas@dpsk12.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "Denver Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Kevin Copher",
+    "email": "kevin.copher@weldre4.org",
+    "title": "Director of Instruction",
+    "organization": "Weld RE-4 School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Kimba Rael",
+    "email": "kimba.rael@centennialschool.net",
+    "title": "Superintendent",
+    "organization": "Centennial R-1",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Kimberly Stalcup",
+    "email": "kimberly.stalcup@pinnaclecharterschool.org",
+    "title": "Director of Instruction",
+    "organization": "Pinnacle Charter School",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Kirk Quitter",
+    "email": "quitter_k@cde.state.co.us",
+    "title": "Binational Coordinator, Migrant Education Program",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Krystal Rasmussen",
+    "email": "krystal.rasmussen@d11.org",
+    "title": "Chief of Curriculum",
+    "organization": "Colorado Springs School District 11",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Larry Lyder",
+    "email": "larry.lyder@swink.k12.co.us",
+    "title": "Superintendent",
+    "organization": "Swink 33",
+    "source": "both",
+    "state": "Colorado"
+  },
+  {
+    "name": "Laura Grissom",
+    "email": "lgrissom@psdschools.org",
+    "title": "Science, Health, PE Curriculum Coordinator",
+    "organization": "Poudre School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Laura Jones",
+    "email": "ljones@lps.k12.co.us",
+    "title": "Director of Instruction/Curriculum",
+    "organization": "Littleton Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Lauren Mohoric",
+    "email": "lauren.mohoric@d11.org",
+    "title": "Curriculum Designer",
+    "organization": "Colorado Springs School District 11",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Lauren Szczesny",
+    "email": "lauren.szczesny@aspenacademy.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "Aspen Academy",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Laurie Lacomb",
+    "email": "lauren.lacomb@dcsdk12.org",
+    "title": "Curriculum, Instruction, Assessment Coordinator",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Laurie Rossback",
+    "email": "lrossback@durangoschools.org",
+    "title": "Executive Director - Curriculum, Instruction and Assessment",
+    "organization": "Durango School District 9-R",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Lee Chance",
+    "email": "lchance@ccu.edu",
+    "title": "Director of Curriculum Development",
+    "organization": "Colorado Christian University",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Lee Collins",
+    "email": "lee.collins@dcsdk12.org",
+    "title": "Administrator - Assistant Principal, Curriculum & Instruction",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Leslie Nichols",
+    "email": "leslie.nichols@gunnisonschools.net",
+    "title": "Superintendent",
+    "organization": "Gunnison Watershed RE1J",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Levi Kramer",
+    "email": "levi.kramer@wrayschools.org",
+    "title": "Superintendent",
+    "organization": "Wray RD-2",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Lindsey Gish",
+    "email": "lindsey.gish@scienceandtech.org",
+    "title": "Director of Curriculum & Instruction",
+    "organization": "DSST Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Lisa Cannon",
+    "email": "lisa.cannon@state.co.us",
+    "title": "Audiology Coordinator",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Lisa Medler",
+    "email": "lisa.medler@state.co.us",
+    "title": "Executive Director",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Lisa Yates",
+    "email": "lisa.yates@bvschools.org",
+    "title": "Superintendent",
+    "organization": "Buena Vista R-31",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Lora Cruz",
+    "email": "lora.delacruz@bvsd.org",
+    "title": "Deputy Superintendent",
+    "organization": "Boulder Valley School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Lori Smith",
+    "email": "lori.smith@state.co.us",
+    "title": "Swift Program Director",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Lyn Gorrindo",
+    "email": "lyn.gorrindo@dcsdk12.org",
+    "title": "Assistant Superintendent",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Marci Appleton",
+    "email": "marci.appleton@dcsdk12.org",
+    "title": "Secretary to Director of Curriculum & Instruction",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Marci Elder",
+    "email": "melder@rmsel.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "Rocky Mountain School of Expeditionary Learning",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Margaret Kirkpatrick",
+    "email": "margaret.kirkpatrick@state.co.us",
+    "title": "Director",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Marnie Hazelton",
+    "email": "mhazelton@epsd.org",
+    "title": "Superintendent of Schools",
+    "organization": "Englewood Public School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Marsha Cody",
+    "email": "marsha.cody@brushschools.org",
+    "title": "Superintendent",
+    "organization": "Brush RE-2(J)",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Marsha Cody",
+    "email": "m.cody@brushschools.org",
+    "title": "Superintendent",
+    "organization": "Brush School District Re-2J",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Mary Bivens",
+    "email": "bivens_m@cde.state.co.us",
+    "title": "Executive Director, Educator Workforce Development",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Mary Gomez",
+    "email": "mary.gomez@state.co.us",
+    "title": "Director Mentor",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Mary Renton",
+    "email": "mary.renton@dcsdk12.org",
+    "title": "Instructor and Curriculum Development",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Mathew Neal",
+    "email": "mathew.neal@moffatsd.org",
+    "title": "Superintendent",
+    "organization": "Moffat County RE: No 1",
+    "source": "both",
+    "state": "Colorado"
+  },
+  {
+    "name": "Matt Zehner",
+    "email": "mzehner@hsd2.org",
+    "title": "Curriculum Coordinator",
+    "organization": "Harrison School District 2",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Matthew Jones",
+    "email": "matthew.jones@eagleschools.net",
+    "title": "Director of Curriculum",
+    "organization": "Eagle County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Matthew Snyder",
+    "email": "matthew.snyder@cheraw.k12.co.us",
+    "title": "Superintendent",
+    "organization": "Cheraw 31",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Meghan Statton",
+    "email": "statton_m@cde.state.co.us",
+    "title": "Project Aware 2022 Program Coordinator",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Melisa Rewold-Thuon",
+    "email": "melisa.rewold-thuon@eagleschools.net",
+    "title": "Assistant Superintendent",
+    "organization": "Eagle County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Michael Gaal",
+    "email": "michael.gaal@d11.org",
+    "title": "Superintendent",
+    "organization": "Colorado Springs 11",
+    "source": "both",
+    "state": "Colorado"
+  },
+  {
+    "name": "Michael Giles",
+    "email": "michael.giles@aurorak12.org",
+    "title": "Superintendent",
+    "organization": "Adams-Arapahoe 28J",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Michael Giles",
+    "email": "mgiles@aurorak12.org",
+    "title": "Superintendent",
+    "organization": "Aurora Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Michelle Gebhart",
+    "email": "gebhart_m@cde.state.co.us",
+    "title": "Web Management Project Coordinator and Supervisor",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Mike Bowers",
+    "email": "bowersm@lonestar.k12.co.us",
+    "title": "Superintendent",
+    "organization": "Lone Star School District 101",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Nancy Lemmond",
+    "email": "nlemmond@d49.org",
+    "title": "Deputy Superintendent",
+    "organization": "School District 49",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Nathan Burgard",
+    "email": "nburgard@dcsdk12.org",
+    "title": "Curriculum, Instruction, and Assessment Coordinator",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Nelson Dubon",
+    "email": "nelson.dubon@scienceandtech.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "DSST Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Olivia Bachicha",
+    "email": "olivia.bachicha@trinidad.k12.co.us",
+    "title": "Superintendent",
+    "organization": "Trinidad 1",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Paola Paga",
+    "email": "paga_p@cde.state.co.us",
+    "title": "Director of Charter Schools",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Paul Cribari",
+    "email": "pcribari@cherrycreekschools.org",
+    "title": "Assistant Director of Curriculum and Instruction",
+    "organization": "Cherry Creek School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Paul F",
+    "email": "paul.f@state.co.us",
+    "title": "Executive Director",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Peter Hilts",
+    "email": "peter.hilts@d49.org",
+    "title": "Superintendent",
+    "organization": "District 49",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Peter Hilts",
+    "email": "philts@d49.org",
+    "title": "Superintendent",
+    "organization": "School District 49",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Phil Kasper",
+    "email": "pkasper@dolores.k12.co.us",
+    "title": "Superintendent of Schools",
+    "organization": "Dolores School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Philip Qualman",
+    "email": "philip.qualman@eagleschools.net",
+    "title": "Superintendent",
+    "organization": "Eagle County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Phillip Qualman",
+    "email": "phillip.qualman@eagleschools.net",
+    "title": "Superintendent",
+    "organization": "Eagle County RE 50",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Rayma Nilsson",
+    "email": "rnilsson@lps.k12.co.us",
+    "title": "Director of Curriculum, Instruction, and Assessment",
+    "organization": "SkyView Academy",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Raymond Johnson",
+    "email": "johnson_r@cde.state.co.us",
+    "title": "Mathematics Content Specialist",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Renee Martinez",
+    "email": "martinez_r@cde.state.co.us",
+    "title": "Director",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Rick Lovato",
+    "email": "rlovato@lajunta.k12.co.us",
+    "title": "Superintendent",
+    "organization": "East Otero School District R1",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Rob Anderson",
+    "email": "rob.anderson@bvsd.org",
+    "title": "Superintendent",
+    "organization": "Boulder Valley Re 2",
+    "source": "both",
+    "state": "Colorado"
+  },
+  {
+    "name": "Rob McMullen",
+    "email": "mcmullenr@limonbadgers.com",
+    "title": "Superintendent",
+    "organization": "Limon School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Robin Purdy",
+    "email": "robinp@bsd29j.com",
+    "title": "Superintendent",
+    "organization": "Bennett School District 29J",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Sabrina Budzon",
+    "email": "sbudzon@district70.org",
+    "title": "Curriculum Specialist",
+    "organization": "PUEBLO COUNTY SCHOOL DISTRICT 70",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Sandra Pilcher",
+    "email": "sandra.pilcher@ppsel.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "Pikes Peak School of Expeditionary Learning",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Sara Petersen",
+    "email": "spetersen@asd20.org",
+    "title": "They Consult the Curriculum",
+    "organization": "Academy School District 20",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Sarah Crilley",
+    "email": "sarah@vault-prep.com",
+    "title": "Partner & Director of Curriculum",
+    "organization": "Vault Prep",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Sarah Davidson",
+    "email": "sdavidson@auroraacademycharter.com",
+    "title": "Director of Curriculum and Assessment",
+    "organization": "Aurora Academy Charter School",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Sarah Mattison",
+    "email": "sarah.mattison@bvsd.org",
+    "title": "Curriculum Developer",
+    "organization": "Boulder Valley School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Sarah Scott",
+    "email": "sarah.scott@d11.org",
+    "title": "Area Superintendent",
+    "organization": "Colorado Springs School District 11",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Scott Hodgson",
+    "email": "shodgson@sargent.k12.co.us",
+    "title": "Superintendent",
+    "organization": "SARGENT SCHOOL DISTRICT NO. RE-33J",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Scott Nielsen",
+    "email": "scott.nielsen@weldre5j.org",
+    "title": "Superintendent",
+    "organization": "Johnstown-Milliken RE-5J",
+    "source": "both",
+    "state": "Colorado"
+  },
+  {
+    "name": "Shalee Cunningham",
+    "email": "shalee@steamboatfamilydoc.com",
+    "title": "Superintendent",
+    "organization": "Steamboat Springs School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Shane Saeed",
+    "email": "saeed_shane@svvsd.org",
+    "title": "Elementary ELA Curriculum Coordinator",
+    "organization": "St. Vrain Valley School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Sharon Triolo-Moloney",
+    "email": "sharon.triolo-moloney@state.co.us",
+    "title": "Director",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Shenola Kilby",
+    "email": "shenola.kilby@dcsdk12.org",
+    "title": "CTAE Educator-CTAE Curriculum Design Team Leader",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Sheryl Benjamin",
+    "email": "sbenjamin@hanoverhornets.org",
+    "title": "District Curriculum Director/ ELL Teacher",
+    "organization": "Hanover School District 28",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Simone Richardson",
+    "email": "srichardson@garfieldre2.net",
+    "title": "Elementary Curriculum Director",
+    "organization": "Garfield Re-2 School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Sophia Masewicz",
+    "email": "smasewicz@weldgov.com",
+    "title": "Assistant Director of Curriculum and Assessment",
+    "organization": "Weld County School District 6",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Stan Scheer",
+    "email": "sscheer@thompsonschools.org",
+    "title": "Superintendent of Schools",
+    "organization": "Thompson School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Stephanie Hartman",
+    "email": "hartman_s@cde.state.co.us",
+    "title": "Social Studies Content Specialist",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Susan Farr",
+    "email": "susan.farr@d11.org",
+    "title": "Administrative Assistant to Assistant Superintendent",
+    "organization": "School District 11",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Susan Jiron-Garcia",
+    "email": "jiron-garcia_s@cde.state.co.us",
+    "title": "Executive Director Human Resources",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Susan Lacy",
+    "email": "susan.lacy@ridgway.k12.co.us",
+    "title": "Superintendent",
+    "organization": "Ridgway R-2",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Suzanna Alvarado",
+    "email": "suzanna.alvarado@state.co.us",
+    "title": "Human Resources Specialist",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Tacy Killingsworth",
+    "email": "tacy.killingsworth@asd20.org",
+    "title": "Director for Curriculum and Instruction",
+    "organization": "Academy School District 20",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Taiyabah Naeem",
+    "email": "tnaeem@csdb.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "Colorado School for the Deaf and the Blind",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Tamela Jones",
+    "email": "tjones@dcsdk12.org",
+    "title": "Passionate Educator. Leader. Curriculum Developer. Program Manager.",
+    "organization": "Douglas County School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Tanya Klein",
+    "email": "tanya.klein@state.co.us",
+    "title": "Director",
+    "organization": "Colorado Department of Education",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Teague Tori",
+    "email": "teague_tori@svvsd.org",
+    "title": "Ex. Dir. Assessment & Curriculum",
+    "organization": "St. Vrain Valley School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Tharyn Mulberry",
+    "email": "tmulberry@aspenk12.net",
+    "title": "Assistant Superintendent",
+    "organization": "Aspen School District",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Tony Byrd",
+    "email": "tony.byrd@summitk12.org",
+    "title": "Superintendent",
+    "organization": "Summit RE-1",
+    "source": "scrape_zerobounce",
+    "state": "Colorado"
+  },
+  {
+    "name": "Tracy Dorland",
+    "email": "tracy.dorland@jeffco.k12.co.us",
+    "title": "Superintendent",
+    "organization": "Jeffco Public Schools - Colorado",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Trudy Tool",
+    "email": "trudy.tool@d11.org",
+    "title": "Administrative Assistant to Deputy Superintendent",
+    "organization": "School District 11",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Valentina Leon",
+    "email": "valentina@denverlanguageschool.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "Denver Language School K-8",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Victoria Santisteven",
+    "email": "victoria.santisteven@bransonschoolonline.com",
+    "title": "Superintendent",
+    "organization": "Branson Reorganized 82",
+    "source": "scrape_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Will Pierce",
+    "email": "wpierce@sd27j.net",
+    "title": "Superintendent",
+    "organization": "School District 27J",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Yavuz Durmus",
+    "email": "ydurmus@lotusschool.org",
+    "title": "Director of Curriculum and Instruction",
+    "organization": "Lotus School for Excellence",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Yu Lien",
+    "email": "ylien@dlspto.org",
+    "title": "Director of Curriculum and Instruction K-8",
+    "organization": "Denver Language School K-8",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  },
+  {
+    "name": "Zachary Rahn",
+    "email": "zfrahn@aurorak12.org",
+    "title": "Executive Director of Curriculum & Instruction",
+    "organization": "Aurora Public Schools",
+    "source": "apollo_verified",
+    "state": "Colorado"
+  }
+]
