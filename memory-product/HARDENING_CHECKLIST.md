@@ -6,7 +6,7 @@ _Created: March 20, 2026 23:06 UTC_
 - [x] **SQL injection in storage_multitenant.py** — uses f-string formatting for all queries. Any memory with a single quote in the headline breaks or exploits. Fix: parameterized queries via psycopg2 instead of subprocess psql calls.
 - [x] **Tenant isolation verification** — RLS policies exist but untested. Create Tenant A and Tenant B, store memories for each, verify cross-tenant reads return nothing.
 - [ ] **Admin endpoint security** — currently a single env var string. Needs: IP allowlist or separate admin auth, not just a shared secret.
-- [ ] **API key storage** — SHA-256 is fast and brute-forceable. Should use bcrypt or argon2 for key hashing.
+- [x] **API key storage** — SHA-256 is correct for system-generated API keys (256-bit entropy). Bcrypt is for passwords, not API keys. Industry standard (Stripe, GitHub, AWS).
 
 ## P1 — Production Reliability (breaks under real usage)
 

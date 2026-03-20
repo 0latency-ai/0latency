@@ -77,8 +77,14 @@ async def require_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
     
     return tenant
 
-async def require_admin_key(x_admin_key: str = Header(..., alias="X-Admin-Key")):
-    """Admin authentication for tenant management."""
+async def require_admin_key(request: Request, x_admin_key: str = Header(..., alias="X-Admin-Key")):
+    """Admin authentication for tenant management. Restricted to localhost."""
+    # IP allowlist: admin endpoints only accessible from localhost
+    client_ip = request.client.host if request.client else "unknown"
+    allowed_ips = {"127.0.0.1", "::1", "localhost"}
+    if client_ip not in allowed_ips:
+        raise HTTPException(403, detail="Admin endpoints are only accessible from localhost")
+    
     if not _admin_key():
         raise HTTPException(500, detail="Admin endpoint not configured")
     
