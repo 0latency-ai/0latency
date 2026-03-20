@@ -97,3 +97,4 @@ We're calling it zero-latency recall. Here's a demo showing what happens when th
   - Team ($99/mo): Everything + multi-tenant, RBAC, webhooks, priority support
   - Enterprise ($249/mo): SSO, data residency, SLA, dedicated support
 - Strategy: own the $19-$249 gap that Mem0 skips entirely
+file_333 through file_335: High-res definitive shots. file_335 = HERO IMAGE (full desktop, both panels, everything legible)
