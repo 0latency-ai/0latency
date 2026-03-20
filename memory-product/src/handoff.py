@@ -178,8 +178,11 @@ def generate_handoff(agent_id: str, session_key: str, recent_turns: list,
 
 
 def save_handoff(agent_id: str, session_key: str, handoff: dict):
-    """Save/upsert the session handoff to Postgres."""
+    """Save/upsert the session handoff to Postgres AND write to filesystem for cold-start discovery."""
     import psycopg2
+    
+    # Write to filesystem so memory_search can find it on cold start
+    _write_handoff_file(agent_id, handoff)
     
     conn = psycopg2.connect(DB_URL)
     cur = conn.cursor()
@@ -217,6 +220,75 @@ def save_handoff(agent_id: str, session_key: str, handoff: dict):
     finally:
         cur.close()
         conn.close()
+
+
+def _write_handoff_file(agent_id: str, handoff: dict):
+    """Write handoff to a markdown file that memory_search can discover on cold start."""
+    from datetime import datetime, timezone
+    
+    # Determine workspace dir based on agent
+    workspace_dirs = {
+        "thomas": "/root/.openclaw/workspace",
+        "echo": "/root/.openclaw/workspace-memory-test",
+    }
+    workspace = workspace_dirs.get(agent_id, f"/root/.openclaw/workspace")
+    memory_dir = os.path.join(workspace, "memory")
+    os.makedirs(memory_dir, exist_ok=True)
+    
+    filepath = os.path.join(memory_dir, "HANDOFF.md")
+    
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    
+    lines = [
+        f"# Session Handoff (auto-generated)",
+        f"_Last updated: {now}_",
+        f"",
+        f"## Current State",
+        f"{handoff.get('summary', 'No summary available.')}",
+        f"",
+        f"## Conversation Phase",
+        f"{handoff.get('conversation_phase', 'Unknown')}",
+        f"",
+    ]
+    
+    decisions = handoff.get("decisions_made", [])
+    if decisions:
+        lines.append("## Decisions Made This Session")
+        for d in decisions:
+            if isinstance(d, dict):
+                lines.append(f"- **{d.get('decision', '?')}** — {d.get('rationale', '')} ({d.get('who', 'unknown')}, {d.get('timestamp_approx', '')})")
+            else:
+                lines.append(f"- {d}")
+        lines.append("")
+    
+    threads = handoff.get("open_threads", [])
+    if threads:
+        lines.append("## Open Threads")
+        for t in threads:
+            if isinstance(t, dict):
+                lines.append(f"- **{t.get('thread', '?')}** — {t.get('context', '')} (waiting on: {t.get('waiting_on', '?')})")
+            else:
+                lines.append(f"- {t}")
+        lines.append("")
+    
+    projects = handoff.get("active_projects", [])
+    if projects:
+        lines.append("## Active Projects")
+        for p in projects:
+            if isinstance(p, dict):
+                lines.append(f"- **{p.get('project', '?')}**: {p.get('status', '')} → Next: {p.get('next_action', '?')}")
+            else:
+                lines.append(f"- {p}")
+        lines.append("")
+    
+    key_context = handoff.get("key_context", "")
+    if key_context:
+        lines.append("## Key Context")
+        lines.append(key_context)
+        lines.append("")
+    
+    with open(filepath, "w") as f:
+        f.write("\n".join(lines))
 
 
 def get_latest_handoff(agent_id: str) -> Optional[dict]:

@@ -533,6 +533,54 @@ def _retrieve_candidates(agent_id: str, embedding_str: str, context_text: str) -
                     "similarity": float(parts[10]) if parts[10] else 0,
                 }
     
+    # Strategy 4: Keyword/text search (catches what semantic search misses)
+    import re
+    words = re.findall(r'\b[a-zA-Z]{4,}\b', context_text.lower())
+    stop_words = {'this', 'that', 'with', 'from', 'what', 'when', 'where', 'which', 'about',
+                  'have', 'been', 'will', 'would', 'could', 'should', 'their', 'there', 'these',
+                  'those', 'your', 'they', 'into', 'some', 'more', 'also', 'just', 'very',
+                  'here', 'then', 'than', 'like', 'well', 'back', 'make', 'made', 'need',
+                  'want', 'know', 'think', 'thing', 'things', 'going', 'does', 'doing'}
+    keywords = list(set(w for w in words if w not in stop_words))[:8]
+
+    if keywords:
+        keyword_conditions = " OR ".join(
+            f"(headline ILIKE '%{kw}%' OR context ILIKE '%{kw}%')" for kw in keywords
+        )
+        exclude_ids = ','.join(f"'{k}'" for k in candidates.keys()) if candidates else "'00000000-0000-0000-0000-000000000000'"
+
+        rows_kw = _db_execute(f"""
+            SELECT id, headline, context, full_content, memory_type,
+                   importance, access_count, reinforcement_count,
+                   created_at, superseded_at, 0.35 as similarity
+            FROM memory_service.memories
+            WHERE agent_id = '{agent_id}'
+              AND superseded_at IS NULL
+              AND ({keyword_conditions})
+              AND id NOT IN ({exclude_ids})
+            ORDER BY importance DESC
+            LIMIT 10
+        """)
+
+        for row in rows_kw:
+            parts = row.split("|||")
+            if len(parts) >= 11:
+                mem_id = parts[0]
+                if mem_id not in candidates:
+                    candidates[mem_id] = {
+                        "id": mem_id,
+                        "headline": parts[1],
+                        "context": parts[2],
+                        "full_content": parts[3],
+                        "memory_type": parts[4],
+                        "importance": float(parts[5]) if parts[5] else 0.5,
+                        "access_count": int(parts[6]) if parts[6] else 0,
+                        "reinforcement_count": int(parts[7]) if parts[7] else 1,
+                        "created_at": datetime.fromisoformat(parts[8].replace("+00", "+00:00")) if parts[8] else datetime.now(timezone.utc),
+                        "superseded_at": parts[9] if parts[9] else None,
+                        "similarity": float(parts[10]) if parts[10] else 0,
+                    }
+
     return list(candidates.values())
 
 

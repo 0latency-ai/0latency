@@ -221,7 +221,7 @@ def store_memory(memory: dict) -> str:
     embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
     
     # Check for duplicate/reinforcement
-    existing = _check_duplicate(memory['agent_id'], memory['headline'], embedding)
+    existing = _check_duplicate(memory['agent_id'], memory['headline'], embedding, memory_type=memory.get('memory_type'))
     
     if existing:
         # Reinforce existing memory
@@ -314,26 +314,38 @@ def store_memory(memory: dict) -> str:
     return mem_id
 
 
-def _check_duplicate(agent_id: str, headline: str, embedding: list[float], threshold: float = 0.88) -> Optional[str]:
-    """Check if a very similar memory already exists (for reinforcement instead of duplication)."""
+def _check_duplicate(agent_id: str, headline: str, embedding: list[float], threshold: float = 0.85, memory_type: str = None) -> Optional[str]:
+    """Check if a very similar memory already exists (for reinforcement instead of duplication).
+    
+    Uses a two-tier approach:
+    - 0.92+ similarity: Almost certainly a duplicate regardless of type
+    - 0.85-0.92 similarity: Duplicate only if same memory_type (prevents cross-type false matches)
+    """
     embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
     
     rows = _db_execute(f"""
-        SELECT id, headline, 
+        SELECT id, headline, memory_type,
                1 - (embedding <=> '{embedding_str}'::extensions.vector) as similarity
         FROM memory_service.memories
         WHERE agent_id = '{agent_id}'
           AND superseded_at IS NULL
         ORDER BY embedding <=> '{embedding_str}'::extensions.vector
-        LIMIT 1
+        LIMIT 3
     """)
     
     if rows:
-        parts = rows[0].split("|")
-        if len(parts) >= 3:
-            mem_id, existing_headline, similarity = parts[0], parts[1], float(parts[2])
-            if similarity >= threshold:
-                return mem_id
+        for row in rows:
+            parts = row.split("|")
+            if len(parts) >= 4:
+                mem_id, existing_headline, existing_type, similarity = parts[0], parts[1], parts[2].strip(), float(parts[3])
+                
+                # Tier 1: Very high similarity = duplicate regardless
+                if similarity >= 0.92:
+                    return mem_id
+                
+                # Tier 2: High similarity + same type = duplicate
+                if similarity >= threshold and memory_type and existing_type == memory_type:
+                    return mem_id
     
     return None
 
