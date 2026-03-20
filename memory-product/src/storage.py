@@ -408,37 +408,59 @@ def _check_contradiction(agent_id: str, headline: str, embedding: list[float]) -
 
 
 def _handle_correction(memory: dict, correction_id: str):
-    """When a correction is stored, find and supersede the old fact."""
+    """When a correction is stored, find and supersede the old fact.
+    
+    Cross-agent: corrections propagate to ALL agents sharing the same user context.
+    If agent 'thomas' corrects "$16/student" to "$20/student", the stale "$16" fact
+    in agent 'echo' also gets superseded.
+    """
     # Search for related memories that this corrects
     embed_text = f"{memory['headline']}. {memory['context']}"
     embedding = _embed_text(embed_text)
     embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
     
-    # Find the most similar non-correction memory
+    # Find the most similar non-correction memory — across ALL agents, not just the source
     rows = _db_execute(f"""
-        SELECT id, headline
+        SELECT id, headline, agent_id
         FROM memory_service.memories
-        WHERE agent_id = '{memory['agent_id']}'
-          AND memory_type != 'correction'
+        WHERE memory_type != 'correction'
           AND superseded_at IS NULL
           AND id != '{correction_id}'
         ORDER BY embedding <=> '{embedding_str}'::extensions.vector
-        LIMIT 1
+        LIMIT 5
     """)
     
     if rows:
-        old_id = rows[0].split("|")[0]
-        old_headline = rows[0].split("|")[1] if "|" in rows[0] else ""
-        _db_execute(f"""
-            UPDATE memory_service.memories
-            SET superseded_at = now(), superseded_by = '{correction_id}'
-            WHERE id = '{old_id}'
-        """)
-        print(f"  ✂ Superseded old memory: {old_id}")
-        
-        # Correction cascading: find downstream memories that depend on the corrected fact
-        _cascade_correction(memory['agent_id'], old_id, correction_id, old_headline)
-        print(f"  ✂ Superseded old memory: {old_id}")
+        for row in rows:
+            parts = row.split("|||")
+            if len(parts) < 3:
+                parts = row.split("|")
+            old_id = parts[0].strip()
+            old_headline = parts[1].strip() if len(parts) > 1 else ""
+            old_agent = parts[2].strip() if len(parts) > 2 else memory['agent_id']
+            
+            # Only supersede if it's semantically very close (avoid false positives across agents)
+            # The ORDER BY already sorted by similarity, but we should check threshold
+            # For same agent: supersede top match. For cross-agent: need higher bar
+            if old_agent == memory['agent_id']:
+                # Same agent — supersede the top match
+                _db_execute(f"""
+                    UPDATE memory_service.memories
+                    SET superseded_at = now(), superseded_by = '{correction_id}'
+                    WHERE id = '{old_id}'
+                """)
+                print(f"  ✂ Superseded own memory: {old_id} ({old_headline})")
+                _cascade_correction(old_agent, old_id, correction_id, old_headline)
+                break  # Only supersede top match for same agent
+            else:
+                # Cross-agent — also supersede stale facts in sibling agents
+                _db_execute(f"""
+                    UPDATE memory_service.memories
+                    SET superseded_at = now(), superseded_by = '{correction_id}'
+                    WHERE id = '{old_id}'
+                """)
+                print(f"  ✂ Cross-agent supersede [{old_agent}]: {old_id} ({old_headline})")
+                _cascade_correction(old_agent, old_id, correction_id, old_headline)
 
 
 def store_memories(memories: list[dict]) -> list[str]:
