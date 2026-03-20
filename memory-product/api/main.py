@@ -184,7 +184,7 @@ async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api
             agent_id=req.agent_id,
             conversation_context=req.conversation_context,
             budget_tokens=req.budget_tokens,
-            dynamic_budget=req.dynamic_budget,
+            # dynamic_budget=req.dynamic_budget,  # TODO: add to recall_fixed
         )
         response = RecallResponse(
             context_block=result["context_block"],

@@ -17,9 +17,12 @@ import requests
 # --- Configuration ---
 
 EXTRACTION_MODEL = os.environ.get("EXTRACTION_MODEL", "gemini-2.0-flash")
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+
+# Lazy env reads — resolved at call time, not import time.
+# This is critical for systemd/uvicorn workers where env may be set after module import.
+def _google_key(): return os.environ.get("GOOGLE_API_KEY", "")
+def _anthropic_key(): return os.environ.get("ANTHROPIC_API_KEY", "")
+def _openai_key(): return os.environ.get("OPENAI_API_KEY", "")
 
 # Extraction prompt — the core of Phase 1
 EXTRACTION_PROMPT = """You are a memory extraction system. Your job is to analyze a conversation exchange between a human and an AI agent, and extract structured memories worth preserving.
@@ -103,7 +106,7 @@ def _call_gemini(prompt: str) -> str:
     """Call Gemini Flash 2.0 API."""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{EXTRACTION_MODEL}:generateContent"
     headers = {"Content-Type": "application/json"}
-    params = {"key": GOOGLE_API_KEY}
+    params = {"key": _google_key()}
     
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -126,7 +129,7 @@ def _call_anthropic(prompt: str) -> str:
     """Call Anthropic (Haiku) as fallback."""
     url = "https://api.anthropic.com/v1/messages"
     headers = {
-        "x-api-key": ANTHROPIC_API_KEY,
+        "x-api-key": _anthropic_key(),
         "anthropic-version": "2023-06-01",
         "content-type": "application/json"
     }
@@ -149,7 +152,7 @@ def _call_openai(prompt: str) -> str:
     """Call OpenAI (GPT-4o-mini) as fallback."""
     url = "https://api.openai.com/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Authorization": f"Bearer {_openai_key()}",
         "Content-Type": "application/json"
     }
     
@@ -175,19 +178,19 @@ def _call_model(prompt: str) -> str:
     """Call the configured extraction model with fallback chain."""
     model = EXTRACTION_MODEL.lower()
     
-    if "gemini" in model and GOOGLE_API_KEY:
+    if "gemini" in model and _google_key():
         try:
             return _call_gemini(prompt)
         except Exception as e:
             print(f"Gemini failed ({e}), trying fallback...")
     
-    if ANTHROPIC_API_KEY:
+    if _anthropic_key():
         try:
             return _call_anthropic(prompt)
         except Exception as e:
             print(f"Anthropic failed ({e}), trying fallback...")
     
-    if OPENAI_API_KEY:
+    if _openai_key():
         try:
             return _call_openai(prompt)
         except Exception as e:
