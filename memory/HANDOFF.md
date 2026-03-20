@@ -1,17 +1,32 @@
 # Session Handoff (auto-generated)
-_Last updated: 2026-03-20 06:42 UTC_
+_Last updated: 2026-03-20 07:18 UTC_
 
 ## Current State
-We've agreed to start working on the deployment script. The agent is about to begin working on it.
+Justin and the agent are discussing the possibility of selling the zero-latency recall product as an API, targeting Greg's audience who build products rather than install OpenClaw skills. The agent suggests that Phase A (ClawHub launch) should be quiet, with a focus on Phase B as an API launch.
 
 ## Conversation Phase
-execution
+Strategic Planning
 
 ## Decisions Made This Session
-- **Finish the deployment script and test it.** — It's the task for today. (Agent and Human, early session)
+- **Implement deduplication with similarity check before storing new memories** — To prevent redundant memories and improve memory system efficiency. (Agent, Mid-session)
+- **Prioritize memory system fixes before further development** — To ensure a functional memory system before proceeding with Phases A, B, and C. (Justin and Agent, Early in the session)
+- **Implement six fixes to the memory system based on the gap analysis** — To improve memory system performance and address identified issues. (Justin and Agent, Mid-session)
+- **Proceed with Phase A deployment with the understanding that the underlying memory system will continue to evolve** — The packaging and distribution infrastructure can remain stable while the memory system is iterated on. (Justin and Agent, Mid-session)
+- **Update handoff on conversation change, not timer** — To ensure the handoff file is updated with the most relevant context. (Justin and Agent, Mid-session)
+- **Replace Mem0 with custom extraction daemon** — To own the entire pipeline, avoid third-party dependencies, and maintain control over data. (Agent, Mid-session)
+- **Focus on Phase B as an API launch, with a quiet Phase A launch on ClawHub.** — To target Greg's audience of product builders with an API offering, rather than a ClawHub skill. (Justin and Agent, Just now)
+
+## Open Threads
+- **Verifying live conversation handoff updates** — The agent has implemented the handoff updates, but hasn't confirmed they are firing live within the `process_new_turns` function. (waiting on: Observation of the handoff process during the current conversation.)
+- **Testing the implemented memory system updates** — The agent has implemented deduplication and other fixes. The next step is to trigger a compaction to test these updates. (waiting on: Reaching the token limit to trigger compaction.)
+- **Confirming the fixes resolve the need for manual detective work after cold starts** — Justin wants to ensure the fixes allow the agent to instantly pick up conversation context from the `memory/HANDOFF.md` file after a cold start. (waiting on: Verification that the handoff file contains the necessary context and is read correctly after a cold start.)
+- **Mapping Phase A infrastructure needs** — Now that we've agreed to proceed with Phase A deployment, we need to map out the infrastructure requirements. (waiting on: Agent to map out the Phase A infrastructure needs.)
+- **Competitive Analysis** — Justin wants an analysis of competitors, their offerings, business models, and what we can learn from them. (waiting on: Agent to perform the competitive analysis.)
 
 ## Active Projects
-- **Deployment Script**: Just started → Next: Begin working on the script
+- **Improving Memory System**: Currently implementing and testing fixes, including deduplication and handoff updates. → Next: Verify live handoff updates and trigger compaction to test the implemented updates.
+- **Phases A, B, and C Development**: Phase A will be a quiet launch on ClawHub, focus is shifting to Phase B as an API. → Next: Agent to map out the Phase A infrastructure needs.
+- **Competitive Analysis**: About to begin researching the top competitor's architecture. → Next: Research and summarize the top competitor's architecture, offerings, and business model.
 
 ## Key Context
-None
+Zero-latency recall, Mem0, Greg (potential customer), Phase A (ClawHub), Phase B (API), 0Lat (potential product name)
