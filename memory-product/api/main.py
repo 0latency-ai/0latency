@@ -37,7 +37,7 @@ app.add_middleware(
 )
 
 # --- Configuration ---
-MASTER_ADMIN_KEY = os.environ.get("MEMORY_ADMIN_KEY", "")
+def _admin_key(): return os.environ.get("MEMORY_ADMIN_KEY", "")
 
 # --- Rate Limiting (simple in-memory, replace with Redis for prod) ---
 _rate_limits: dict[str, list[float]] = {}
@@ -79,10 +79,10 @@ async def require_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
 
 async def require_admin_key(x_admin_key: str = Header(..., alias="X-Admin-Key")):
     """Admin authentication for tenant management."""
-    if not MASTER_ADMIN_KEY:
+    if not _admin_key():
         raise HTTPException(500, detail="Admin endpoint not configured")
     
-    if x_admin_key != MASTER_ADMIN_KEY:
+    if x_admin_key != _admin_key():
         raise HTTPException(401, detail="Invalid admin key")
     
     return True

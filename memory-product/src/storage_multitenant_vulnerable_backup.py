@@ -1,19 +1,13 @@
 """
 Multi-Tenant Storage Layer — Agent Memory Service
 Phase B: Enhanced with tenant isolation and Row Level Security (RLS).
-
-SECURITY HARDENED: Uses psycopg2 with parameterized queries to prevent SQL injection.
 """
 
 import json
 import os
 import requests
-import psycopg2
-import psycopg2.pool
 from datetime import datetime, timezone
 from typing import Optional
-import threading
-import time
 
 
 # --- Configuration ---
@@ -29,24 +23,6 @@ DB_CONN = os.environ.get("MEMORY_DB_CONN",
 
 # Global tenant context
 _current_tenant_id = None
-
-# Connection pool - thread-safe
-_connection_pool = None
-_pool_lock = threading.Lock()
-
-def _get_connection_pool():
-    """Get or create the connection pool."""
-    global _connection_pool
-    if _connection_pool is None:
-        with _pool_lock:
-            if _connection_pool is None:
-                _connection_pool = psycopg2.pool.ThreadedConnectionPool(
-                    minconn=2,
-                    maxconn=10,
-                    dsn=DB_CONN
-                )
-    return _connection_pool
-
 
 def set_tenant_context(tenant_id: str):
     """Set the current tenant context for this session."""
@@ -100,65 +76,62 @@ def _embed_text(text: str) -> list[float]:
     raise RuntimeError("No embedding provider available")
 
 
-def _db_execute(query: str, params: tuple = None, tenant_id: str = None, fetch_results: bool = True) -> list:
-    """
-    Execute a query against the database with tenant isolation.
+def _db_execute(query: str, params: dict = None, tenant_id: str = None) -> list:
+    """Execute a query against the database with tenant isolation."""
+    import subprocess
     
-    SECURITY: Uses parameterized queries to prevent SQL injection.
-    """
-    pool = _get_connection_pool()
+    # Use tenant_id parameter or global context
     current_tenant = tenant_id or _current_tenant_id
-    
     if not current_tenant:
         raise ValueError("No tenant context set. Call set_tenant_context() first.")
     
-    retries = 0
-    max_retries = 3
-    
-    while retries < max_retries:
-        conn = None
-        cur = None
-        try:
-            conn = pool.getconn()
-            cur = conn.cursor()
-            
-            # Start transaction and set tenant context
-            cur.execute("BEGIN")
-            cur.execute("SELECT memory_service.set_tenant_context(%s)", (current_tenant,))
-            
-            # Execute the actual query with parameters
-            if params:
-                cur.execute(query, params)
+    # Substitute params into query (basic, for prototyping)
+    if params:
+        for key, val in params.items():
+            if isinstance(val, str):
+                val = val.replace("'", "''")
+                query = query.replace(f":{key}", f"'{val}'")
+            elif isinstance(val, (list, dict)):
+                val_str = json.dumps(val).replace("'", "''")
+                query = query.replace(f":{key}", f"'{val_str}'")
+            elif val is None:
+                query = query.replace(f":{key}", "NULL")
             else:
-                cur.execute(query)
-            
-            results = []
-            if fetch_results and cur.description:
-                # Fetch all results and format as pipe-separated values for compatibility
-                rows = cur.fetchall()
-                for row in rows:
-                    # Convert row tuple to string, handling None values
-                    row_str = "|||".join(str(val) if val is not None else "" for val in row)
-                    results.append(row_str)
-            
-            cur.execute("COMMIT")
-            return results
-            
-        except psycopg2.Error as e:
-            if cur:
-                cur.execute("ROLLBACK")
-            retries += 1
-            if retries >= max_retries:
-                raise RuntimeError(f"DB error after {max_retries} retries: {e}")
-            time.sleep(0.1 * retries)  # Brief backoff
-            
-        finally:
-            if cur:
-                cur.close()
-            if conn:
-                pool.putconn(conn)
+                query = query.replace(f":{key}", str(val))
     
-    return []
+    # Prepend tenant context setting to the query
+    full_query = f"""
+        SELECT memory_service.set_tenant_context('{current_tenant}'::UUID);
+        {query}
+    """
+    
+    result = subprocess.run(
+        ["psql", DB_CONN, "-t", "-A", "-F", "|||", "-c", full_query],
+        capture_output=True, text=True, timeout=15,
+        env={**os.environ, "PGPASSWORD": "jcYlwEhuHN9VcOuj"}
+    )
+    
+    if result.returncode != 0:
+        raise RuntimeError(f"DB error: {result.stderr}")
+    
+    # Skip the first line (set_tenant_context result) and process actual query results
+    lines = result.stdout.strip().split("\n")
+    # Filter out: empty lines, set_tenant_context output, INSERT/UPDATE status lines
+    rows = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        # Skip tenant context function return value (UUID of the tenant)
+        if line == current_tenant:
+            continue
+        # Skip SQL status messages
+        if line.startswith("INSERT ") or line.startswith("UPDATE ") or line.startswith("DELETE "):
+            continue
+        if line.startswith("SET") or line == "":
+            continue
+        rows.append(line)
+    return rows
 
 
 def store_memory(memory: dict, tenant_id: str = None) -> str:
@@ -179,6 +152,7 @@ def store_memory(memory: dict, tenant_id: str = None) -> str:
     # Generate embedding from headline + context (not full_content — saves tokens)
     embed_text = f"{memory['headline']}. {memory['context']}"
     embedding = _embed_text(embed_text)
+    embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
     
     # Check for duplicate/reinforcement within this tenant
     existing = _check_duplicate(memory['agent_id'], memory['headline'], embedding, 
@@ -186,13 +160,13 @@ def store_memory(memory: dict, tenant_id: str = None) -> str:
     
     if existing:
         # Reinforce existing memory
-        _db_execute("""
+        _db_execute(f"""
             UPDATE memory_service.memories 
             SET reinforcement_count = reinforcement_count + 1,
                 relevance_score = LEAST(1.0, relevance_score + 0.1),
                 last_accessed = now()
-            WHERE id = %s
-        """, (existing,), tenant_id=current_tenant, fetch_results=False)
+            WHERE id = '{existing}'
+        """, tenant_id=current_tenant)
         print(f"  ↑ Reinforced existing memory: {existing}")
         return existing
     
@@ -213,41 +187,41 @@ def store_memory(memory: dict, tenant_id: str = None) -> str:
             metadata['contradicts_id'] = contradiction['id']
             memory['metadata'] = metadata
     
-    # Insert new memory using parameterized query
-    query = """
+    # Build entities and categories arrays
+    entities_str = "{" + ",".join(f'"{e}"' for e in memory.get('entities', [])) + "}"
+    categories_str = "{" + ",".join(f'"{c}"' for c in memory.get('categories', [])) + "}"
+    
+    # Escape strings for SQL
+    headline = memory['headline'].replace("'", "''")
+    context = memory['context'].replace("'", "''")
+    full_content = memory['full_content'].replace("'", "''")
+    scope = memory.get('scope', '/').replace("'", "''")
+    project = memory.get('project')
+    project_sql = f"'{project.replace(chr(39), chr(39)*2)}'" if project else "NULL"
+    source_session = memory.get('source_session')
+    source_session_sql = f"'{source_session}'" if source_session else "NULL"
+    source_turn = memory.get('source_turn')
+    source_turn_sql = f"'{source_turn}'" if source_turn else "NULL"
+    
+    # Build metadata JSON
+    metadata = memory.get('metadata', {})
+    metadata_sql = json.dumps(metadata).replace("'", "''")
+    
+    query = f"""
         INSERT INTO memory_service.memories 
             (tenant_id, agent_id, headline, context, full_content, memory_type, 
              entities, project, categories, scope,
              importance, confidence, embedding,
              source_session, source_turn, metadata)
         VALUES 
-            (%s::UUID, %s, %s, %s, %s, %s,
-             %s, %s, %s, %s,
-             %s, %s, %s::extensions.vector,
-             %s, %s, %s::jsonb)
+            ('{current_tenant}'::UUID, '{memory['agent_id']}', '{headline}', '{context}', '{full_content}', '{memory['memory_type']}',
+             '{entities_str}', {project_sql}, '{categories_str}', '{scope}',
+             {memory.get('importance', 0.5)}, {memory.get('confidence', 0.8)}, '{embedding_str}'::extensions.vector,
+             {source_session_sql}, {source_turn_sql}, '{metadata_sql}'::jsonb)
         RETURNING id;
     """
     
-    params = (
-        current_tenant,
-        memory['agent_id'],
-        memory['headline'],
-        memory['context'],
-        memory['full_content'],
-        memory['memory_type'],
-        memory.get('entities', []),
-        memory.get('project'),
-        memory.get('categories', []),
-        memory.get('scope', '/'),
-        memory.get('importance', 0.5),
-        memory.get('confidence', 0.8),
-        embedding,
-        memory.get('source_session'),
-        memory.get('source_turn'),
-        json.dumps(memory.get('metadata', {}))
-    )
-    
-    rows = _db_execute(query, params, tenant_id=current_tenant)
+    rows = _db_execute(query, tenant_id=current_tenant)
     mem_id = rows[0].split("|||")[0] if rows else None
     
     # Handle corrections — supersede old memories within tenant
@@ -261,15 +235,11 @@ def store_memory(memory: dict, tenant_id: str = None) -> str:
         _create_entity_edges(memory['agent_id'], mem_id, memory['entities'], current_tenant)
     
     # Audit log
-    _db_execute("""
+    _db_execute(f"""
         INSERT INTO memory_service.memory_audit_log (tenant_id, agent_id, action, memory_id, details)
-        VALUES (%s::UUID, %s, 'extract', %s, %s)
-    """, (
-        current_tenant, 
-        memory['agent_id'], 
-        mem_id, 
-        json.dumps({"headline": memory["headline"], "type": memory["memory_type"]})
-    ), tenant_id=current_tenant, fetch_results=False)
+        VALUES ('{current_tenant}'::UUID, '{memory['agent_id']}', 'extract', '{mem_id}', 
+                '{json.dumps({"headline": memory["headline"], "type": memory["memory_type"]}).replace("'", "''")}')
+    """, tenant_id=current_tenant)
     
     return mem_id
 
@@ -278,18 +248,17 @@ def _check_duplicate(agent_id: str, headline: str, embedding: list[float],
                     threshold: float = 0.85, memory_type: str = None, tenant_id: str = None) -> Optional[str]:
     """Check if a very similar memory already exists within the tenant."""
     current_tenant = tenant_id or _current_tenant_id
+    embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
     
-    query = """
+    rows = _db_execute(f"""
         SELECT id, headline, memory_type,
-               1 - (embedding <=> %s::extensions.vector) as similarity
+               1 - (embedding <=> '{embedding_str}'::extensions.vector) as similarity
         FROM memory_service.memories
-        WHERE agent_id = %s
+        WHERE agent_id = '{agent_id}'
           AND superseded_at IS NULL
-        ORDER BY embedding <=> %s::extensions.vector
+        ORDER BY embedding <=> '{embedding_str}'::extensions.vector
         LIMIT 3
-    """
-    
-    rows = _db_execute(query, (embedding, agent_id, embedding), tenant_id=current_tenant)
+    """, tenant_id=current_tenant)
     
     if rows:
         for row in rows:
@@ -311,20 +280,19 @@ def _check_duplicate(agent_id: str, headline: str, embedding: list[float],
 def _check_contradiction(agent_id: str, headline: str, embedding: list[float], tenant_id: str = None) -> Optional[dict]:
     """Check if a new memory potentially contradicts an existing one within the tenant."""
     current_tenant = tenant_id or _current_tenant_id
+    embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
     
     # Find semantically similar memories (high similarity = same topic)
-    query = """
+    rows = _db_execute(f"""
         SELECT id, headline, context, entities,
-               1 - (embedding <=> %s::extensions.vector) as similarity
+               1 - (embedding <=> '{embedding_str}'::extensions.vector) as similarity
         FROM memory_service.memories
-        WHERE agent_id = %s
+        WHERE agent_id = '{agent_id}'
           AND superseded_at IS NULL
           AND memory_type NOT IN ('correction', 'task')
-        ORDER BY embedding <=> %s::extensions.vector
+        ORDER BY embedding <=> '{embedding_str}'::extensions.vector
         LIMIT 5
-    """
-    
-    rows = _db_execute(query, (embedding, agent_id, embedding), tenant_id=current_tenant)
+    """, tenant_id=current_tenant)
     
     if not rows:
         return None
@@ -363,18 +331,17 @@ def _handle_correction(memory: dict, correction_id: str, tenant_id: str):
     # Search for related memories that this corrects (within tenant only)
     embed_text = f"{memory['headline']}. {memory['context']}"
     embedding = _embed_text(embed_text)
+    embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
     
-    query = """
+    rows = _db_execute(f"""
         SELECT id, headline, agent_id
         FROM memory_service.memories
         WHERE memory_type != 'correction'
           AND superseded_at IS NULL
-          AND id != %s
-        ORDER BY embedding <=> %s::extensions.vector
+          AND id != '{correction_id}'
+        ORDER BY embedding <=> '{embedding_str}'::extensions.vector
         LIMIT 5
-    """
-    
-    rows = _db_execute(query, (correction_id, embedding), tenant_id=tenant_id)
+    """, tenant_id=tenant_id)
     
     if rows:
         for row in rows:
@@ -383,11 +350,11 @@ def _handle_correction(memory: dict, correction_id: str, tenant_id: str):
             old_headline = parts[1].strip() if len(parts) > 1 else ""
             
             # Supersede the top match within this tenant
-            _db_execute("""
+            _db_execute(f"""
                 UPDATE memory_service.memories
-                SET superseded_at = now(), superseded_by = %s
-                WHERE id = %s
-            """, (correction_id, old_id), tenant_id=tenant_id, fetch_results=False)
+                SET superseded_at = now(), superseded_by = '{correction_id}'
+                WHERE id = '{old_id}'
+            """, tenant_id=tenant_id)
             print(f"  ✂ Superseded memory: {old_id} ({old_headline})")
             break  # Only supersede top match
 
@@ -411,25 +378,20 @@ def store_handoff(handoff: dict, tenant_id: str = None) -> str:
     if not current_tenant:
         raise ValueError("No tenant context set")
     
-    query = """
+    summary = handoff.get('summary', '').replace("'", "''")
+    decisions = json.dumps(handoff.get('decisions_made', [])).replace("'", "''")
+    threads = json.dumps(handoff.get('open_threads', [])).replace("'", "''")
+    projects = json.dumps(handoff.get('active_projects', [])).replace("'", "''")
+    
+    rows = _db_execute(f"""
         INSERT INTO memory_service.session_handoffs
             (tenant_id, agent_id, session_key, summary, decisions_made, open_threads, active_projects)
         VALUES 
-            (%s::UUID, %s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb)
+            ('{current_tenant}'::UUID, '{handoff['agent_id']}', '{handoff.get('session_key', 'unknown')}', 
+             '{summary}', '{decisions}'::jsonb, '{threads}'::jsonb, '{projects}'::jsonb)
         RETURNING id;
-    """
+    """, tenant_id=current_tenant)
     
-    params = (
-        current_tenant,
-        handoff['agent_id'],
-        handoff.get('session_key', 'unknown'),
-        handoff.get('summary', ''),
-        json.dumps(handoff.get('decisions_made', [])),
-        json.dumps(handoff.get('open_threads', [])),
-        json.dumps(handoff.get('active_projects', []))
-    )
-    
-    rows = _db_execute(query, params, tenant_id=current_tenant)
     return rows[0].split("|||")[0] if rows else None
 
 
@@ -439,7 +401,7 @@ def get_memory_stats(agent_id: str, tenant_id: str = None) -> dict:
     if not current_tenant:
         raise ValueError("No tenant context set")
     
-    query = """
+    rows = _db_execute(f"""
         SELECT 
             COUNT(*) as total,
             COUNT(*) FILTER (WHERE superseded_at IS NOT NULL) as superseded,
@@ -452,10 +414,8 @@ def get_memory_stats(agent_id: str, tenant_id: str = None) -> dict:
             COUNT(*) FILTER (WHERE memory_type = 'relationship') as relationships,
             AVG(relevance_score) as avg_relevance
         FROM memory_service.memories
-        WHERE agent_id = %s
-    """
-    
-    rows = _db_execute(query, (agent_id,), tenant_id=current_tenant)
+        WHERE agent_id = '{agent_id}'
+    """, tenant_id=current_tenant)
     
     if rows:
         parts = rows[0].split("|||")
@@ -477,15 +437,15 @@ def get_memory_stats(agent_id: str, tenant_id: str = None) -> dict:
 def _index_entities(agent_id: str, memory_id: str, entities: list[str], tenant_id: str):
     """Index entities for a memory within a tenant."""
     for entity in entities:
-        entity_clean = entity.strip()
+        entity_clean = entity.strip().replace("'", "''")
         if not entity_clean:
             continue
         try:
-            _db_execute("""
+            _db_execute(f"""
                 INSERT INTO memory_service.entity_index (tenant_id, agent_id, entity, memory_id)
-                VALUES (%s::UUID, %s, %s, %s)
+                VALUES ('{tenant_id}'::UUID, '{agent_id}', '{entity_clean}', '{memory_id}')
                 ON CONFLICT (tenant_id, agent_id, entity, memory_id) DO NOTHING
-            """, (tenant_id, agent_id, entity_clean, memory_id), tenant_id=tenant_id, fetch_results=False)
+            """, tenant_id=tenant_id)
         except Exception:
             pass  # Skip duplicates silently
 
@@ -493,23 +453,22 @@ def _index_entities(agent_id: str, memory_id: str, entities: list[str], tenant_i
 def _create_entity_edges(agent_id: str, new_memory_id: str, entities: list[str], tenant_id: str):
     """Auto-create edges between memories sharing entities within a tenant."""
     for entity in entities:
-        entity_clean = entity.strip()
+        entity_clean = entity.strip().replace("'", "''")
         if not entity_clean:
             continue
         
         # Find other memories with the same entity within this tenant
         try:
-            query = """
+            rows = _db_execute(f"""
                 SELECT DISTINCT ei.memory_id 
                 FROM memory_service.entity_index ei
                 JOIN memory_service.memories m ON m.id = ei.memory_id
-                WHERE ei.agent_id = %s 
-                  AND ei.entity = %s
-                  AND ei.memory_id != %s
+                WHERE ei.agent_id = '{agent_id}' 
+                  AND ei.entity = '{entity_clean}'
+                  AND ei.memory_id != '{new_memory_id}'
                   AND m.superseded_at IS NULL
                 LIMIT 10
-            """
-            rows = _db_execute(query, (agent_id, entity_clean, new_memory_id), tenant_id=tenant_id)
+            """, tenant_id=tenant_id)
         except Exception:
             continue
         
@@ -518,30 +477,43 @@ def _create_entity_edges(agent_id: str, new_memory_id: str, entities: list[str],
             if not target_id:
                 continue
             try:
-                _db_execute("""
+                _db_execute(f"""
                     INSERT INTO memory_service.memory_edges 
                         (tenant_id, agent_id, source_memory_id, target_memory_id, relationship, strength)
                     VALUES 
-                        (%s::UUID, %s, %s, %s, 'related_to', 0.5)
+                        ('{tenant_id}'::UUID, '{agent_id}', '{new_memory_id}', '{target_id}', 'related_to', 0.5)
                     ON CONFLICT (source_memory_id, target_memory_id, relationship) DO UPDATE
                     SET strength = memory_service.memory_edges.strength + 0.1
-                """, (tenant_id, agent_id, new_memory_id, target_id), tenant_id=tenant_id, fetch_results=False)
+                """, tenant_id=tenant_id)
             except Exception:
                 pass  # Skip edge creation failures
 
 
 def get_tenant_by_api_key(api_key_hash: str) -> Optional[dict]:
     """Look up tenant by API key hash."""
+    import subprocess
+    
     # Direct query without RLS bypass - tenants table doesn't have RLS enabled yet
-    query = """
+    # We'll disable RLS on tenants table since it's needed for auth lookup
+    DB_CONN = "postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
+    
+    query = f"""
         SELECT id, name, plan, memory_limit, rate_limit_rpm, active, api_calls_count
         FROM memory_service.tenants 
-        WHERE api_key_hash = %s AND active = true;
+        WHERE api_key_hash = '{api_key_hash}' AND active = true;
     """
     
-    # Use a special tenant context for tenant lookup (bootstrap operation)
-    rows = _db_execute(query, (api_key_hash,), tenant_id="00000000-0000-0000-0000-000000000000")
+    result = subprocess.run(
+        ["psql", DB_CONN, "-t", "-A", "-F", "|||", "-c", query],
+        capture_output=True, text=True, timeout=15,
+        env={**os.environ, "PGPASSWORD": "jcYlwEhuHN9VcOuj"}
+    )
     
+    if result.returncode != 0:
+        print(f"DB error in get_tenant_by_api_key: {result.stderr}")
+        return None
+    
+    rows = [line for line in result.stdout.strip().split("\n") if line]
     if rows:
         parts = rows[0].split("|||")
         if len(parts) >= 7:
@@ -575,22 +547,18 @@ def create_tenant(name: str, plan: str = 'free') -> dict:
     
     plan_limits = limits.get(plan, limits['free'])
     
-    # Insert tenant (bypassing RLS for admin operation)
-    query = """
+    # Insert tenant — tenants table has RLS disabled so no bypass needed
+    import subprocess
+    result = subprocess.run(
+        ["psql", DB_CONN, "-t", "-A", "-F", "|||", "-c", f"""
         INSERT INTO memory_service.tenants (name, api_key_hash, plan, memory_limit, rate_limit_rpm)
-        VALUES (%s, %s, %s, %s, %s)
+        VALUES ('{name.replace("'", "''")}', '{api_key_hash}', '{plan}', 
+                {plan_limits['memory_limit']}, {plan_limits['rate_limit_rpm']})
         RETURNING id, created_at;
-    """
-    
-    params = (
-        name,
-        api_key_hash,
-        plan,
-        plan_limits['memory_limit'],
-        plan_limits['rate_limit_rpm']
+        """],
+        capture_output=True, text=True, timeout=10
     )
-    
-    rows = _db_execute(query, params, tenant_id="00000000-0000-0000-0000-000000000000")
+    rows = [l.strip() for l in result.stdout.strip().split("\n") if l.strip()]
     
     if rows:
         parts = rows[0].split("|||")
@@ -611,36 +579,15 @@ def track_api_usage(tenant_id: str, endpoint: str, tokens_used: int = 0,
                    response_time_ms: int = 0, status_code: int = 200):
     """Track API usage for a tenant."""
     try:
-        # Use a transaction for both operations
-        pool = _get_connection_pool()
-        conn = pool.getconn()
-        cur = conn.cursor()
-        
-        try:
-            cur.execute("BEGIN")
-            cur.execute("SELECT memory_service.set_tenant_context(%s)", (tenant_id,))
+        _db_execute(f"""
+            INSERT INTO memory_service.api_usage 
+                (tenant_id, endpoint, tokens_used, response_time_ms, status_code)
+            VALUES ('{tenant_id}'::UUID, '{endpoint}', {tokens_used}, {response_time_ms}, {status_code});
             
-            cur.execute("""
-                INSERT INTO memory_service.api_usage 
-                    (tenant_id, endpoint, tokens_used, response_time_ms, status_code)
-                VALUES (%s::UUID, %s, %s, %s, %s)
-            """, (tenant_id, endpoint, tokens_used, response_time_ms, status_code))
-            
-            cur.execute("""
-                UPDATE memory_service.tenants 
-                SET api_calls_count = api_calls_count + 1, last_api_call = now()
-                WHERE id = %s::UUID
-            """, (tenant_id,))
-            
-            cur.execute("COMMIT")
-            
-        except Exception as e:
-            cur.execute("ROLLBACK")
-            raise e
-        finally:
-            cur.close()
-            pool.putconn(conn)
-            
+            UPDATE memory_service.tenants 
+            SET api_calls_count = api_calls_count + 1, last_api_call = now()
+            WHERE id = '{tenant_id}'::UUID;
+        """, tenant_id=tenant_id)
     except Exception as e:
         print(f"Failed to track usage: {e}")
 
@@ -662,5 +609,5 @@ if __name__ == "__main__":
         print(json.dumps(stats, indent=2))
     else:
         print("Usage:")
-        print("  python storage_multitenant_secure.py create-tenant <name> [plan]")
-        print("  python storage_multitenant_secure.py stats <tenant_id> [agent]")
+        print("  python storage_multitenant.py create-tenant <name> [plan]")
+        print("  python storage_multitenant.py stats <tenant_id> [agent]")

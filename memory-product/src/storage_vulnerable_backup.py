@@ -4,19 +4,13 @@ Phase 2: Persist extracted memories with embeddings, decay, and temporal trackin
 
 Uses Supabase (Postgres + pgvector) as the backend.
 Designed to work with a new 'memory_service' schema, isolated from Thomas's existing 'thomas' schema.
-
-SECURITY HARDENED: Uses psycopg2 with parameterized queries to prevent SQL injection.
 """
 
 import json
 import os
 import requests
-import psycopg2
-import psycopg2.pool
 from datetime import datetime, timezone
 from typing import Optional
-import threading
-import time
 
 
 # --- Configuration ---
@@ -29,23 +23,6 @@ GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
 
 DB_CONN = os.environ.get("MEMORY_DB_CONN", 
     "postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres")
-
-# Connection pool - thread-safe
-_connection_pool = None
-_pool_lock = threading.Lock()
-
-def _get_connection_pool():
-    """Get or create the connection pool."""
-    global _connection_pool
-    if _connection_pool is None:
-        with _pool_lock:
-            if _connection_pool is None:
-                _connection_pool = psycopg2.pool.ThreadedConnectionPool(
-                    minconn=2,
-                    maxconn=10,
-                    dsn=DB_CONN
-                )
-    return _connection_pool
 
 
 def _embed_text(text: str) -> list[float]:
@@ -94,56 +71,35 @@ def _embed_text(text: str) -> list[float]:
     raise RuntimeError("No embedding provider available")
 
 
-def _db_execute(query: str, params: tuple = None, fetch_results: bool = True) -> list:
-    """
-    Execute a query against the database via psycopg2.
+def _db_execute(query: str, params: dict = None) -> list:
+    """Execute a query against the database via psql."""
+    import subprocess
     
-    SECURITY: Uses parameterized queries to prevent SQL injection.
-    """
-    pool = _get_connection_pool()
-    retries = 0
-    max_retries = 3
-    
-    while retries < max_retries:
-        conn = None
-        cur = None
-        try:
-            conn = pool.getconn()
-            cur = conn.cursor()
-            
-            # Execute the query with parameters
-            if params:
-                cur.execute(query, params)
+    # Substitute params into query (basic, for prototyping)
+    if params:
+        for key, val in params.items():
+            if isinstance(val, str):
+                val = val.replace("'", "''")
+                query = query.replace(f":{key}", f"'{val}'")
+            elif isinstance(val, (list, dict)):
+                val_str = json.dumps(val).replace("'", "''")
+                query = query.replace(f":{key}", f"'{val_str}'")
+            elif val is None:
+                query = query.replace(f":{key}", "NULL")
             else:
-                cur.execute(query)
-            
-            results = []
-            if fetch_results and cur.description:
-                # Fetch all results and format as pipe-separated values for compatibility
-                rows = cur.fetchall()
-                for row in rows:
-                    # Convert row tuple to string, handling None values
-                    row_str = "|".join(str(val) if val is not None else "" for val in row)
-                    results.append(row_str)
-            
-            conn.commit()
-            return results
-            
-        except psycopg2.Error as e:
-            if conn:
-                conn.rollback()
-            retries += 1
-            if retries >= max_retries:
-                raise RuntimeError(f"DB error after {max_retries} retries: {e}")
-            time.sleep(0.1 * retries)  # Brief backoff
-            
-        finally:
-            if cur:
-                cur.close()
-            if conn:
-                pool.putconn(conn)
+                query = query.replace(f":{key}", str(val))
     
-    return []
+    result = subprocess.run(
+        ["psql", DB_CONN, "-t", "-A", "-F", "|", "-c", query],
+        capture_output=True, text=True, timeout=15,
+        env={**os.environ, "PGPASSWORD": "jcYlwEhuHN9VcOuj"}
+    )
+    
+    if result.returncode != 0:
+        raise RuntimeError(f"DB error: {result.stderr}")
+    
+    rows = [line for line in result.stdout.strip().split("\n") if line]
+    return rows
 
 
 def init_schema():
@@ -235,28 +191,6 @@ def init_schema():
         created_at TIMESTAMPTZ DEFAULT now()
     );
     
-    -- Entity index for cross-entity linking
-    CREATE TABLE IF NOT EXISTS memory_service.entity_index (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        agent_id TEXT NOT NULL,
-        entity TEXT NOT NULL,
-        memory_id UUID NOT NULL REFERENCES memory_service.memories(id) ON DELETE CASCADE,
-        created_at TIMESTAMPTZ DEFAULT now(),
-        UNIQUE(agent_id, entity, memory_id)
-    );
-    
-    -- Memory edges for knowledge graph
-    CREATE TABLE IF NOT EXISTS memory_service.memory_edges (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        agent_id TEXT NOT NULL,
-        source_memory_id UUID NOT NULL REFERENCES memory_service.memories(id) ON DELETE CASCADE,
-        target_memory_id UUID NOT NULL REFERENCES memory_service.memories(id) ON DELETE CASCADE,
-        relationship TEXT NOT NULL DEFAULT 'related_to',
-        strength FLOAT DEFAULT 0.5,
-        created_at TIMESTAMPTZ DEFAULT now(),
-        UNIQUE(source_memory_id, target_memory_id, relationship)
-    );
-    
     -- Indexes
     CREATE INDEX IF NOT EXISTS idx_mem_agent ON memory_service.memories(agent_id);
     CREATE INDEX IF NOT EXISTS idx_mem_type ON memory_service.memories(agent_id, memory_type);
@@ -265,12 +199,9 @@ def init_schema():
     CREATE INDEX IF NOT EXISTS idx_mem_created ON memory_service.memories(agent_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_handoff_agent ON memory_service.session_handoffs(agent_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_audit_agent ON memory_service.memory_audit_log(agent_id, created_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_entity_agent ON memory_service.entity_index(agent_id, entity);
-    CREATE INDEX IF NOT EXISTS idx_edges_source ON memory_service.memory_edges(source_memory_id);
-    CREATE INDEX IF NOT EXISTS idx_edges_target ON memory_service.memory_edges(target_memory_id);
     """
     
-    _db_execute(schema_sql, fetch_results=False)
+    _db_execute(schema_sql)
     print("✅ Schema initialized: memory_service")
 
 
@@ -287,19 +218,20 @@ def store_memory(memory: dict) -> str:
     # Generate embedding from headline + context (not full_content — saves tokens)
     embed_text = f"{memory['headline']}. {memory['context']}"
     embedding = _embed_text(embed_text)
+    embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
     
     # Check for duplicate/reinforcement
     existing = _check_duplicate(memory['agent_id'], memory['headline'], embedding, memory_type=memory.get('memory_type'))
     
     if existing:
         # Reinforce existing memory
-        _db_execute("""
+        _db_execute(f"""
             UPDATE memory_service.memories 
             SET reinforcement_count = reinforcement_count + 1,
                 relevance_score = LEAST(1.0, relevance_score + 0.1),
                 last_accessed = now()
-            WHERE id = %s
-        """, (existing,), fetch_results=False)
+            WHERE id = '{existing}'
+        """)
         print(f"  ↑ Reinforced existing memory: {existing}")
         return existing
     
@@ -319,41 +251,48 @@ def store_memory(memory: dict) -> str:
             metadata['contradicts_id'] = contradiction['id']
             memory['metadata'] = metadata
     
-    # Build the insert query with parameterized values
-    query = """
+    # Build entities and categories arrays
+    entities_str = "{" + ",".join(f'"{e}"' for e in memory.get('entities', [])) + "}"
+    categories_str = "{" + ",".join(f'"{c}"' for c in memory.get('categories', [])) + "}"
+    
+    # Escape strings for SQL
+    headline = memory['headline'].replace("'", "''")
+    context = memory['context'].replace("'", "''")
+    full_content = memory['full_content'].replace("'", "''")
+    scope = memory.get('scope', '/').replace("'", "''")
+    project = memory.get('project')
+    project_sql = f"'{project.replace(chr(39), chr(39)*2)}'" if project else "NULL"
+    source_session = memory.get('source_session')
+    source_session_sql = f"'{source_session}'" if source_session else "NULL"
+    source_turn = memory.get('source_turn')
+    source_turn_sql = f"'{source_turn}'" if source_turn else "NULL"
+    
+    # Build metadata JSON
+    metadata = memory.get('metadata', {})
+    metadata_sql = json.dumps(metadata).replace("'", "''")
+    
+    # Handle ephemeral TTL
+    ttl_hours = memory.get('ttl_hours')
+    expires_clause = f", expires_at = now() + interval '{ttl_hours} hours'" if ttl_hours else ""
+    expires_col = ", expires_at" if ttl_hours else ""
+    expires_val = f", now() + interval '{ttl_hours} hours'" if ttl_hours else ""
+    
+    query = f"""
         INSERT INTO memory_service.memories 
             (agent_id, headline, context, full_content, memory_type, 
              entities, project, categories, scope,
              importance, confidence, embedding,
-             source_session, source_turn, metadata)
+             source_session, source_turn, metadata{expires_col})
         VALUES 
-            (%s, %s, %s, %s, %s,
-             %s, %s, %s, %s,
-             %s, %s, %s::extensions.vector,
-             %s, %s, %s::jsonb)
+            ('{memory['agent_id']}', '{headline}', '{context}', '{full_content}', '{memory['memory_type']}',
+             '{entities_str}', {project_sql}, '{categories_str}', '{scope}',
+             {memory.get('importance', 0.5)}, {memory.get('confidence', 0.8)}, '{embedding_str}'::extensions.vector,
+             {source_session_sql}, {source_turn_sql}, '{metadata_sql}'::jsonb{expires_val})
         RETURNING id;
     """
     
-    params = (
-        memory['agent_id'],
-        memory['headline'],
-        memory['context'],
-        memory['full_content'],
-        memory['memory_type'],
-        memory.get('entities', []),
-        memory.get('project'),
-        memory.get('categories', []),
-        memory.get('scope', '/'),
-        memory.get('importance', 0.5),
-        memory.get('confidence', 0.8),
-        embedding,
-        memory.get('source_session'),
-        memory.get('source_turn'),
-        json.dumps(memory.get('metadata', {}))
-    )
-    
-    rows = _db_execute(query, params)
-    mem_id = rows[0].split("|")[0] if rows else None
+    rows = _db_execute(query)
+    mem_id = rows[0] if rows else None
     
     # Handle corrections — supersede old memories
     if memory['memory_type'] == 'correction' and mem_id:
@@ -366,14 +305,11 @@ def store_memory(memory: dict) -> str:
         _create_entity_edges(memory['agent_id'], mem_id, memory['entities'])
     
     # Audit log
-    _db_execute("""
+    _db_execute(f"""
         INSERT INTO memory_service.memory_audit_log (agent_id, action, memory_id, details)
-        VALUES (%s, 'extract', %s, %s)
-    """, (
-        memory['agent_id'], 
-        mem_id, 
-        json.dumps({"headline": memory["headline"], "type": memory["memory_type"]})
-    ), fetch_results=False)
+        VALUES ('{memory['agent_id']}', 'extract', '{mem_id}', 
+                '{json.dumps({"headline": memory["headline"], "type": memory["memory_type"]}).replace("'", "''")}')
+    """)
     
     return mem_id
 
@@ -385,17 +321,17 @@ def _check_duplicate(agent_id: str, headline: str, embedding: list[float], thres
     - 0.92+ similarity: Almost certainly a duplicate regardless of type
     - 0.85-0.92 similarity: Duplicate only if same memory_type (prevents cross-type false matches)
     """
-    query = """
-        SELECT id, headline, memory_type,
-               1 - (embedding <=> %s::extensions.vector) as similarity
-        FROM memory_service.memories
-        WHERE agent_id = %s
-          AND superseded_at IS NULL
-        ORDER BY embedding <=> %s::extensions.vector
-        LIMIT 3
-    """
+    embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
     
-    rows = _db_execute(query, (embedding, agent_id, embedding))
+    rows = _db_execute(f"""
+        SELECT id, headline, memory_type,
+               1 - (embedding <=> '{embedding_str}'::extensions.vector) as similarity
+        FROM memory_service.memories
+        WHERE agent_id = '{agent_id}'
+          AND superseded_at IS NULL
+        ORDER BY embedding <=> '{embedding_str}'::extensions.vector
+        LIMIT 3
+    """)
     
     if rows:
         for row in rows:
@@ -420,18 +356,19 @@ def _check_contradiction(agent_id: str, headline: str, embedding: list[float]) -
     Uses semantic similarity to find related memories, then checks for
     entity overlap with conflicting values.
     """
-    query = """
+    embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
+    
+    # Find semantically similar memories (high similarity = same topic)
+    rows = _db_execute(f"""
         SELECT id, headline, context, entities,
-               1 - (embedding <=> %s::extensions.vector) as similarity
+               1 - (embedding <=> '{embedding_str}'::extensions.vector) as similarity
         FROM memory_service.memories
-        WHERE agent_id = %s
+        WHERE agent_id = '{agent_id}'
           AND superseded_at IS NULL
           AND memory_type NOT IN ('correction', 'task')
-        ORDER BY embedding <=> %s::extensions.vector
+        ORDER BY embedding <=> '{embedding_str}'::extensions.vector
         LIMIT 5
-    """
-    
-    rows = _db_execute(query, (embedding, agent_id, embedding))
+    """)
     
     if not rows:
         return None
@@ -480,23 +417,24 @@ def _handle_correction(memory: dict, correction_id: str):
     # Search for related memories that this corrects
     embed_text = f"{memory['headline']}. {memory['context']}"
     embedding = _embed_text(embed_text)
+    embedding_str = "[" + ",".join(str(v) for v in embedding) + "]"
     
     # Find the most similar non-correction memory — across ALL agents, not just the source
-    query = """
+    rows = _db_execute(f"""
         SELECT id, headline, agent_id
         FROM memory_service.memories
         WHERE memory_type != 'correction'
           AND superseded_at IS NULL
-          AND id != %s
-        ORDER BY embedding <=> %s::extensions.vector
+          AND id != '{correction_id}'
+        ORDER BY embedding <=> '{embedding_str}'::extensions.vector
         LIMIT 5
-    """
-    
-    rows = _db_execute(query, (correction_id, embedding))
+    """)
     
     if rows:
         for row in rows:
-            parts = row.split("|")
+            parts = row.split("|||")
+            if len(parts) < 3:
+                parts = row.split("|")
             old_id = parts[0].strip()
             old_headline = parts[1].strip() if len(parts) > 1 else ""
             old_agent = parts[2].strip() if len(parts) > 2 else memory['agent_id']
@@ -506,21 +444,21 @@ def _handle_correction(memory: dict, correction_id: str):
             # For same agent: supersede top match. For cross-agent: need higher bar
             if old_agent == memory['agent_id']:
                 # Same agent — supersede the top match
-                _db_execute("""
+                _db_execute(f"""
                     UPDATE memory_service.memories
-                    SET superseded_at = now(), superseded_by = %s
-                    WHERE id = %s
-                """, (correction_id, old_id), fetch_results=False)
+                    SET superseded_at = now(), superseded_by = '{correction_id}'
+                    WHERE id = '{old_id}'
+                """)
                 print(f"  ✂ Superseded own memory: {old_id} ({old_headline})")
                 _cascade_correction(old_agent, old_id, correction_id, old_headline)
                 break  # Only supersede top match for same agent
             else:
                 # Cross-agent — also supersede stale facts in sibling agents
-                _db_execute("""
+                _db_execute(f"""
                     UPDATE memory_service.memories
-                    SET superseded_at = now(), superseded_by = %s
-                    WHERE id = %s
-                """, (correction_id, old_id), fetch_results=False)
+                    SET superseded_at = now(), superseded_by = '{correction_id}'
+                    WHERE id = '{old_id}'
+                """)
                 print(f"  ✂ Cross-agent supersede [{old_agent}]: {old_id} ({old_headline})")
                 _cascade_correction(old_agent, old_id, correction_id, old_headline)
 
@@ -540,25 +478,21 @@ def store_memories(memories: list[dict]) -> list[str]:
 
 def store_handoff(handoff: dict) -> str:
     """Store a session handoff record."""
-    query = """
+    summary = handoff.get('summary', '').replace("'", "''")
+    decisions = json.dumps(handoff.get('decisions_made', [])).replace("'", "''")
+    threads = json.dumps(handoff.get('open_threads', [])).replace("'", "''")
+    projects = json.dumps(handoff.get('active_projects', [])).replace("'", "''")
+    
+    rows = _db_execute(f"""
         INSERT INTO memory_service.session_handoffs
             (agent_id, session_key, summary, decisions_made, open_threads, active_projects)
         VALUES 
-            (%s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb)
+            ('{handoff['agent_id']}', '{handoff.get('session_key', 'unknown')}', 
+             '{summary}', '{decisions}'::jsonb, '{threads}'::jsonb, '{projects}'::jsonb)
         RETURNING id;
-    """
+    """)
     
-    params = (
-        handoff['agent_id'],
-        handoff.get('session_key', 'unknown'),
-        handoff.get('summary', ''),
-        json.dumps(handoff.get('decisions_made', [])),
-        json.dumps(handoff.get('open_threads', [])),
-        json.dumps(handoff.get('active_projects', []))
-    )
-    
-    rows = _db_execute(query, params)
-    return rows[0].split("|")[0] if rows else None
+    return rows[0] if rows else None
 
 
 def run_decay(agent_id: str = None):
@@ -574,10 +508,9 @@ def run_decay(agent_id: str = None):
     - correction: 0.001/day (corrections are important long-term)
     - relationship: 0.002/day
     """
-    agent_filter_sql = "AND agent_id = %s" if agent_id else ""
-    params = (agent_id,) if agent_id else ()
+    agent_filter = f"AND agent_id = '{agent_id}'" if agent_id else ""
     
-    query = f"""
+    _db_execute(f"""
         UPDATE memory_service.memories
         SET relevance_score = GREATEST(0.01, 
             relevance_score - CASE 
@@ -600,16 +533,15 @@ def run_decay(agent_id: str = None):
         WHERE superseded_at IS NULL
           AND relevance_score > 0.01
           AND memory_type != 'identity'  -- double-guard: identity never decays
-          {agent_filter_sql}
-    """
+          {agent_filter}
+    """)
     
-    _db_execute(query, params, fetch_results=False)
     print(f"✅ Decay applied{' for ' + agent_id if agent_id else ' globally'}")
 
 
 def get_memory_stats(agent_id: str) -> dict:
     """Get memory statistics for an agent."""
-    query = """
+    rows = _db_execute(f"""
         SELECT 
             COUNT(*) as total,
             COUNT(*) FILTER (WHERE superseded_at IS NOT NULL) as superseded,
@@ -622,10 +554,8 @@ def get_memory_stats(agent_id: str) -> dict:
             COUNT(*) FILTER (WHERE memory_type = 'relationship') as relationships,
             AVG(relevance_score) as avg_relevance
         FROM memory_service.memories
-        WHERE agent_id = %s
-    """
-    
-    rows = _db_execute(query, (agent_id,))
+        WHERE agent_id = '{agent_id}'
+    """)
     
     if rows:
         parts = rows[0].split("|")
@@ -656,29 +586,27 @@ def _cascade_correction(agent_id: str, old_memory_id: str, correction_id: str, o
     """
     try:
         # Find related memories via the entity graph
-        query = """
+        rows = _db_execute(f"""
             SELECT DISTINCT m.id, m.headline, me.strength
             FROM memory_service.memory_edges me
             JOIN memory_service.memories m ON (
                 m.id = me.target_memory_id OR m.id = me.source_memory_id
             )
-            WHERE (me.source_memory_id = %s OR me.target_memory_id = %s)
-              AND me.agent_id = %s
-              AND m.id != %s
-              AND m.id != %s
+            WHERE (me.source_memory_id = '{old_memory_id}' OR me.target_memory_id = '{old_memory_id}')
+              AND me.agent_id = '{agent_id}'
+              AND m.id != '{old_memory_id}'
+              AND m.id != '{correction_id}'
               AND m.superseded_at IS NULL
             ORDER BY me.strength DESC
             LIMIT 10
-        """
-        
-        rows = _db_execute(query, (old_memory_id, old_memory_id, agent_id, old_memory_id, correction_id))
+        """)
         
         if not rows:
             return
         
         flagged = 0
         for row in rows:
-            parts = row.split("|")
+            parts = row.split("|||")
             if len(parts) < 3:
                 continue
             
@@ -688,17 +616,11 @@ def _cascade_correction(agent_id: str, old_memory_id: str, correction_id: str, o
             
             if strength >= 0.4:
                 # Flag this memory as potentially affected by the correction
-                cascade_metadata = {
-                    "correction_cascade": True, 
-                    "cascade_from": correction_id, 
-                    "cascade_note": f"Upstream fact corrected: {old_headline}"
-                }
-                
-                _db_execute("""
+                _db_execute(f"""
                     UPDATE memory_service.memories
-                    SET metadata = metadata || %s::jsonb
-                    WHERE id = %s
-                """, (json.dumps(cascade_metadata), mem_id), fetch_results=False)
+                    SET metadata = metadata || '{{"correction_cascade": true, "cascade_from": "{correction_id}", "cascade_note": "Upstream fact corrected: {old_headline.replace(chr(39), chr(39)*2)}"}}'::jsonb
+                    WHERE id = '{mem_id}'
+                """)
                 flagged += 1
                 print(f"  🔗 Cascade flagged: {headline} (strength: {strength:.2f})")
         
@@ -712,15 +634,15 @@ def _cascade_correction(agent_id: str, old_memory_id: str, correction_id: str, o
 def _index_entities(agent_id: str, memory_id: str, entities: list[str]):
     """Index entities for a memory, enabling cross-entity lookups."""
     for entity in entities:
-        entity_clean = entity.strip()
+        entity_clean = entity.strip().replace("'", "''")
         if not entity_clean:
             continue
         try:
-            _db_execute("""
+            _db_execute(f"""
                 INSERT INTO memory_service.entity_index (agent_id, entity, memory_id)
-                VALUES (%s, %s, %s)
+                VALUES ('{agent_id}', '{entity_clean}', '{memory_id}')
                 ON CONFLICT (agent_id, entity, memory_id) DO NOTHING
-            """, (agent_id, entity_clean, memory_id), fetch_results=False)
+            """)
         except Exception:
             pass  # Skip duplicates silently
 
@@ -731,39 +653,38 @@ def _create_entity_edges(agent_id: str, new_memory_id: str, entities: list[str])
     that share entities. This builds the knowledge graph incrementally.
     """
     for entity in entities:
-        entity_clean = entity.strip()
+        entity_clean = entity.strip().replace("'", "''")
         if not entity_clean:
             continue
         
         # Find other memories with the same entity
         try:
-            query = """
+            rows = _db_execute(f"""
                 SELECT DISTINCT ei.memory_id 
                 FROM memory_service.entity_index ei
                 JOIN memory_service.memories m ON m.id = ei.memory_id
-                WHERE ei.agent_id = %s 
-                  AND ei.entity = %s
-                  AND ei.memory_id != %s
+                WHERE ei.agent_id = '{agent_id}' 
+                  AND ei.entity = '{entity_clean}'
+                  AND ei.memory_id != '{new_memory_id}'
                   AND m.superseded_at IS NULL
                 LIMIT 10
-            """
-            rows = _db_execute(query, (agent_id, entity_clean, new_memory_id))
+            """)
         except Exception:
             continue
         
         for row in rows:
-            target_id = row.strip().split("|")[0]
+            target_id = row.strip()
             if not target_id:
                 continue
             try:
-                _db_execute("""
+                _db_execute(f"""
                     INSERT INTO memory_service.memory_edges 
                         (agent_id, source_memory_id, target_memory_id, relationship, strength)
                     VALUES 
-                        (%s, %s, %s, 'related_to', 0.5)
+                        ('{agent_id}', '{new_memory_id}', '{target_id}', 'related_to', 0.5)
                     ON CONFLICT (source_memory_id, target_memory_id, relationship) DO UPDATE
                     SET strength = memory_service.memory_edges.strength + 0.1
-                """, (agent_id, new_memory_id, target_id), fetch_results=False)
+                """)
             except Exception:
                 pass  # Skip edge creation failures
 
@@ -773,22 +694,20 @@ def get_related_memories(agent_id: str, memory_id: str, max_depth: int = 1) -> l
     Traverse the entity graph to find related memories.
     Used by correction cascading (refinement #4) and recall enhancement.
     """
-    query = """
+    rows = _db_execute(f"""
         SELECT DISTINCT m.id, m.headline, m.memory_type, me.relationship, me.strength
         FROM memory_service.memory_edges me
         JOIN memory_service.memories m ON m.id = me.target_memory_id
-        WHERE me.source_memory_id = %s
-          AND me.agent_id = %s
+        WHERE me.source_memory_id = '{memory_id}'
+          AND me.agent_id = '{agent_id}'
           AND m.superseded_at IS NULL
         ORDER BY me.strength DESC
         LIMIT 20
-    """
-    
-    rows = _db_execute(query, (memory_id, agent_id))
+    """)
     
     results = []
     for row in rows:
-        parts = row.split("|")
+        parts = row.split("|||")
         if len(parts) >= 5:
             results.append({
                 "id": parts[0],
@@ -816,6 +735,6 @@ if __name__ == "__main__":
         run_decay(agent)
     else:
         print("Usage:")
-        print("  python storage_secure.py init          — Create schema")
-        print("  python storage_secure.py stats [agent]  — Show memory stats")
-        print("  python storage_secure.py decay [agent]  — Run decay cycle")
+        print("  python storage.py init          — Create schema")
+        print("  python storage.py stats [agent]  — Show memory stats")
+        print("  python storage.py decay [agent]  — Run decay cycle")
