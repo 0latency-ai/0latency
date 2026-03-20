@@ -1,11 +1,11 @@
 # Memory Context (auto-generated)
-_Last updated: 2026-03-20 06:18 UTC_
-_39 memories loaded_
+_Last updated: 2026-03-20 06:22 UTC_
+_40 memories loaded_
 
 ## Agent Memory Context
 
 ### Last Session Summary
-Thomas and Justin recovered from a memory compaction issue, implemented several memory infrastructure improvements, and made progress on Colorado DOE outreach. Key improvements include real-time extraction, dynamic context, cross-entity linking, and correction cascading. A parallel comparison of flat files and the structured pipeline was initiated.
+Justin and the agent are refining the strategy for Layer 2, the rolling conversation summary. They've established that cost isn't a barrier and are now focusing on identifying the optimal triggers for updating the summary to ensure zero-latency recall after compaction.
 
 ### Active Corrections
 - ⚠️ Compaction test is the gate for further development: Passing the compaction test is the primary gate for all further development efforts. Until the system proves it can survive compaction, all other tasks are considered premature.
@@ -28,18 +28,19 @@ Thomas and Justin recovered from a memory compaction issue, implemented several 
 
 ### Relevant Context
 **Recent Decisions:**
-  → Justin prioritizes addressing the gap analysis to improve the memory system's accuracy from ~85% to 99%. This is considered more important than building out the deliverable product, as a broken memory system renders the product useless. This is now the top priority.
-  → The agent suggests starting with fixing the session handoff issue (Fix 1) identified in the gap analysis. It's considered the highest-impact, lowest-effort item, making it a good starting point.
   → The user suggests addressing privacy concerns in the data policy. Users worried about privacy can choose not to sign up or share sensitive info, placing the onus on them.
+  → Justin prioritizes addressing the gap analysis to improve the memory system's accuracy from ~85% to 99%. This is considered more important than building out the deliverable product, as a broken memory system renders the product useless. This is now the top priority.
 
 **Relevant Facts:**
   → The agent identifies the 5-minute polling interval as a vulnerability. If a session gets killed, up to 4 minutes of work could be lost. Real-time per-turn extraction should be a priority, not just a 'nice to have'.
   → The next session should have 226 memories across 7 types in structured storage and know about the CO emails pending review, the 48-hour parallel comparison, and every refinement shipped. This is part of the memory compaction test.
-  → Echo's context has expanded to 36 memories, but it still contains the outdated $16 pricing information. This highlights a potential issue with the memory correction cascading mechanism.
   → The agent has a comprehensive session summary in the daily notes file (`memory/2026-03-19.md`), which includes 20 items and all open items. This file was written right before compaction to prevent data loss.
+  → Echo's context has expanded to 36 memories, but it still contains the outdated $16 pricing information. This highlights a potential issue with the memory correction cascading mechanism.
+  → The agent experienced a complete memory loss and had to reconstruct the conversation by searching memory files and reading the previous session transcript. This highlights the importance of real-time memory extraction to avoid relying on raw transcripts.
+  → The current memory architecture captures individual memories (Layer 1) but lacks a rolling summary of the active conversation thread, decisions, and open items (Layer 2). This missing layer is crucial for maintaining context and coherence across turns, especially after compaction.
+  → Automated import of historical conversations via API key or OAuth is a desirable onboarding UX for a sellable product. This allows users to connect their Claude/ChatGPT/Gemini accounts and bootstrap the memory system in one step, achieving zero-to-oracle quickly.
   → The upcoming memory compaction test is crucial. If the next session can seamlessly continue without asking 'where did we leave off?', the recent improvements will be considered successful. Otherwise, it will be considered a failure.
   → Justin's primary goal is to achieve $1 million in Annual Recurring Revenue (ARR). The first milestone towards this goal is reaching $200,000 to $300,000 in ARR. This is the overarching financial objective.
-  → The current memory architecture captures individual memories (Layer 1) but lacks a rolling summary of the active conversation thread, decisions, and open items (Layer 2). This missing layer is crucial for maintaining context and coherence across turns, especially after compaction.
   → The agent's last memory before compaction was the user stating "1. That will resolve itself momentarily. 2. I mean, I expect we'll need to test it as a new user on a fresh install, clearly..."
   → Most OpenClaw users don't have Postgres. The install flow needs to be either 'paste your Supabase URL' or 'we host it for you'. Anything more and we lose people. This is important for user adoption and a smooth onboarding experience.
   → The memory health dashboard should visualize metrics such as memory count over time, extraction rate, recall hit rate, entity graph, topic coverage heatmap, contradiction flags, ephemeral memory countdown timers, recent extractions feed, and compaction survival score.
@@ -58,4 +59,4 @@ Thomas and Justin recovered from a memory compaction issue, implemented several 
   → Sebastian is assigned to build the teacher-side 'mark class complete' feature for K-2 whole-class delivery within Project Explore. This development task is estimated to take approximately one day. This is new development.
 
 ### Knowledge Gaps
-⚠ No memory coverage for: conversation info. Do not guess or fill in details about these topics.
+⚠ No memory coverage for: conversation info, message details, sender details. Do not guess or fill in details about these topics.

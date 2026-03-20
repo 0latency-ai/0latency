@@ -38,10 +38,10 @@ For each extracted memory, provide:
 3. **full_content**: Complete memory with all nuance, caveats, source info (200-500 tokens).
 4. **memory_type**: MUST be one of these exact values. Choose carefully:
    - "preference": How the user wants things done. Communication style, behavior rules, tool usage norms, likes/dislikes. If the user says "don't do X" or "always do Y" or "I prefer Z" — this is a preference.
-   - "decision": A choice that was made. If someone chose option A over option B, selected a vendor, approved a plan, picked a direction — this is a decision.
-   - "fact": Objective information. Dates, numbers, states of affairs, technical details, business facts.
+   - "decision": A choice that was made. ONLY use when someone explicitly chose A over B, approved a plan, committed to a direction, or gave a definitive answer. For decisions, you MUST capture in full_content: (a) what was decided, (b) why/rationale, (c) who made it, (d) what alternatives were rejected or what it supersedes. "Agreed" or "yes" in response to a proposal = decision. Vague discussion ≠ decision.
+   - "fact": Objective information. Dates, numbers, states of affairs, technical details, business facts. THIS IS THE DEFAULT — if something doesn't clearly fit another type, it's a fact.
    - "task": Something that needs to be done. Action items, todos, follow-ups, deadlines.
-   - "correction": A previously held belief/fact was wrong and is now updated. The old fact and new fact must both be stated.
+   - "correction": ONLY when a previously held belief/fact is EXPLICITLY stated to be wrong and replaced with a new fact. Both the old and new fact must be clearly present in the conversation. Someone adding new information is NOT a correction — it's a fact. An agent status update is NOT a correction. Only use correction when the conversation explicitly says "X was wrong, it's actually Y" or "not X, it's Y."
    - "relationship": A connection between people, organizations, or concepts.
    - "identity": Core identity information — names (people, pets, places), roles, permanent attributes. These NEVER decay.
 5. **importance**: 0.0-1.0. How important is this for future interactions?
@@ -65,6 +65,10 @@ For each extracted memory, provide:
     - "ephemeral": Only relevant for a few hours (current location, what they're doing right now). Set ttl_hours.
     - "goal": A future aspiration or target ($1M ARR goal)
 12. **ttl_hours**: (optional, only for ephemeral) Number of hours this memory stays relevant. Default 12.
+
+STRUCTURED LIST PRESERVATION: When the conversation contains a numbered list, checklist, ordered plan, or set of items that form a coherent group, extract them as ONE memory with the full list preserved. Do NOT shatter a 9-item checklist into 9 separate memories. The headline should reference the list ("9-item pre-launch checklist" or "Phase A→B→C cost comparison"), and full_content should contain all items with their ordering and any dependencies. Individual items from the list should ONLY get their own separate memory if they contain significant standalone information beyond their role in the list.
+
+DECISION SPECIFICITY: When the human responds to a list of items (e.g., "3: Agreed. 4: Yes, let's do that. 5: Sounds good"), extract ONE decision memory that captures ALL their responses together, not individual memories per item. The headline should be "Responses to [list name]" and full_content should map each item to the human's specific response and rationale.
 
 MULTI-TURN INFERENCE: You are given the CURRENT exchange plus RECENT CONTEXT (previous turns). Use the recent context to:
 - Catch information IMPLIED across messages but never stated explicitly in one turn
