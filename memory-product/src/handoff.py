@@ -62,16 +62,22 @@ Respond with ONLY a JSON object:
 
 HANDOFF_PROMPT = """You are generating a conversation state snapshot. This snapshot will be read by a future version of this agent after a context reset, so it needs to orient them INSTANTLY.
 
-Recent conversation (last ~10 turns):
+Recent conversation (last ~15 turns):
 {recent_turns}
 
-Current conversation state (if any):
+Current conversation state (IMPORTANT — accumulate, don't discard):
 {current_handoff}
 
 Recent memories extracted this session:
 {recent_memories}
 
 Generate a structured conversation state snapshot. Be SPECIFIC and ACTIONABLE — vague summaries are useless.
+
+CRITICAL RULES:
+- ACCUMULATE decisions from the current state. If the current state lists 3 decisions and the recent conversation adds 1 more, the output should have 4 decisions.
+- Only REMOVE a decision if the conversation explicitly reversed it.
+- Open threads should be updated: resolved threads removed, new threads added.
+- The summary should reflect the CURRENT moment, but decisions/projects are cumulative for the session.
 
 Respond with ONLY a JSON object:
 {{
@@ -134,11 +140,11 @@ def generate_handoff(agent_id: str, session_key: str, recent_turns: list,
                      current_handoff: Optional[dict] = None) -> dict:
     """Generate a new conversation state snapshot."""
     
-    # Build recent turns text
+    # Build recent turns text — use last 15 turns for more session coverage
     turns_text = ""
     if recent_turns:
         parts = []
-        for h, a in recent_turns[-10:]:
+        for h, a in recent_turns[-15:]:
             parts.append(f"Human: {h[:500]}\nAgent: {a[:500]}")
         turns_text = "\n---\n".join(parts)
     
