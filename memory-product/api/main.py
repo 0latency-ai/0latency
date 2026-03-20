@@ -217,13 +217,14 @@ async def list_memories(
         from storage_multitenant import _db_execute
         
         type_filter = f"AND memory_type = '{memory_type}'" if memory_type else ""
+        tenant_id = tenant["id"]
         rows = _db_execute(f"""
             SELECT id, headline, memory_type, importance, created_at
             FROM memory_service.memories
-            WHERE agent_id = '{agent_id}' AND superseded_at IS NULL {type_filter}
+            WHERE agent_id = '{agent_id}' AND tenant_id = '{tenant_id}' AND superseded_at IS NULL {type_filter}
             ORDER BY created_at DESC
             LIMIT {min(limit, 200)}
-        """, tenant_id=tenant["id"])
+        """, tenant_id=tenant_id)
         
         items = []
         for row in (rows or []):
@@ -305,7 +306,7 @@ async def list_tenants(admin: bool = Depends(require_admin_key)):
                     "plan": parts[2],
                     "memory_limit": int(parts[3]),
                     "rate_limit_rpm": int(parts[4]),
-                    "active": parts[5] == 't',
+                    "active": parts[5].lower() in ('t', 'true', '1'),
                     "api_calls_count": int(parts[6] or 0),
                     "created_at": parts[7]
                 })

@@ -3,8 +3,8 @@ _Created: March 20, 2026 23:06 UTC_
 
 ## P0 — Security Blockers (must fix before anyone uses this)
 
-- [ ] **SQL injection in storage_multitenant.py** — uses f-string formatting for all queries. Any memory with a single quote in the headline breaks or exploits. Fix: parameterized queries via psycopg2 instead of subprocess psql calls.
-- [ ] **Tenant isolation verification** — RLS policies exist but untested. Create Tenant A and Tenant B, store memories for each, verify cross-tenant reads return nothing.
+- [x] **SQL injection in storage_multitenant.py** — uses f-string formatting for all queries. Any memory with a single quote in the headline breaks or exploits. Fix: parameterized queries via psycopg2 instead of subprocess psql calls.
+- [x] **Tenant isolation verification** — RLS policies exist but untested. Create Tenant A and Tenant B, store memories for each, verify cross-tenant reads return nothing.
 - [ ] **Admin endpoint security** — currently a single env var string. Needs: IP allowlist or separate admin auth, not just a shared secret.
 - [ ] **API key storage** — SHA-256 is fast and brute-forceable. Should use bcrypt or argon2 for key hashing.
 

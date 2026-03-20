@@ -283,13 +283,13 @@ def _check_duplicate(agent_id: str, headline: str, embedding: list[float],
         SELECT id, headline, memory_type,
                1 - (embedding <=> %s::extensions.vector) as similarity
         FROM memory_service.memories
-        WHERE agent_id = %s
+        WHERE agent_id = %s AND tenant_id = %s
           AND superseded_at IS NULL
         ORDER BY embedding <=> %s::extensions.vector
         LIMIT 3
     """
     
-    rows = _db_execute(query, (embedding, agent_id, embedding), tenant_id=current_tenant)
+    rows = _db_execute(query, (embedding, agent_id, current_tenant, embedding), tenant_id=current_tenant)
     
     if rows:
         for row in rows:
@@ -551,7 +551,7 @@ def get_tenant_by_api_key(api_key_hash: str) -> Optional[dict]:
                 "plan": parts[2],
                 "memory_limit": int(parts[3]),
                 "rate_limit_rpm": int(parts[4]),
-                "active": parts[5] == 't',
+                "active": parts[5].lower() in ('t', 'true', '1'),
                 "api_calls_count": int(parts[6] or 0),
             }
     return None
