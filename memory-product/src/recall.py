@@ -155,6 +155,15 @@ def recall(
             "recall_details": [],
         }
     
+    # --- Step 2.5: Negative recall — detect gaps ---
+    gap_warning = None
+    try:
+        from negative_recall import detect_gaps
+        gap_result = detect_gaps(agent_id, conversation_context[:500])
+        gap_warning = gap_result.get("gap_warning")
+    except Exception:
+        pass  # Don't let negative recall failures block regular recall
+    
     # --- Step 3: Generate query embedding from conversation context ---
     query_embedding = _embed_text(conversation_context[:2000])  # Cap to avoid huge embeds
     embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
@@ -318,6 +327,11 @@ def recall(
     
     # --- Step 8: Format as structured context block ---
     context_block = _format_context_block(always_block, selected)
+    
+    # Append gap warning from negative recall
+    if gap_warning:
+        context_block += f"\n\n### Knowledge Gaps\n{gap_warning}"
+    
     total_tokens = always_tokens + tokens_used
     
     return {

@@ -19,6 +19,7 @@ os.environ["GOOGLE_API_KEY"] = os.environ.get("GOOGLE_API_KEY", "AIzaSyAvFCk21Sz
 from extraction import extract_memories
 from storage import store_memories, _db_execute
 from recall import recall
+from negative_recall import update_topic_coverage
 
 # --- Configuration ---
 AGENTS = {
@@ -188,6 +189,11 @@ def process_new_turns(session_file, state, agent_id):
             if memories:
                 ids = store_memories(memories)
                 log(f"  [{agent_id}] Stored {len(ids)} memories")
+                # Update topic coverage for negative recall
+                try:
+                    update_topic_coverage(agent_id, memories)
+                except Exception as e:
+                    log(f"  [{agent_id}] Topic coverage update error (non-fatal): {e}")
                 state[agent_state_key][turn_id] = {
                     "status": "processed",
                     "memories": len(ids),

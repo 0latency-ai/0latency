@@ -1,6 +1,6 @@
 # Memory Context (auto-generated)
-_Last updated: 2026-03-20 01:53 UTC_
-_26 memories loaded_
+_Last updated: 2026-03-20 02:21 UTC_
+_27 memories loaded_
 
 ## Agent Memory Context
 
@@ -40,7 +40,10 @@ Thomas and Justin recovered from a memory compaction issue, implemented several 
 
 **Active Tasks:**
   → On every session start, the agent must read the Capabilities Manifest in `TOOLS.md`. This lists every integration, API, and tool the agent has access to. This is necessary because context compaction kills capability awareness.
+  → The real-time hook is enabled, but its end-to-end functionality has not been confirmed. It's necessary to verify that the hook is actually firing and capturing data in real-time as expected.
+  → Justin wants to build the remaining refinements now. The agent will start with negative recall, which tracks discussed topics to avoid hallucination, and then memory compaction, which implements summarization layers for large memory stores.
+  → Negative recall involves tracking which topics have been discussed to prevent the agent from hallucinating fill-in details. This can be achieved by maintaining a topic coverage map. Echo considers this to be philosophically hard to implement.
   → The user wants to actively measure why the memory broke and where it did after compaction. This is to identify if the measures being put in place are sufficient to fix it. The user will provide the starting line and indicate when they've caught up.
   → The migration script, multi-turn inference, and multi-agent daemon are not yet in git and should be committed. This ensures that the recent progress is saved and version controlled.
-  → Negative recall involves tracking which topics have been discussed to prevent the agent from hallucinating fill-in details. This can be achieved by maintaining a topic coverage map. Echo considers this to be philosophically hard to implement.
-  • Sebastian to build teacher-side 'mark class complete' for K-2 in Explore.
+  → The decay cron job is not currently running. It should be scheduled as a daily job to ensure the memory decay process is executed regularly, removing outdated or irrelevant memories.
+  → Sebastian is assigned to build the teacher-side 'mark class complete' feature for K-2 whole-class delivery within Project Explore. This development task is estimated to take approximately one day. This is new development.
