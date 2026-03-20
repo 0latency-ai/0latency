@@ -53,6 +53,17 @@ Things like:
 - Device nicknames
 - Anything environment-specific
 
+### Gmail (jghiglia@gmail.com)
+- **Status: BROKEN** — refresh token expired/revoked as of March 20, 2026
+- **OAuth credentials exist** in /root/.bashrc (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN)
+- **Needs:** Justin to re-authorize OAuth flow to generate fresh refresh token
+- **Impact:** Can't read personal Gmail, can't access forwarded emails (e.g., Waterbar schedule from David Hanna)
+
+### Denis (Curriculum/Content)
+- Confirmed Kentucky curriculum built (60 chapters, 120 hours, 1.0 credit)
+- Confirmed Texas updated for both pathways: §113.49 (PFL) and §113.76 (PFLE)
+- Need to document role/contact info
+
 ### Supabase (Thomas Memory System)
 
 - **Schema:** `thomas` (not public)
