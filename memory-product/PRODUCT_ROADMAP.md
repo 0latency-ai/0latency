@@ -151,6 +151,38 @@ Phase C: Hosted Agent Platform
 
 ---
 
+## Enterprise Readiness (Phased)
+
+Enterprise-grade features signal maturity to all users, not just enterprise buyers. Build progressively.
+
+### Phase A (ship with MVP)
+- **Audit trail / activity log** — every extraction, recall, edit, deletion logged with timestamp + actor. `memory_audit_log` table already exists. Surface it.
+- **Status page** — StatusPage.io (free for 1 component). Shows uptime, signals professionalism.
+- **Data policy** — Clear language: "Don't send data you wouldn't want processed by a cloud service. Self-hosted = zero exposure." Onus on user.
+- **Schema designed for RBAC** — Don't expose it yet, but design tables so adding roles later doesn't require refactoring.
+
+### Phase B (ship with API)
+- **RBAC** — Admin / member / viewer roles. Teams can share agents with granular access.
+- **Data residency selection** — Supabase region picker at signup. "Where is my data?" answered at onboarding.
+- **Rate limiting + usage dashboards** — API usage patterns, anomaly detection, per-team quotas. Built on top of existing metering.
+- **Data retention policies** — Configurable TTL per account. Extend ephemeral memory concept. Required for healthcare/finance verticals.
+- **Webhook notifications** — POST on extraction, contradiction, cascade events. Integrates with existing observability stacks.
+- **Encryption at rest with CMK** — Optional customer-managed keys. Zero-knowledge option. Already designed in privacy architecture.
+
+### Phase C (ship with platform)
+- **SSO / SAML** — Okta, Azure AD, Google Workspace via Auth.js.
+- **SOC 2 certification** — $5K-20K. Only when enterprise revenue justifies it.
+- **Dedicated infrastructure option** — Isolated instances for enterprise accounts. RLS is fine until then.
+- **SLA commitment** — 99.5%+ uptime guarantee with contractual backing.
+
+### What We DON'T Build Until Revenue Demands It
+- ISO 27001
+- 24/7 support (docs + email + Discord through Phase B)
+- Pen testing (Phase C)
+- HIPAA/FERPA compliance (only if vertical demand appears)
+
+---
+
 ## Dependencies & Risks
 
 ### Phase A Risks
@@ -183,16 +215,71 @@ Phase C: Hosted Agent Platform
 
 ---
 
-## Immediate Next Steps (Phase A)
+## Pre-Launch: Memory Quality Gate (BEFORE Phase A)
 
-1. [ ] Debug and verify all features work end-to-end after compaction (THE TEST)
-2. [ ] Package as OpenClaw skill (SKILL.md, installer script, config templates)
-3. [ ] Create hosted Postgres option (Supabase project for Pro users)
-4. [ ] Record demo video: gap analysis before/after
-5. [ ] Write ClawHub listing copy
-6. [ ] Submit to ClawHub
-7. [ ] Draft Greg Eisenberg DM
-8. [ ] Post in OpenClaw Discord
+**Nothing ships until memory quality hits 99%. This is priority 1, 2, and 3.**
+
+Gap Analysis #2 scored the system at 65% effective (329 memories extracted, recall failed to surface them). Target: 99%.
+
+### Fix 1: Session Handoff on Compaction/Session End (CRITICAL — 2 hours)
+- [ ] Write `session_handoff` record when session ends or compaction is imminent
+- [ ] Contains: active thread, open decisions, pending actions, key context
+- [ ] Table exists (`session_handoffs`), currently empty
+- **Impact:** Eliminates 90% of cold-start orientation time
+
+### Fix 2: Decision Extraction Quality (HIGH — 1 hour)
+- [ ] Add decision-specific extraction template to prompt
+- [ ] Capture: what, why, who, what it supersedes, action items
+- [ ] Currently decisions are captured as vague tasks
+- **Impact:** Decisions become actionable memories
+
+### Fix 3: Structured List Preservation (HIGH — 1 hour)
+- [ ] When extraction encounters ordered lists, preserve as ONE memory
+- [ ] Currently a 9-item checklist becomes 9 disconnected tasks
+- [ ] Ordering, dependencies, and structure lost
+- **Impact:** Preserves coherent plans and checklists
+
+### Fix 4: Deduplication Pass (MEDIUM — 2 hours)
+- [ ] Post-extraction dedup: >0.90 similarity + same type = merge/skip
+- [ ] Currently 60-80 duplicates in 329 memories
+- [ ] Daemon extracts from transcript AND individual turns = overlap
+- **Impact:** Better signal-to-noise ratio
+
+### Fix 5: Recall Query Optimization (MEDIUM — 2 hours)
+- [ ] Verify embeddings generated and indexed
+- [ ] Test recall paths end-to-end
+- [ ] Add hybrid search (semantic + keyword)
+- [ ] Semantic search returned 0 results for valid query
+- **Impact:** Makes structured memory actually findable
+
+### Fix 6: Reduce Correction Type Overuse (LOW — 30 min)
+- [ ] Only classify as "correction" when explicitly superseding prior memory
+- [ ] Currently 95/329 (29%) are corrections; most are mislabeled facts
+- **Impact:** Cleaner type distribution, better filtering
+
+### Quality Milestones
+- [ ] **85% → 90%:** Fixes 1 + 2 (session handoff + decision quality)
+- [ ] **90% → 95%:** Fixes 3 + 4 (list preservation + dedup)
+- [ ] **95% → 99%:** Fixes 5 + 6 (recall optimization + type accuracy)
+- [ ] **Validation test:** Simulate compaction, verify instant recall of active threads
+
+---
+
+## Phase A Next Steps (AFTER quality gate passes)
+
+1. [ ] Package as OpenClaw skill (SKILL.md, installer script, config templates)
+2. [ ] Create hosted Postgres option (Supabase project for Pro users)
+3. [ ] Build static Mission Control dashboard (GitHub Pages)
+4. [ ] Write test suite (extraction, storage, recall, compaction survival)
+5. [ ] Build installer with dependency checks
+6. [ ] Test on fresh Supabase project
+7. [ ] Add error handling + retry logic to daemon
+8. [ ] Pick a product name
+9. [ ] Record demo video: gap analysis before/after
+10. [ ] Write ClawHub listing copy
+11. [ ] Submit to ClawHub
+12. [ ] Draft Greg Eisenberg DM
+13. [ ] Post in OpenClaw Discord
 
 ---
 
