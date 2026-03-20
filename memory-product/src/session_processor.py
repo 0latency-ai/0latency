@@ -18,7 +18,7 @@ os.environ["GOOGLE_API_KEY"] = os.environ.get("GOOGLE_API_KEY", "AIzaSyAvFCk21Sz
 
 from extraction import extract_memories
 from storage import store_memories, _db_execute
-from recall import recall
+from recall import recall_fixed as recall
 from negative_recall import update_topic_coverage
 from handoff import detect_state_change, generate_handoff, save_handoff, get_latest_handoff
 

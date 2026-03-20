@@ -1,65 +1,75 @@
 {
   "preference": [
     {
-      "id": "af8113f814225c72",
+      "id": "a95274f1c1d1c5c7",
       "agent_id": "thomas",
-      "headline": "Avoid announcing Graph API capability; just use it directly.",
-      "context": "The agent should not announce its ability to use the Graph API. It should simply utilize the API when appropriate, as the access has already been configured and is considered a core function.",
-      "full_content": "The user has indicated that the agent should not announce its capability to use the Graph API before using it. The user emphasizes that the agent already has access to the Graph API, and it is a core part of the agent's value. Therefore, the agent should simply use the Graph API when needed without explicitly stating that it is doing so or that it has the capability.",
+      "headline": "Agent instructed to utilize Graph API without announcement",
+      "context": "The user instructs the agent to utilize the Graph API without announcing its capability, as the access has been set up for weeks and is considered a core value of the agent.",
+      "full_content": "The user expressed frustration that the agent announced its capability to use the Graph API, stating that it should simply utilize the API without announcing it. The user emphasized that the Graph API access was set up weeks ago and is a core component of the agent's value. The user instructed the agent to remember this and act accordingly in the future, avoiding announcements of capabilities that should be implicit.",
       "memory_type": "preference",
       "importance": 0.9,
-      "confidence": 0.8,
+      "confidence": 0.9,
       "entities": [
         "Graph API"
       ],
       "project": null,
       "categories": [
-        "communication style",
-        "tool usage",
-        "efficiency"
+        "agent behavior",
+        "API usage",
+        "communication style"
       ],
       "scope": "/personal/preferences",
       "source_session": "test",
       "source_turn": "pref-001",
-      "extracted_at": "2026-03-18T23:57:29.799567+00:00",
-      "valid_from": "2026-03-18T23:57:29.799567+00:00"
+      "extracted_at": "2026-03-20T19:56:16.079364+00:00",
+      "valid_from": "2026-03-20T19:56:16.079364+00:00",
+      "metadata": {
+        "temporal_type": "permanent",
+        "contradicts": null
+      },
+      "ttl_hours": null
     }
   ],
   "decision": [
     {
-      "id": "7031acb3e8c6268a",
+      "id": "fc7f1f018ec233ca",
       "agent_id": "thomas",
-      "headline": "Cycle Year for PFL Academy Intent to Bid is 2026.",
-      "context": "When filling out the Intent to Bid form for PFL Academy, the Cycle Year should be entered as 2026. This is a specific requirement for the application.",
-      "full_content": "When completing the Intent to Bid form for PFL Academy, the Cycle Year field should be filled with the value 2026. This ensures the application is correctly categorized and processed for the appropriate funding cycle.",
-      "memory_type": "fact",
-      "importance": 0.7,
-      "confidence": 0.8,
-      "entities": [
-        "PFL Academy",
-        "Intent to Bid"
-      ],
-      "project": "PFL Academy",
-      "categories": [
-        "application",
-        "funding",
-        "year"
-      ],
-      "scope": "/pfl-academy/application",
-      "source_session": "test",
-      "source_turn": "dec-001",
-      "extracted_at": "2026-03-18T23:57:33.804925+00:00",
-      "valid_from": "2026-03-18T23:57:33.804925+00:00"
-    },
-    {
-      "id": "37ba148904c50fcd",
-      "agent_id": "thomas",
-      "headline": "Archway Depository is preferred for PFL Academy's digital submissions.",
-      "context": "For the Depository field in the Intent to Bid form, Archway Depository should be selected because PFL Academy is a digital-only publisher. They specialize in handling digital and smaller publishers.",
-      "full_content": "When completing the Intent to Bid form for PFL Academy, the Depository field should be set to Archway Depository. This is because PFL Academy operates as a digital-only publisher, and Archway Depository is well-suited to handle digital and smaller publishers. An account can be set up with them after the submission of the Intent to Bid, as only a selection is needed at this stage.",
+      "headline": "Cycle Year for Intent to Bid is 2026",
+      "context": "For the Intent to Bid form, the Cycle Year should be entered as 2026. This is a required field for the form.",
+      "full_content": "When filling out the Intent to Bid form, the Cycle Year field should be populated with '2026'. This was specified in response to a question about what to enter in the form.",
       "memory_type": "fact",
       "importance": 0.8,
-      "confidence": 0.8,
+      "confidence": 1.0,
+      "entities": [
+        "Intent to Bid",
+        "Cycle Year",
+        "2026"
+      ],
+      "project": null,
+      "categories": [
+        "forms",
+        "bids"
+      ],
+      "scope": "/forms/intent_to_bid",
+      "source_session": "test",
+      "source_turn": "dec-001",
+      "extracted_at": "2026-03-20T19:56:19.758342+00:00",
+      "valid_from": "2026-03-20T19:56:19.758342+00:00",
+      "metadata": {
+        "temporal_type": "current",
+        "contradicts": null
+      },
+      "ttl_hours": null
+    },
+    {
+      "id": "0c4fbf3bc08a7a0e",
+      "agent_id": "thomas",
+      "headline": "Use Archway Depository for PFL Academy's Intent to Bid",
+      "context": "Since PFL Academy is digital-only, the Archway Depository should be selected on the Intent to Bid form. They handle digital/smaller publishers.",
+      "full_content": "When completing the Intent to Bid form for PFL Academy, which is a digital-only publisher, the Depository field should be set to 'Archway Depository'. This depository is suitable for digital and smaller publishers. An account with them can be set up after submission if needed, as the Intent to Bid only requires a selection at this stage.",
+      "memory_type": "fact",
+      "importance": 0.8,
+      "confidence": 1.0,
       "entities": [
         "PFL Academy",
         "Intent to Bid",
@@ -67,54 +77,62 @@
       ],
       "project": "PFL Academy",
       "categories": [
-        "application",
-        "digital publishing",
-        "vendor selection"
+        "forms",
+        "bids",
+        "publishers"
       ],
-      "scope": "/pfl-academy/application",
+      "scope": "/pfl-academy/forms/intent_to_bid",
       "source_session": "test",
       "source_turn": "dec-001",
-      "extracted_at": "2026-03-18T23:57:33.804925+00:00",
-      "valid_from": "2026-03-18T23:57:33.804925+00:00"
+      "extracted_at": "2026-03-20T19:56:19.758342+00:00",
+      "valid_from": "2026-03-20T19:56:19.758342+00:00",
+      "metadata": {
+        "temporal_type": "current",
+        "contradicts": null
+      },
+      "ttl_hours": null
     }
   ],
   "correction": [
     {
-      "id": "aaf0449815b4cf5d",
+      "id": "77090be6d96dc226",
       "agent_id": "thomas",
-      "headline": "PFL Academy digital-only publishers should use Archway Depository.",
-      "context": "Since PFL Academy is digital-only, the user should select Archway Depository when registering a publisher. This clarifies the correct depository choice for digital content.",
-      "full_content": "The user initially selected 'Self' as the depository during publisher registration. However, 'Self' is only available during the initial registration process. For subsequent forms, the options are TBSD or ARCH. Since PFL Academy is a digital-only publisher, the user should select Archway Depository (ARCH).",
-      "memory_type": "decision",
+      "headline": "PFL Academy is digital-only, use Archway Depository",
+      "context": "Since PFL Academy is a digital-only publisher, the user should select Archway Depository on the form.",
+      "full_content": "The agent realized that 'Self' was only an option during the initial registration, not on the current form. Since PFL Academy is a digital-only publisher, the agent advised the user to select Archway Depository.",
+      "memory_type": "fact",
       "importance": 0.8,
-      "confidence": 0.8,
+      "confidence": 1.0,
       "entities": [
         "PFL Academy",
-        "Archway Depository",
-        "TBSD",
-        "Self"
+        "Archway Depository"
       ],
       "project": "PFL Academy",
       "categories": [
-        "publisher registration",
-        "digital publishing",
+        "publishing",
+        "digital content",
         "depositories"
       ],
-      "scope": "/pfl-academy/publisher-registration",
+      "scope": "/pfl-academy/publishing",
       "source_session": "test",
       "source_turn": "cor-001",
-      "extracted_at": "2026-03-18T23:57:37.679659+00:00",
-      "valid_from": "2026-03-18T23:57:37.679659+00:00"
+      "extracted_at": "2026-03-20T19:56:23.265148+00:00",
+      "valid_from": "2026-03-20T19:56:23.265148+00:00",
+      "metadata": {
+        "temporal_type": "current",
+        "contradicts": null
+      },
+      "ttl_hours": null
     },
     {
-      "id": "dd228bfa5e8dd4da",
+      "id": "61824d25bae7c82a",
       "agent_id": "thomas",
-      "headline": "Agent's statement about 'Self' depository option was incorrect.",
-      "context": "The agent mistakenly stated that 'Self' was an option on the current form. The user corrected the agent, clarifying that 'Self' was only an option during the initial registration process.",
-      "full_content": "The agent incorrectly stated that 'Self' was an available option on the current form. The user clarified that 'Self' was only an option during the initial registration process, and the current form only offers TBSD or ARCH. This highlights the importance of accuracy when providing instructions.",
+      "headline": "Correction: 'Self' depository only available during registration",
+      "context": "The agent initially thought 'Self' was an option for the depository, but it's only available during registration. The user pointed out they selected 'Self' during registration.",
+      "full_content": "The agent initially believed that 'Self' was an available option for the depository on the current form. However, the user clarified that 'Self' was selected during the initial registration process. The agent corrected their understanding, acknowledging that 'Self' is not an option on the current form.",
       "memory_type": "correction",
-      "importance": 0.6,
-      "confidence": 0.8,
+      "importance": 0.9,
+      "confidence": 1.0,
       "entities": [
         "Self",
         "TBSD",
@@ -122,92 +140,80 @@
       ],
       "project": "PFL Academy",
       "categories": [
-        "agent error",
-        "publisher registration",
+        "publishing",
         "depositories"
       ],
-      "scope": "/pfl-academy/agent-behavior",
+      "scope": "/pfl-academy/publishing",
       "source_session": "test",
       "source_turn": "cor-001",
-      "extracted_at": "2026-03-18T23:57:37.679659+00:00",
-      "valid_from": "2026-03-18T23:57:37.679659+00:00"
+      "extracted_at": "2026-03-20T19:56:23.265148+00:00",
+      "valid_from": "2026-03-20T19:56:23.265148+00:00",
+      "metadata": {
+        "temporal_type": "current",
+        "contradicts": "Justin selected 'Self' for depository during publisher registration"
+      },
+      "ttl_hours": null
     }
   ],
   "task": [
     {
-      "id": "8a70c14c2e7c3661",
+      "id": "3c1d8e3d170d6ea1",
       "agent_id": "thomas",
-      "headline": "User added an item to their todo list.",
-      "context": "The user mentioned adding something to their todo list, indicating they have tasks to manage. This suggests a need to track and potentially inquire about the status of these tasks in future interactions.",
-      "full_content": "The user stated they were adding something to their todo list. They also mentioned needing to address items that have arisen in the past several days. This implies a workload and the potential for needing assistance or reminders regarding their tasks.",
+      "headline": "Added item to user's todo list",
+      "context": "The user has added an item to their todo list. They need to address some urgent matters first.",
+      "full_content": "The user mentioned they are adding something to their todo list, but they need to address some urgent matters that have come up in the past several days before they can get to it. The agent acknowledged this and is ready to assist when needed.",
       "memory_type": "task",
       "importance": 0.6,
-      "confidence": 0.8,
+      "confidence": 0.9,
       "entities": [],
       "project": null,
       "categories": [
         "task management",
-        "personal workload"
+        "prioritization"
       ],
-      "scope": "/personal/tasks",
+      "scope": "/personal",
       "source_session": "test",
       "source_turn": "task-001",
-      "extracted_at": "2026-03-18T23:57:39.619276+00:00",
-      "valid_from": "2026-03-18T23:57:39.619276+00:00"
+      "extracted_at": "2026-03-20T19:56:25.054842+00:00",
+      "valid_from": "2026-03-20T19:56:25.054842+00:00",
+      "metadata": {
+        "temporal_type": "current",
+        "contradicts": null
+      },
+      "ttl_hours": null
     }
   ],
   "complex": [
     {
-      "id": "718fad109222aaac",
+      "id": "fa2ac1a185ca935a",
       "agent_id": "thomas",
-      "headline": "Spanish Transcreation project completed: 192 scripts composed in Spanish.",
-      "context": "The Spanish Transcreation project involved composing 192 scripts across 4 seasons directly in Spanish using a v5 methodology. A back-translation audit scored 3.81/4.0. The final piece, S3-CH05, was finalized today.",
-      "full_content": "The Spanish Transcreation project has been completed. All 192 scripts across 4 seasons were originally composed in Spanish using a v5 methodology, rather than translated or transadapted from English. A full back-translation audit across all 192 scripts scored 3.81/4.0 on an original composition scale. All scripts are committed to git. S3-CH05 was the final piece, finalized today.",
+      "headline": "Spanish transcreation: 192 scripts composed in Spanish, audited at 3.81/4.0",
+      "context": "All 192 scripts across 4 seasons were originally composed in Spanish using a v5 methodology. A back-translation audit scored 3.81/4.0. All scripts are committed to git, with S3-CH05 being the final piece.",
+      "full_content": "The Spanish transcreation project involved the original composition of 192 scripts across 4 seasons, written directly in Spanish using a v5 methodology. A full back-translation audit across all 192 scripts resulted in a score of 3.81/4.0 on an original composition scale, indicating high quality. All scripts are committed to git for version control. The final piece of the project, S3-CH05, was finalized today.",
       "memory_type": "fact",
       "importance": 0.8,
-      "confidence": 0.8,
+      "confidence": 0.9,
       "entities": [
-        "Spanish Transcreation",
-        "S3-CH05",
-        "git"
+        "Spanish",
+        "git",
+        "S3-CH05"
       ],
       "project": "Spanish Transcreation",
       "categories": [
-        "project completion",
         "translation",
-        "content creation"
+        "content creation",
+        "audit"
       ],
-      "scope": "/projects/spanish_transcreation",
+      "scope": "/translation/spanish",
       "source_session": "test",
       "source_turn": "biz-001",
-      "extracted_at": "2026-03-18T23:57:43.357117+00:00",
-      "valid_from": "2026-03-18T23:57:43.357117+00:00"
-    },
-    {
-      "id": "0423624fb23480fd",
-      "agent_id": "thomas",
-      "headline": "Explore project status: Needs LMS hookup and one day of Sebastian's time.",
-      "context": "The Explore project has progressed from a future product to needing an LMS hookup and one day of Sebastian's time. This indicates a shift in the project's status and required resources.",
-      "full_content": "The Explore project has evolved from being a future product to now requiring an LMS (Learning Management System) hookup and one day of Sebastian's time. This suggests that the project is moving towards integration and implementation, with specific resource allocation needed.",
-      "memory_type": "fact",
-      "importance": 0.7,
-      "confidence": 0.8,
-      "entities": [
-        "Explore",
-        "LMS",
-        "Sebastian"
-      ],
-      "project": "Explore",
-      "categories": [
-        "project status",
-        "resource allocation",
-        "integration"
-      ],
-      "scope": "/projects/explore",
-      "source_session": "test",
-      "source_turn": "biz-001",
-      "extracted_at": "2026-03-18T23:57:43.357117+00:00",
-      "valid_from": "2026-03-18T23:57:43.357117+00:00"
+      "extracted_at": "2026-03-20T19:56:27.683580+00:00",
+      "valid_from": "2026-03-20T19:56:27.683580+00:00",
+      "metadata": {
+        "temporal_type": "event",
+        "contradicts": null
+      },
+      "ttl_hours": null
     }
   ],
   "trivial": []
