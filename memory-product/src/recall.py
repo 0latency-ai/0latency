@@ -57,10 +57,54 @@ def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
+def estimate_dynamic_budget(conversation_context: str, base_budget: int = 3000) -> int:
+    """
+    Dynamically scale the recall budget based on conversation complexity.
+    
+    Heuristics:
+    - More unique topics/entities → higher budget (need more context)
+    - Longer conversation context → more complex discussion → higher budget
+    - Short casual exchange → lower budget (save tokens)
+    
+    Returns budget between base_budget * 0.5 and base_budget * 2.0
+    """
+    context_len = len(conversation_context)
+    
+    # Count unique "topic signals" — rough proxy for complexity
+    # Look for entities, project names, numbers, URLs
+    import re
+    entities = set(re.findall(r'[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*', conversation_context))
+    numbers = set(re.findall(r'\$[\d,]+|\d+%|\d{4}', conversation_context))
+    
+    topic_count = len(entities) + len(numbers)
+    
+    # Scale factor: 0.5x to 2.0x
+    if context_len < 200 and topic_count < 3:
+        # Casual / simple exchange
+        scale = 0.6
+    elif context_len < 500 and topic_count < 6:
+        # Moderate complexity
+        scale = 0.8
+    elif context_len < 1500 or topic_count < 10:
+        # Standard complexity
+        scale = 1.0
+    elif context_len < 3000 or topic_count < 20:
+        # Complex discussion
+        scale = 1.4
+    else:
+        # Very complex / multi-topic
+        scale = 1.8
+    
+    budget = int(base_budget * scale)
+    # Clamp to reasonable range
+    return max(1500, min(budget, 6000))
+
+
 def recall(
     agent_id: str,
     conversation_context: str,
     budget_tokens: int = 4000,
+    dynamic_budget: bool = False,
     config: Optional[dict] = None,
 ) -> dict:
     """
@@ -69,7 +113,8 @@ def recall(
     Args:
         agent_id: Which agent is requesting recall
         conversation_context: Recent conversation (last 2-3 turns)
-        budget_tokens: Maximum tokens for memory injection
+        budget_tokens: Maximum tokens for memory injection (overridden if dynamic_budget=True)
+        dynamic_budget: If True, auto-scale budget based on conversation complexity
         config: Optional override for scoring weights
     
     Returns:
@@ -81,6 +126,11 @@ def recall(
             "recall_details": list,     # Debug info about what was recalled and why
         }
     """
+    
+    # --- Step 0: Dynamic budget scaling ---
+    if dynamic_budget:
+        base = config.get("context_budget", budget_tokens) if config else budget_tokens
+        budget_tokens = estimate_dynamic_budget(conversation_context, base)
     
     # --- Step 1: Load agent config ---
     if not config:

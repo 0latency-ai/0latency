@@ -292,6 +292,12 @@ def store_memory(memory: dict) -> str:
     if memory['memory_type'] == 'correction' and mem_id:
         _handle_correction(memory, mem_id)
     
+    # Index entities for cross-entity linking
+    if mem_id and memory.get('entities'):
+        _index_entities(memory['agent_id'], mem_id, memory['entities'])
+        # Auto-create edges between memories sharing entities
+        _create_entity_edges(memory['agent_id'], mem_id, memory['entities'])
+    
     # Audit log
     _db_execute(f"""
         INSERT INTO memory_service.memory_audit_log (agent_id, action, memory_id, details)
@@ -394,11 +400,16 @@ def _handle_correction(memory: dict, correction_id: str):
     
     if rows:
         old_id = rows[0].split("|")[0]
+        old_headline = rows[0].split("|")[1] if "|" in rows[0] else ""
         _db_execute(f"""
             UPDATE memory_service.memories
             SET superseded_at = now(), superseded_by = '{correction_id}'
             WHERE id = '{old_id}'
         """)
+        print(f"  ✂ Superseded old memory: {old_id}")
+        
+        # Correction cascading: find downstream memories that depend on the corrected fact
+        _cascade_correction(memory['agent_id'], old_id, correction_id, old_headline)
         print(f"  ✂ Superseded old memory: {old_id}")
 
 
@@ -511,6 +522,151 @@ def get_memory_stats(agent_id: str) -> dict:
             "avg_relevance": round(float(parts[9] or 0), 3),
         }
     return {}
+
+
+def _cascade_correction(agent_id: str, old_memory_id: str, correction_id: str, old_headline: str):
+    """
+    When a memory is corrected, find downstream memories that reference the same entities
+    and flag them for review. This prevents silently stale downstream facts.
+    
+    Strategy:
+    - Find memories connected via entity graph edges
+    - For strongly connected memories (strength > 0.6), add a metadata flag
+    - Don't auto-supersede — just flag for the extraction layer to review next time
+    """
+    try:
+        # Find related memories via the entity graph
+        rows = _db_execute(f"""
+            SELECT DISTINCT m.id, m.headline, me.strength
+            FROM memory_service.memory_edges me
+            JOIN memory_service.memories m ON (
+                m.id = me.target_memory_id OR m.id = me.source_memory_id
+            )
+            WHERE (me.source_memory_id = '{old_memory_id}' OR me.target_memory_id = '{old_memory_id}')
+              AND me.agent_id = '{agent_id}'
+              AND m.id != '{old_memory_id}'
+              AND m.id != '{correction_id}'
+              AND m.superseded_at IS NULL
+            ORDER BY me.strength DESC
+            LIMIT 10
+        """)
+        
+        if not rows:
+            return
+        
+        flagged = 0
+        for row in rows:
+            parts = row.split("|||")
+            if len(parts) < 3:
+                continue
+            
+            mem_id = parts[0]
+            headline = parts[1]
+            strength = float(parts[2])
+            
+            if strength >= 0.4:
+                # Flag this memory as potentially affected by the correction
+                _db_execute(f"""
+                    UPDATE memory_service.memories
+                    SET metadata = metadata || '{{"correction_cascade": true, "cascade_from": "{correction_id}", "cascade_note": "Upstream fact corrected: {old_headline.replace(chr(39), chr(39)*2)}"}}'::jsonb
+                    WHERE id = '{mem_id}'
+                """)
+                flagged += 1
+                print(f"  🔗 Cascade flagged: {headline} (strength: {strength:.2f})")
+        
+        if flagged:
+            print(f"  🔗 Correction cascaded to {flagged} related memories")
+            
+    except Exception as e:
+        print(f"  ⚠ Cascade error (non-fatal): {e}")
+
+
+def _index_entities(agent_id: str, memory_id: str, entities: list[str]):
+    """Index entities for a memory, enabling cross-entity lookups."""
+    for entity in entities:
+        entity_clean = entity.strip().replace("'", "''")
+        if not entity_clean:
+            continue
+        try:
+            _db_execute(f"""
+                INSERT INTO memory_service.entity_index (agent_id, entity, memory_id)
+                VALUES ('{agent_id}', '{entity_clean}', '{memory_id}')
+                ON CONFLICT (agent_id, entity, memory_id) DO NOTHING
+            """)
+        except Exception:
+            pass  # Skip duplicates silently
+
+
+def _create_entity_edges(agent_id: str, new_memory_id: str, entities: list[str]):
+    """
+    Auto-create 'related_to' edges between the new memory and existing memories 
+    that share entities. This builds the knowledge graph incrementally.
+    """
+    for entity in entities:
+        entity_clean = entity.strip().replace("'", "''")
+        if not entity_clean:
+            continue
+        
+        # Find other memories with the same entity
+        try:
+            rows = _db_execute(f"""
+                SELECT DISTINCT ei.memory_id 
+                FROM memory_service.entity_index ei
+                JOIN memory_service.memories m ON m.id = ei.memory_id
+                WHERE ei.agent_id = '{agent_id}' 
+                  AND ei.entity = '{entity_clean}'
+                  AND ei.memory_id != '{new_memory_id}'
+                  AND m.superseded_at IS NULL
+                LIMIT 10
+            """)
+        except Exception:
+            continue
+        
+        for row in rows:
+            target_id = row.strip()
+            if not target_id:
+                continue
+            try:
+                _db_execute(f"""
+                    INSERT INTO memory_service.memory_edges 
+                        (agent_id, source_memory_id, target_memory_id, relationship, strength)
+                    VALUES 
+                        ('{agent_id}', '{new_memory_id}', '{target_id}', 'related_to', 0.5)
+                    ON CONFLICT (source_memory_id, target_memory_id, relationship) DO UPDATE
+                    SET strength = memory_service.memory_edges.strength + 0.1
+                """)
+            except Exception:
+                pass  # Skip edge creation failures
+
+
+def get_related_memories(agent_id: str, memory_id: str, max_depth: int = 1) -> list[dict]:
+    """
+    Traverse the entity graph to find related memories.
+    Used by correction cascading (refinement #4) and recall enhancement.
+    """
+    rows = _db_execute(f"""
+        SELECT DISTINCT m.id, m.headline, m.memory_type, me.relationship, me.strength
+        FROM memory_service.memory_edges me
+        JOIN memory_service.memories m ON m.id = me.target_memory_id
+        WHERE me.source_memory_id = '{memory_id}'
+          AND me.agent_id = '{agent_id}'
+          AND m.superseded_at IS NULL
+        ORDER BY me.strength DESC
+        LIMIT 20
+    """)
+    
+    results = []
+    for row in rows:
+        parts = row.split("|||")
+        if len(parts) >= 5:
+            results.append({
+                "id": parts[0],
+                "headline": parts[1],
+                "memory_type": parts[2],
+                "relationship": parts[3],
+                "strength": float(parts[4]),
+            })
+    return results
 
 
 # --- CLI ---

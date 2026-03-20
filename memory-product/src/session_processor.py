@@ -206,12 +206,30 @@ def process_new_turns(session_file, state, agent_id):
 def regenerate_context(agent_id, workspace_dir):
     """Generate the MEMORY_CONTEXT.md file for workspace injection."""
     
-    # Run recall with a general context
+    # Build conversation context from recent turns for dynamic budget
+    agent_cfg = AGENTS.get(agent_id, {})
+    session_dir = agent_cfg.get("session_dir", "")
+    recent_context = "General conversation startup. What does this agent need to know?"
+    
+    if session_dir:
+        session_file = find_active_session(session_dir)
+        if session_file:
+            turns = parse_session_turns(session_file)
+            if turns:
+                # Use last 3 turns as context for recall
+                recent = turns[-3:]
+                parts = []
+                for _, h, a in recent:
+                    parts.append(f"Human: {h[:300]}\nAgent: {a[:300]}")
+                recent_context = "\n\n".join(parts)
+    
+    # Run recall with dynamic budget
     try:
         result = recall(
             agent_id=agent_id,
-            conversation_context="General conversation startup. What does this agent need to know?",
-            budget_tokens=3000,
+            conversation_context=recent_context,
+            budget_tokens=4000,
+            dynamic_budget=True,
         )
         
         context_block = result["context_block"]

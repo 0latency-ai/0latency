@@ -1,15 +1,15 @@
 # Memory Context (auto-generated)
-_Last updated: 2026-03-20 01:08 UTC_
-_30 memories loaded_
+_Last updated: 2026-03-20 01:10 UTC_
+_29 memories loaded_
 
 ## Agent Memory Context
 
 ### Active Corrections
+- ⚠️ Justin prioritizes real-time extraction, then dynamic context budget.: Justin wants the agent to prioritize tasks in the following order: 1) Real-time per-turn extraction, 2) Dynamic context budget. This order is based on impact, with real-time extraction being the most important.
 - ⚠️ Multi-turn inference implemented: Extraction uses sliding window of 4 turns.: Multi-turn inference has been implemented, allowing the extraction process to consider a sliding window of the last 4 turns as context. This enables the agent to catch implications and connections across multiple messages, leading to more accurate and comprehensive memory extraction.
 - ⚠️ Schemas: 'thomas' (memory), 'atlas' (performance).: The system uses two primary schemas: 'thomas' with 12 tables for the Thomas memory system, and 'atlas' with 4 tables (weekly_snapshots, metric_definitions, events, agent_performance) and 5 RPC functions for performance monitoring.
 - ⚠️ Cron schedule: Heartbeat, context monitor, daily reset, Thomas pulse/check, reindex, reports.: The system has 11 cron jobs scheduled, including a heartbeat every 5 minutes, context monitoring, daily session reset at 6 AM Pacific, Thomas pulse at 8 AM Pacific, embedding reindex on Sundays, and morning reports at 7:30 AM Pacific.
 - ⚠️ Sheila agent status: Active, HubSpot recon done, reconnect list staged.: Sheila is an active agent who has completed HubSpot reconnaissance and staged a reconnect list. HubSpot data shows 6,211 contacts, with 1,158 deemed warm/SS-relevant.
-- ⚠️ Thomas agent status: Active, memory system certified, all phases complete.: Thomas is an active agent whose memory system is certified and has completed all six phases of development. This indicates Thomas is a fully functional and reliable agent.
 
 ### User Preferences
 - Banned phrases: Avoid formulaic AI throat-clearing.
@@ -31,8 +31,8 @@ _30 memories loaded_
   → Steve is an active agent who has completed both deliverables (case study and spotlight spec) and has two reference pillars loaded (Cody and Ras Mic). This indicates Steve is well-prepared and has necessary resources.
   → The agent identifies the 5-minute polling interval as a vulnerability. If a session gets killed, up to 4 minutes of work could be lost. Real-time per-turn extraction should be a priority, not just a 'nice to have'.
   → Justin is communicating directly with Echo regarding the gap analysis. This suggests a collaborative effort to address the memory gaps and potentially implement solutions.
-  → The Wall-E sub-agent, tasked with polling agents for memory gaps, timed out after 2 minutes while writing the addendum to the extraction file. A staleness check will be performed directly.
   → The memory system's performance is assessed at 85-90% for extraction and storage, but only 75% for recall. This indicates a potential bottleneck in the recall process, suggesting that improvements are needed to retrieve information effectively.
+  → The Wall-E sub-agent, tasked with polling agents for memory gaps, timed out after 2 minutes while writing the addendum to the extraction file. A staleness check will be performed directly.
   → The context monitor killed the previous session because it reached the limit of 175,000 tokens. This triggered a compaction event and a reset of the session.
 
 **Active Tasks:**
