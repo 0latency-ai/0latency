@@ -33,7 +33,8 @@ AGENTS = {
 }
 STATE_FILE = "/root/.openclaw/workspace/memory-product/src/.processor_state.json"
 LOG_FILE = "/root/logs/memory_processor.log"
-POLL_INTERVAL = 15  # seconds between checks
+POLL_INTERVAL = 3  # seconds between checks — near-real-time extraction
+REGEN_INTERVAL = 300  # seconds between context regeneration (5 min)
 
 
 def log(msg):
@@ -272,10 +273,10 @@ def run_daemon():
                     new_memories = process_new_turns(session_file, state, agent_id)
                     save_state(state)
                     
-                    # Regenerate context if new memories were added OR every 5 minutes
+                    # Regenerate context if new memories were added OR every REGEN_INTERVAL
                     now = time.time()
                     agent_last = last_regen.get(agent_id, 0)
-                    if new_memories > 0 or (now - agent_last) > 300:
+                    if new_memories > 0 or (now - agent_last) > REGEN_INTERVAL:
                         regenerate_context(agent_id, agent_cfg["workspace_dir"])
                         last_regen[agent_id] = now
             

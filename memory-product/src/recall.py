@@ -171,6 +171,63 @@ def recall(
             "recall_details": [],
         }
     
+    # --- Step 4.5: Conversational momentum — pull in entity-linked memories ---
+    # For the top semantic matches, find connected memories via the entity graph
+    # This preloads related context even before the user explicitly asks about it
+    candidate_ids = {c["id"] for c in candidates}
+    momentum_candidates = []
+    
+    top_candidates = sorted(candidates, key=lambda x: x["similarity"], reverse=True)[:5]
+    for tc in top_candidates:
+        try:
+            linked_rows = _db_execute(f"""
+                SELECT DISTINCT m.id, m.headline, m.context, m.full_content,
+                       m.memory_type, m.importance, m.confidence,
+                       m.entities::text, m.categories::text, m.scope,
+                       m.created_at, m.access_count, m.reinforcement_count,
+                       0.6 as similarity,
+                       m.superseded_at
+                FROM memory_service.memory_edges me
+                JOIN memory_service.memories m ON (
+                    CASE WHEN me.source_memory_id = '{tc["id"]}' THEN m.id = me.target_memory_id
+                         ELSE m.id = me.source_memory_id END
+                )
+                WHERE (me.source_memory_id = '{tc["id"]}' OR me.target_memory_id = '{tc["id"]}')
+                  AND me.agent_id = '{agent_id}'
+                  AND m.superseded_at IS NULL
+                  AND me.strength >= 0.4
+                LIMIT 3
+            """)
+            
+            for row in linked_rows:
+                parts = row.split("|||")
+                if len(parts) >= 14:
+                    linked_id = parts[0]
+                    if linked_id not in candidate_ids:
+                        candidate_ids.add(linked_id)
+                        momentum_candidates.append({
+                            "id": linked_id,
+                            "headline": parts[1],
+                            "context": parts[2],
+                            "full_content": parts[3],
+                            "memory_type": parts[4],
+                            "importance": float(parts[5] or 0.5),
+                            "confidence": float(parts[6] or 0.8),
+                            "entities": parts[7],
+                            "categories": parts[8],
+                            "scope": parts[9],
+                            "created_at": datetime.fromisoformat(parts[10].replace('+00', '+00:00')) if parts[10] else now,
+                            "access_count": int(parts[11] or 0),
+                            "reinforcement_count": int(parts[12] or 0),
+                            "similarity": 0.55,  # Momentum bonus — not as strong as direct semantic match
+                            "superseded_at": parts[14] if len(parts) > 14 and parts[14] else None,
+                            "_momentum": True,  # Flag for debugging
+                        })
+        except Exception:
+            pass  # Don't let momentum failures block recall
+    
+    candidates.extend(momentum_candidates)
+    
     # --- Step 5: Score each candidate ---
     now = datetime.now(timezone.utc)
     scored = []

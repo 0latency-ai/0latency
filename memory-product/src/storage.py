@@ -360,16 +360,26 @@ def _check_contradiction(agent_id: str, headline: str, embedding: list[float]) -
         if len(parts) >= 5:
             similarity = float(parts[4])
             existing_headline = parts[1]
+            existing_context = parts[2] if len(parts) > 2 else ""
             
-            # High similarity (same topic) but not a duplicate (not >0.88)
-            # This range suggests same topic, potentially different claim
-            if 0.70 < similarity < 0.88:
-                # Same topic but different enough to potentially contradict
-                # Check if key entities overlap
+            # Tighter range: 0.78-0.88 — must be very similar topic but different claim
+            # Below 0.78 = different enough to be a separate fact, not a contradiction
+            # Above 0.88 = too similar, probably a duplicate (handled by _check_duplicate)
+            if 0.78 < similarity < 0.88:
+                # Additional check: headlines must share at least one meaningful entity
                 existing_entities = parts[3].strip("{}").split(",") if parts[3] and parts[3] != "{}" else []
+                existing_entities = [e.strip().strip('"') for e in existing_entities if e.strip().strip('"')]
                 
-                # If entities overlap significantly, it might be a contradiction
-                if existing_entities:
+                new_headline_lower = headline.lower()
+                
+                # Must have entity overlap AND the headlines shouldn't be saying the same thing
+                entity_overlap = any(
+                    ent.lower() in new_headline_lower 
+                    for ent in existing_entities 
+                    if len(ent) > 2
+                )
+                
+                if entity_overlap:
                     return {
                         "id": parts[0],
                         "headline": existing_headline,

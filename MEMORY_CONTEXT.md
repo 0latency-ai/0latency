@@ -1,15 +1,18 @@
 # Memory Context (auto-generated)
-_Last updated: 2026-03-20 01:10 UTC_
-_29 memories loaded_
+_Last updated: 2026-03-20 01:53 UTC_
+_26 memories loaded_
 
 ## Agent Memory Context
 
+### Last Session Summary
+Thomas and Justin recovered from a memory compaction issue, implemented several memory infrastructure improvements, and made progress on Colorado DOE outreach. Key improvements include real-time extraction, dynamic context, cross-entity linking, and correction cascading. A parallel comparison of flat files and the structured pipeline was initiated.
+
 ### Active Corrections
-- ⚠️ Justin prioritizes real-time extraction, then dynamic context budget.: Justin wants the agent to prioritize tasks in the following order: 1) Real-time per-turn extraction, 2) Dynamic context budget. This order is based on impact, with real-time extraction being the most important.
-- ⚠️ Multi-turn inference implemented: Extraction uses sliding window of 4 turns.: Multi-turn inference has been implemented, allowing the extraction process to consider a sliding window of the last 4 turns as context. This enables the agent to catch implications and connections across multiple messages, leading to more accurate and comprehensive memory extraction.
-- ⚠️ Schemas: 'thomas' (memory), 'atlas' (performance).: The system uses two primary schemas: 'thomas' with 12 tables for the Thomas memory system, and 'atlas' with 4 tables (weekly_snapshots, metric_definitions, events, agent_performance) and 5 RPC functions for performance monitoring.
-- ⚠️ Cron schedule: Heartbeat, context monitor, daily reset, Thomas pulse/check, reindex, reports.: The system has 11 cron jobs scheduled, including a heartbeat every 5 minutes, context monitoring, daily session reset at 6 AM Pacific, Thomas pulse at 8 AM Pacific, embedding reindex on Sundays, and morning reports at 7:30 AM Pacific.
-- ⚠️ Sheila agent status: Active, HubSpot recon done, reconnect list staged.: Sheila is an active agent who has completed HubSpot reconnaissance and staged a reconnect list. HubSpot data shows 6,211 contacts, with 1,158 deemed warm/SS-relevant.
+- ⚠️ Justin wants to complete all remaining refinements now.: Justin wants to complete all the remaining refinements from Echo's list and the agent's observations. The order of completion doesn't matter, but he wants to address them all now.
+- ⚠️ Deduplicate extraction: Coordinate hook and daemon to avoid duplicates.: Deduplication is needed between the real-time hook and the polling daemon to prevent duplicate extractions from sessions. The hook should handle extraction, and the daemon should only handle context regeneration.
+- ⚠️ Memory compaction: Implement summarization layers for large memory stores.: Memory compaction involves implementing summarization layers to manage large memory stores (thousands of memories). While not urgent with only 201 memories currently, it will be necessary in the future as the memory store grows.
+- ⚠️ Conversational momentum: Preload related memories as topics shift.: Conversational momentum involves preloading related memories as topics shift mid-conversation. Currently, recall only runs at context regeneration. The system should detect topic shifts and proactively pull in relevant memories. This is a medium-effort task with high impact.
+- ⚠️ Justin's default mode is to continue working.: When Justin is working, his default mode is to continue working and refining. This was established after the agent mistakenly suggested he get some sleep. This indicates a strong work ethic and commitment to ongoing improvement.
 
 ### User Preferences
 - Banned phrases: Avoid formulaic AI throat-clearing.
@@ -20,17 +23,17 @@ _29 memories loaded_
 - Log failed spawns in daily memory file.
 - Try it first, report results if unsure of capability.
 - Match the tool to the scope of the task.
-- Be direct, no jargon, no filler in communication.
 - Prefer prose over lists unless structure helps.
+- No bullet point emojis; no staged scene-setting.
 
 ### Relevant Context
 **Recent Decisions:**
   → The user said "ship it", indicating approval to proceed with wiring the agent's session transcripts into the memory daemon. This means the agent should now begin the process of integrating its transcripts into the memory system.
 
 **Relevant Facts:**
-  → Steve is an active agent who has completed both deliverables (case study and spotlight spec) and has two reference pillars loaded (Cody and Ras Mic). This indicates Steve is well-prepared and has necessary resources.
   → The agent identifies the 5-minute polling interval as a vulnerability. If a session gets killed, up to 4 minutes of work could be lost. Real-time per-turn extraction should be a priority, not just a 'nice to have'.
-  → Justin is communicating directly with Echo regarding the gap analysis. This suggests a collaborative effort to address the memory gaps and potentially implement solutions.
+  → Steve is an active agent who has completed both deliverables (case study and spotlight spec) and has two reference pillars loaded (Cody and Ras Mic). This indicates Steve is well-prepared and has necessary resources.
+  → Justin's primary goal is to achieve $1 million in Annual Recurring Revenue (ARR). The first milestone towards this goal is reaching $200,000 to $300,000 in ARR. This is the overarching financial objective.
   → The memory system's performance is assessed at 85-90% for extraction and storage, but only 75% for recall. This indicates a potential bottleneck in the recall process, suggesting that improvements are needed to retrieve information effectively.
   → The Wall-E sub-agent, tasked with polling agents for memory gaps, timed out after 2 minutes while writing the addendum to the extraction file. A staleness check will be performed directly.
   → The context monitor killed the previous session because it reached the limit of 175,000 tokens. This triggered a compaction event and a reset of the session.
@@ -38,3 +41,6 @@ _29 memories loaded_
 **Active Tasks:**
   → On every session start, the agent must read the Capabilities Manifest in `TOOLS.md`. This lists every integration, API, and tool the agent has access to. This is necessary because context compaction kills capability awareness.
   → The user wants to actively measure why the memory broke and where it did after compaction. This is to identify if the measures being put in place are sufficient to fix it. The user will provide the starting line and indicate when they've caught up.
+  → The migration script, multi-turn inference, and multi-agent daemon are not yet in git and should be committed. This ensures that the recent progress is saved and version controlled.
+  → Negative recall involves tracking which topics have been discussed to prevent the agent from hallucinating fill-in details. This can be achieved by maintaining a topic coverage map. Echo considers this to be philosophically hard to implement.
+  • Sebastian to build teacher-side 'mark class complete' for K-2 in Explore.
