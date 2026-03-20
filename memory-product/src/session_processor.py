@@ -20,6 +20,7 @@ from extraction import extract_memories
 from storage import store_memories, _db_execute
 from recall import recall
 from negative_recall import update_topic_coverage
+from handoff import detect_state_change, generate_handoff, save_handoff, get_latest_handoff
 
 # --- Configuration ---
 AGENTS = {
@@ -133,7 +134,9 @@ def parse_session_turns(session_file):
 
 
 def process_new_turns(session_file, state, agent_id):
-    """Extract memories from new conversation turns with multi-turn sliding window."""
+    """Extract memories from new conversation turns with multi-turn sliding window.
+    Also triggers Layer 2 (conversation state handoff) on meaningful state shifts.
+    """
     turns = parse_session_turns(session_file)
     session_key = os.path.basename(session_file).replace(".jsonl", "")
     
@@ -146,6 +149,8 @@ def process_new_turns(session_file, state, agent_id):
         state[agent_state_key] = state["processed_turns"]
     
     new_count = 0
+    handoff_needed = False
+    
     for idx, (turn_id, human_msg, agent_msg) in enumerate(turns):
         # Skip already processed
         if turn_id in state[agent_state_key]:
@@ -202,10 +207,38 @@ def process_new_turns(session_file, state, agent_id):
                 new_count += len(ids)
             else:
                 state[agent_state_key][turn_id] = {"status": "processed", "memories": 0}
+            
+            # Layer 2: Check if conversation state shifted
+            try:
+                change = detect_state_change(human_msg, agent_msg, recent_turns)
+                if change.get("state_shifted", False):
+                    handoff_needed = True
+                    log(f"  [{agent_id}] State shift detected: {change.get('reason', 'unknown')}")
+            except Exception as e:
+                log(f"  [{agent_id}] State change detection error (non-fatal): {e}")
                 
         except Exception as e:
             log(f"  [{agent_id}] ERROR: {e}")
             state[agent_state_key][turn_id] = {"status": "error", "error": str(e)}
+    
+    # Layer 2: Generate handoff if state shifted during this batch
+    if handoff_needed and new_count > 0:
+        try:
+            # Get recent turns as (human, agent) tuples for handoff generation
+            recent_for_handoff = [(h, a) for _, h, a in turns[-10:]]
+            current_handoff = get_latest_handoff(agent_id)
+            
+            log(f"  [{agent_id}] Generating conversation state handoff...")
+            handoff = generate_handoff(
+                agent_id=agent_id,
+                session_key=session_key,
+                recent_turns=recent_for_handoff,
+                current_handoff=current_handoff,
+            )
+            save_handoff(agent_id, session_key, handoff)
+            log(f"  [{agent_id}] Handoff saved: {handoff.get('summary', '')[:100]}...")
+        except Exception as e:
+            log(f"  [{agent_id}] Handoff generation error (non-fatal): {e}")
     
     return new_count
 
