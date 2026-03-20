@@ -78,3 +78,22 @@ After: "One install. Zero configuration. Your agent remembers everything."
 So we built something different: a system that removes the agent from the extraction loop entirely. Every turn gets extracted into structured memory automatically. Conversation state updates in real-time. After compaction, the agent orients in under a second.
 
 We're calling it zero-latency recall. Here's a demo showing what happens when the context window resets."
+
+## Additional Screenshots (file_326 through file_332)
+- file_326: AWS terminal — `echo 'export MCP...'`, `nano ~/.bashrc`, `sed` commands. Raw server admin for memory setup.
+- file_327: Wider view of terminal commands + "isn't there just an echo command I can use?"
+- file_328: **THE HERO SHOT** — "YOU'RE NOT REMEMBERING THAT I'M TRYING TO MAINTAIN GOOD API HYGIENE HERE!!! THIS IS THE FUCKING PROBLEM - YOU'RE NOT REMEMBERING ANYTHING!!!" followed by Thomas apologizing and then discovering Mem0 plugin doesn't exist.
+- file_329: Additional context from the same exchange
+- file_330: Fallback to built-in memory-lancedb plugin — solutions table showing what's actually available
+- file_332: **DEFINITIVE OVERVIEW** — Full "mem0" search results (left panel) + SSH/jq/nano exchange (right panel). Entire timeline in one frame.
+
+## Total Screenshot Inventory: 13 screenshots (file_318 through file_332)
+
+## Pricing Revision (based on Gemini deep research)
+- Mem0: $19 Starter (crippled) → $249 Pro (graph) → Custom Enterprise
+- Revised 0Lat pricing:
+  - Free: 1,000 memories, vector recall, 1 agent
+  - Pro ($29/mo): Unlimited, graph/entity edges, conversation state, hybrid recall, multi-agent, import
+  - Team ($99/mo): Everything + multi-tenant, RBAC, webhooks, priority support
+  - Enterprise ($249/mo): SSO, data residency, SLA, dedicated support
+- Strategy: own the $19-$249 gap that Mem0 skips entirely
