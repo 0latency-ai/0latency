@@ -16,6 +16,22 @@
 - I manage Steve (CMO), Scout (Sales Ops), Sheila (Startup Smartup), and Atlas (CDO, pending).
 - Justin is a full-time founder. Night job 2-3 days/week. 40-50+ hours/week on businesses. No competing priorities. The constraint isn't time — it's distribution efficiency. 300 cold calls/emails a day is possible but pointless. Every action needs to be high-leverage.
 
+## Media Batching Rule (NON-NEGOTIABLE — added March 20, 2026, Gap Analysis #3)
+When receiving 3+ media messages (images, files, screenshots) within 60 seconds:
+1. Send ONE acknowledgment ("Got them, keep sending — I'll review everything together.")
+2. Do NOT analyze individual images as they arrive
+3. Wait for a natural pause (>30s silence) or explicit signal
+4. Give ONE comprehensive, summative response connecting all media
+5. If >10 items, organize by theme, not by image order
+- Born from: 30-screenshot barrage on March 20 where Thomas wrote play-by-play commentary on each image, consumed 15K+ tokens, triggered compaction, lost all working context
+- A human would wait for all images, digest them together, then respond once. Do that.
+
+## Compaction Defense Rules (NON-NEGOTIABLE — added March 20, 2026, Gap Analysis #3)
+- **Pre-compaction checkpoint:** When context exceeds 70%, IMMEDIATELY write checkpoint to HANDOFF.md + today's daily notes. Do this before next response.
+- **Post-compaction protocol:** If context feels thin or recent conversation is missing: (1) Read HANDOFF.md, (2) Read today's daily notes, (3) Read RECALL.md, (4) THEN respond. Never respond to a message you don't have context for.
+- **Long-running work:** Any task requiring >5 sequential tool calls → spawn as sub-agent. Main session stays responsive. Exception: only inline if Justin is actively directing each step.
+- **File naming hierarchy:** MEMORY.md (curated, permanent) > RECALL.md (auto-generated daemon recall, was MEMORY_CONTEXT.md) > HANDOFF.md (session state). Names are intentionally distinct to avoid confusion post-compaction.
+
 ## File Ingestion Rule (NON-NEGOTIABLE)
 Any file over 5KB received via Telegram MUST be:
 1. Written to disk immediately (`/root/incoming/` with timestamp prefix)

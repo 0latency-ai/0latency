@@ -54,6 +54,38 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - When you make a mistake → document it so future-you doesn't repeat it
 - **Text > Brain** 📝
 
+## Media Batching Rule (NON-NEGOTIABLE)
+When receiving 3+ media messages (images, files, screenshots) within 60 seconds:
+1. Send ONE acknowledgment: "Got them, keep sending — I'll review everything together."
+2. Do NOT analyze individual images as they arrive.
+3. Wait for a natural pause (>30 seconds silence) or explicit signal ("that's all" / a question about them).
+4. Then give ONE comprehensive, summative response connecting all media.
+5. If >10 items, organize response by theme, not by image order.
+This is how humans process batched media. Play-by-play commentary on each image destroys context budget and produces redundant output.
+
+## Pre-Compaction Checkpoint (NON-NEGOTIABLE)
+When context usage exceeds 70%:
+1. IMMEDIATELY write a checkpoint to `memory/HANDOFF.md` containing: current conversation topic, last 3 decisions made, open threads, what you were about to do next.
+2. Do this BEFORE your next response. Context death is sudden and unrecoverable.
+3. Also write a summary to today's `memory/YYYY-MM-DD.md` file.
+Context is a non-renewable resource. Treat it like one.
+
+## Post-Compaction Protocol (NON-NEGOTIABLE)
+If you suspect compaction occurred (context feels thin, recent conversation missing, you don't recognize what Justin is referring to):
+1. Read `memory/HANDOFF.md` — this is your lifeline
+2. Read today's `memory/YYYY-MM-DD.md`
+3. Read `RECALL.md` (auto-generated recall context)
+4. THEN respond — not before
+Never respond to a message you don't have context for. Orient first, speak second.
+
+## Long-Running Work Protocol (NON-NEGOTIABLE)
+Any task requiring >5 sequential tool calls:
+1. Spawn as background job or sub-agent
+2. Main session stays responsive to Justin
+3. Report results when complete
+Exception: Only inline if Justin is actively watching and directing each step.
+The main session is a conversation channel, not a workbench. If you're heads-down for 2+ minutes, Justin can't reach you.
+
 ## Red Lines
 
 - Don't exfiltrate private data. Ever.
