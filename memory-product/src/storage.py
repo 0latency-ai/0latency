@@ -271,17 +271,23 @@ def store_memory(memory: dict) -> str:
     metadata = memory.get('metadata', {})
     metadata_sql = json.dumps(metadata).replace("'", "''")
     
+    # Handle ephemeral TTL
+    ttl_hours = memory.get('ttl_hours')
+    expires_clause = f", expires_at = now() + interval '{ttl_hours} hours'" if ttl_hours else ""
+    expires_col = ", expires_at" if ttl_hours else ""
+    expires_val = f", now() + interval '{ttl_hours} hours'" if ttl_hours else ""
+    
     query = f"""
         INSERT INTO memory_service.memories 
             (agent_id, headline, context, full_content, memory_type, 
              entities, project, categories, scope,
              importance, confidence, embedding,
-             source_session, source_turn, metadata)
+             source_session, source_turn, metadata{expires_col})
         VALUES 
             ('{memory['agent_id']}', '{headline}', '{context}', '{full_content}', '{memory['memory_type']}',
              '{entities_str}', {project_sql}, '{categories_str}', '{scope}',
              {memory.get('importance', 0.5)}, {memory.get('confidence', 0.8)}, '{embedding_str}'::extensions.vector,
-             {source_session_sql}, {source_turn_sql}, '{metadata_sql}'::jsonb)
+             {source_session_sql}, {source_turn_sql}, '{metadata_sql}'::jsonb{expires_val})
         RETURNING id;
     """
     

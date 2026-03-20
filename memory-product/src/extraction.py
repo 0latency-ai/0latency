@@ -62,7 +62,9 @@ For each extracted memory, provide:
     - "permanent": Always true (names, identities, preferences) — should never decay
     - "current": True now but could change (current projects, current status)
     - "event": Something that happened at a specific time (dinner tonight, meeting yesterday)
+    - "ephemeral": Only relevant for a few hours (current location, what they're doing right now). Set ttl_hours.
     - "goal": A future aspiration or target ($1M ARR goal)
+12. **ttl_hours**: (optional, only for ephemeral) Number of hours this memory stays relevant. Default 12.
 
 MULTI-TURN INFERENCE: You are given the CURRENT exchange plus RECENT CONTEXT (previous turns). Use the recent context to:
 - Catch information IMPLIED across messages but never stated explicitly in one turn
@@ -299,12 +301,17 @@ def extract_memories(
         
         # Get temporal type
         temporal_type = mem.get("temporal_type", "current")
-        if temporal_type not in {"permanent", "current", "event", "goal"}:
+        if temporal_type not in {"permanent", "current", "event", "goal", "ephemeral"}:
             temporal_type = "current"
         
         # Auto-upgrade to identity type for permanent personal facts
         if temporal_type == "permanent" and memory_type == "fact":
             memory_type = "identity"
+        
+        # Calculate TTL for ephemeral memories
+        ttl_hours = None
+        if temporal_type == "ephemeral":
+            ttl_hours = int(mem.get("ttl_hours", 12))
         
         # Build metadata with new fields
         metadata = {
@@ -331,6 +338,7 @@ def extract_memories(
             "extracted_at": now,
             "valid_from": now,
             "metadata": metadata,
+            "ttl_hours": ttl_hours,
         }
         
         validated.append(memory_obj)
