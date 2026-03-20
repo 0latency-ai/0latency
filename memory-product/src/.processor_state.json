@@ -1,5 +1,6 @@
 {
-  "processed_turns": {
+  "last_session": null,
+  "processed_turns_echo": {
     "858e5297_59c9b33e": {
       "status": "processed",
       "memories": 0
@@ -23,7 +24,198 @@
       "status": "processed",
       "memories": 12,
       "at": "2026-03-19T01:36:40.523320+00:00"
+    },
+    "dd685004_075dfe1e": {
+      "status": "processed",
+      "memories": 5,
+      "at": "2026-03-19T20:19:04.736793+00:00"
+    },
+    "55cdc046_b36167fa": {
+      "status": "processed",
+      "memories": 4,
+      "at": "2026-03-19T20:28:18.174506+00:00"
+    },
+    "3749e05e_2ca4dc87": {
+      "status": "processed",
+      "memories": 4,
+      "at": "2026-03-19T20:29:10.170812+00:00"
+    },
+    "19977f6a_b1b06028": {
+      "status": "processed",
+      "memories": 2,
+      "at": "2026-03-19T20:29:52.936727+00:00"
+    },
+    "1551c4d8_f9637b36": {
+      "status": "processed",
+      "memories": 9,
+      "at": "2026-03-20T01:09:48.271977+00:00"
     }
   },
-  "last_session": null
+  "processed_turns_thomas": {
+    "b67998b2_39f91029": {
+      "status": "skipped",
+      "reason": "system"
+    },
+    "a45171ee_0f98437a": {
+      "status": "processed",
+      "memories": 2,
+      "at": "2026-03-19T20:32:04.426492+00:00"
+    },
+    "883fc0a0_bb297312": {
+      "status": "processed",
+      "memories": 3,
+      "at": "2026-03-19T20:32:20.739883+00:00"
+    },
+    "ee0b9b8d_099bdd51": {
+      "status": "processed",
+      "memories": 8,
+      "at": "2026-03-19T20:32:59.600969+00:00"
+    },
+    "fbbc3b96_c313e277": {
+      "status": "processed",
+      "memories": 0
+    },
+    "8c8aaf82_86422ca3": {
+      "status": "processed",
+      "memories": 5,
+      "at": "2026-03-19T20:33:46.267852+00:00"
+    },
+    "797d976b_ea4ff6b7": {
+      "status": "processed",
+      "memories": 6,
+      "at": "2026-03-19T20:34:15.581312+00:00"
+    },
+    "4025475c_858f31fa": {
+      "status": "processed",
+      "memories": 2,
+      "at": "2026-03-19T20:34:26.415737+00:00"
+    },
+    "61d540f8_cf8231ba": {
+      "status": "processed",
+      "memories": 4,
+      "at": "2026-03-19T20:34:48.278553+00:00"
+    },
+    "4d9434d5_ac026aee": {
+      "status": "processed",
+      "memories": 2,
+      "at": "2026-03-19T20:34:59.474866+00:00"
+    },
+    "1e38dcc1_70916f88": {
+      "status": "processed",
+      "memories": 1,
+      "at": "2026-03-19T20:35:06.168776+00:00"
+    },
+    "f46ac03c_5f9df1c2": {
+      "status": "processed",
+      "memories": 2,
+      "at": "2026-03-19T20:35:14.565903+00:00"
+    },
+    "3cae1ca5_3f66a493": {
+      "status": "processed",
+      "memories": 8,
+      "at": "2026-03-19T20:35:52.847973+00:00"
+    },
+    "d298fe34_4f52cde6": {
+      "status": "processed",
+      "memories": 3,
+      "at": "2026-03-19T20:36:08.226752+00:00"
+    },
+    "67a6f799_9fcd4cea": {
+      "status": "processed",
+      "memories": 2,
+      "at": "2026-03-19T20:37:42.917650+00:00"
+    },
+    "4f42d13a_a95e09a0": {
+      "status": "processed",
+      "memories": 2,
+      "at": "2026-03-19T20:48:17.625608+00:00"
+    },
+    "94bc37b9_35562908": {
+      "status": "processed",
+      "memories": 1,
+      "at": "2026-03-19T20:58:37.511708+00:00"
+    },
+    "80ed344d_3a5a6954": {
+      "status": "processed",
+      "memories": 3,
+      "at": "2026-03-19T21:02:07.069673+00:00"
+    },
+    "19c675a8_6e1030c6": {
+      "status": "processed",
+      "memories": 2,
+      "at": "2026-03-19T21:04:03.450853+00:00"
+    },
+    "8d7f552a_9d0b70c0": {
+      "status": "processed",
+      "memories": 4,
+      "at": "2026-03-19T21:08:51.469667+00:00"
+    },
+    "5e13c8ed_4d236af3": {
+      "status": "processed",
+      "memories": 4,
+      "at": "2026-03-19T21:10:26.180497+00:00"
+    },
+    "0f686ef3_c9a7feb3": {
+      "status": "processed",
+      "memories": 3,
+      "at": "2026-03-19T21:12:38.306965+00:00"
+    },
+    "c77a48a6_321af2c6": {
+      "status": "processed",
+      "memories": 3,
+      "at": "2026-03-19T21:17:56.788071+00:00"
+    },
+    "ffa9ff95_ea36b410": {
+      "status": "processed",
+      "memories": 4,
+      "at": "2026-03-19T21:20:58.359158+00:00"
+    },
+    "836561bb_2cf7ef1b": {
+      "status": "processed",
+      "memories": 7,
+      "at": "2026-03-19T23:03:50.946114+00:00"
+    },
+    "bc94294a_c34e4aea": {
+      "status": "processed",
+      "memories": 2,
+      "at": "2026-03-19T23:05:03.150692+00:00"
+    },
+    "1bec4296_2a8e0ac9": {
+      "status": "processed",
+      "memories": 1,
+      "at": "2026-03-19T23:05:08.793780+00:00"
+    },
+    "2a37d926_0d502442": {
+      "status": "skipped",
+      "reason": "system"
+    },
+    "2eebdc46_0d72a9b8": {
+      "status": "skipped",
+      "reason": "system"
+    },
+    "693f3c07_326a4990": {
+      "status": "processed",
+      "memories": 5,
+      "at": "2026-03-19T23:30:58.192791+00:00"
+    },
+    "df22fc1f_305e3f32": {
+      "status": "processed",
+      "memories": 3,
+      "at": "2026-03-19T23:33:31.402079+00:00"
+    },
+    "d2264709_4b863f27": {
+      "status": "skipped",
+      "reason": "system"
+    },
+    "2ba7392e_6dc12b7a": {
+      "status": "processed",
+      "memories": 2,
+      "at": "2026-03-20T00:28:41.081921+00:00"
+    },
+    "644e028b_283071cf": {
+      "status": "processed",
+      "memories": 5,
+      "at": "2026-03-20T01:08:31.529779+00:00"
+    }
+  }
 }

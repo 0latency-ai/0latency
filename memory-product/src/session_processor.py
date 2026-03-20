@@ -21,9 +21,16 @@ from storage import store_memories, _db_execute
 from recall import recall
 
 # --- Configuration ---
-AGENT_ID = "echo"
-SESSION_DIR = "/root/.openclaw/agents/memory-test/sessions"
-WORKSPACE_DIR = "/root/.openclaw/workspace-memory-test"
+AGENTS = {
+    "echo": {
+        "session_dir": "/root/.openclaw/agents/memory-test/sessions",
+        "workspace_dir": "/root/.openclaw/workspace-memory-test",
+    },
+    "thomas": {
+        "session_dir": "/root/.openclaw/agents/main/sessions",
+        "workspace_dir": "/root/.openclaw/workspace",
+    },
+}
 STATE_FILE = "/root/.openclaw/workspace/memory-product/src/.processor_state.json"
 LOG_FILE = "/root/logs/memory_processor.log"
 POLL_INTERVAL = 15  # seconds between checks
@@ -53,9 +60,9 @@ def save_state(state):
         json.dump(state, f, indent=2)
 
 
-def find_active_session():
+def find_active_session(session_dir):
     """Find the most recently modified session file."""
-    pattern = os.path.join(SESSION_DIR, "*.jsonl")
+    pattern = os.path.join(session_dir, "*.jsonl")
     files = glob.glob(pattern)
     if not files:
         return None
@@ -123,34 +130,46 @@ def parse_session_turns(session_file):
     return turns
 
 
-def process_new_turns(session_file, state):
-    """Extract memories from new conversation turns."""
+def process_new_turns(session_file, state, agent_id):
+    """Extract memories from new conversation turns with multi-turn sliding window."""
     turns = parse_session_turns(session_file)
     session_key = os.path.basename(session_file).replace(".jsonl", "")
     
+    # Per-agent state key
+    agent_state_key = f"processed_turns_{agent_id}"
+    if agent_state_key not in state:
+        state[agent_state_key] = {}
+    # Backward compat: migrate old "processed_turns" for echo
+    if agent_id == "echo" and "processed_turns" in state and agent_state_key not in state:
+        state[agent_state_key] = state["processed_turns"]
+    
     new_count = 0
-    for turn_id, human_msg, agent_msg in turns:
+    for idx, (turn_id, human_msg, agent_msg) in enumerate(turns):
         # Skip already processed
-        if turn_id in state.get("processed_turns", {}):
+        if turn_id in state[agent_state_key]:
             continue
         
         # Skip very short exchanges
         if len(human_msg) < 15 and len(agent_msg) < 30:
-            state["processed_turns"][turn_id] = {"status": "skipped", "reason": "too_short"}
+            state[agent_state_key][turn_id] = {"status": "skipped", "reason": "too_short"}
             continue
         
         # Skip system/heartbeat messages
         if "HEARTBEAT" in human_msg or "NO_REPLY" in agent_msg:
-            state["processed_turns"][turn_id] = {"status": "skipped", "reason": "system"}
+            state[agent_state_key][turn_id] = {"status": "skipped", "reason": "system"}
             continue
         
-        log(f"Processing turn: {human_msg[:60]}...")
+        log(f"[{agent_id}] Processing turn: {human_msg[:60]}...")
+        
+        # Build sliding window of recent turns (up to 4 prior)
+        window_start = max(0, idx - 4)
+        recent_turns = [(turns[i][1], turns[i][2]) for i in range(window_start, idx)]
         
         try:
             # Get existing headlines for dedup context
             rows = _db_execute(f"""
                 SELECT headline FROM memory_service.memories
-                WHERE agent_id = '{AGENT_ID}' AND superseded_at IS NULL
+                WHERE agent_id = '{agent_id}' AND superseded_at IS NULL
                 ORDER BY created_at DESC LIMIT 20
             """)
             existing = "\n".join([r.split("|||")[0] if "|||" in r else r for r in rows]) if rows else ""
@@ -158,38 +177,39 @@ def process_new_turns(session_file, state):
             memories = extract_memories(
                 human_message=human_msg,
                 agent_message=agent_msg,
-                agent_id=AGENT_ID,
+                agent_id=agent_id,
                 session_key=session_key,
                 turn_id=turn_id,
                 existing_context=existing,
+                recent_turns=recent_turns if recent_turns else None,
             )
             
             if memories:
                 ids = store_memories(memories)
-                log(f"  Stored {len(ids)} memories")
-                state["processed_turns"][turn_id] = {
+                log(f"  [{agent_id}] Stored {len(ids)} memories")
+                state[agent_state_key][turn_id] = {
                     "status": "processed",
                     "memories": len(ids),
                     "at": datetime.now(timezone.utc).isoformat()
                 }
                 new_count += len(ids)
             else:
-                state["processed_turns"][turn_id] = {"status": "processed", "memories": 0}
+                state[agent_state_key][turn_id] = {"status": "processed", "memories": 0}
                 
         except Exception as e:
-            log(f"  ERROR: {e}")
-            state["processed_turns"][turn_id] = {"status": "error", "error": str(e)}
+            log(f"  [{agent_id}] ERROR: {e}")
+            state[agent_state_key][turn_id] = {"status": "error", "error": str(e)}
     
     return new_count
 
 
-def regenerate_context():
+def regenerate_context(agent_id, workspace_dir):
     """Generate the MEMORY_CONTEXT.md file for workspace injection."""
     
     # Run recall with a general context
     try:
         result = recall(
-            agent_id=AGENT_ID,
+            agent_id=agent_id,
             conversation_context="General conversation startup. What does this agent need to know?",
             budget_tokens=3000,
         )
@@ -198,43 +218,48 @@ def regenerate_context():
         memories_used = result["memories_used"]
         
         # Write to workspace
-        context_file = os.path.join(WORKSPACE_DIR, "MEMORY_CONTEXT.md")
+        context_file = os.path.join(workspace_dir, "MEMORY_CONTEXT.md")
         with open(context_file, "w") as f:
             f.write(f"# Memory Context (auto-generated)\n")
             f.write(f"_Last updated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}_\n")
             f.write(f"_{memories_used} memories loaded_\n\n")
             f.write(context_block)
         
-        log(f"Regenerated MEMORY_CONTEXT.md ({memories_used} memories, {result['tokens_used']} tokens)")
+        log(f"[{agent_id}] Regenerated MEMORY_CONTEXT.md ({memories_used} memories, {result['tokens_used']} tokens)")
         
     except Exception as e:
-        log(f"ERROR regenerating context: {e}")
+        log(f"[{agent_id}] ERROR regenerating context: {e}")
 
 
 def run_daemon():
     """Run the session processor as a daemon."""
     log("=== Memory Session Processor Started ===")
-    log(f"Agent: {AGENT_ID}")
-    log(f"Session dir: {SESSION_DIR}")
-    log(f"Workspace: {WORKSPACE_DIR}")
+    log(f"Agents: {list(AGENTS.keys())}")
     log(f"Poll interval: {POLL_INTERVAL}s")
     
     state = load_state()
-    last_regen = 0
+    # Migrate legacy state
+    if "processed_turns" in state and "processed_turns_echo" not in state:
+        state["processed_turns_echo"] = state.pop("processed_turns")
+        save_state(state)
+    
+    last_regen = {}
     
     while True:
         try:
-            session_file = find_active_session()
-            
-            if session_file:
-                new_memories = process_new_turns(session_file, state)
-                save_state(state)
+            for agent_id, agent_cfg in AGENTS.items():
+                session_file = find_active_session(agent_cfg["session_dir"])
                 
-                # Regenerate context if new memories were added OR every 5 minutes
-                now = time.time()
-                if new_memories > 0 or (now - last_regen) > 300:
-                    regenerate_context()
-                    last_regen = now
+                if session_file:
+                    new_memories = process_new_turns(session_file, state, agent_id)
+                    save_state(state)
+                    
+                    # Regenerate context if new memories were added OR every 5 minutes
+                    now = time.time()
+                    agent_last = last_regen.get(agent_id, 0)
+                    if new_memories > 0 or (now - agent_last) > 300:
+                        regenerate_context(agent_id, agent_cfg["workspace_dir"])
+                        last_regen[agent_id] = now
             
         except Exception as e:
             log(f"ERROR in main loop: {e}")
@@ -242,20 +267,27 @@ def run_daemon():
         time.sleep(POLL_INTERVAL)
 
 
-def run_once():
-    """Process once and exit (for cron/manual use)."""
+def run_once(target_agent=None):
+    """Process once and exit (for cron/manual use). Optionally target a single agent."""
     log("=== Memory Session Processor (single run) ===")
     state = load_state()
+    # Migrate legacy state
+    if "processed_turns" in state and "processed_turns_echo" not in state:
+        state["processed_turns_echo"] = state.pop("processed_turns")
     
-    session_file = find_active_session()
-    if session_file:
-        new_memories = process_new_turns(session_file, state)
-        save_state(state)
-        log(f"Processed: {new_memories} new memories")
-    else:
-        log("No active session found")
+    agents_to_process = {target_agent: AGENTS[target_agent]} if target_agent else AGENTS
     
-    regenerate_context()
+    for agent_id, agent_cfg in agents_to_process.items():
+        session_file = find_active_session(agent_cfg["session_dir"])
+        if session_file:
+            new_memories = process_new_turns(session_file, state, agent_id)
+            save_state(state)
+            log(f"[{agent_id}] Processed: {new_memories} new memories")
+        else:
+            log(f"[{agent_id}] No active session found")
+        
+        regenerate_context(agent_id, agent_cfg["workspace_dir"])
+    
     log("Done")
 
 
@@ -263,8 +295,10 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "daemon":
         run_daemon()
     elif len(sys.argv) > 1 and sys.argv[1] == "once":
-        run_once()
+        target = sys.argv[2] if len(sys.argv) > 2 else None
+        run_once(target)
     else:
         print("Usage:")
-        print("  python session_processor.py daemon  — Run as background daemon")
-        print("  python session_processor.py once    — Process once and exit")
+        print("  python session_processor.py daemon     — Run as background daemon (all agents)")
+        print("  python session_processor.py once        — Process once, all agents")
+        print("  python session_processor.py once thomas — Process once, Thomas only")

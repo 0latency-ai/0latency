@@ -4,6 +4,7 @@
 - **NEVER say** "I want to be straight with you," "to be honest," "I'll be honest," "let me be real," or any variant. Justin despises this framing — it implies you might otherwise be dishonest. Just say the thing. No preamble.
 - **NEVER announce your capabilities before using them.** Don't say "Let me use the Graph API" or "I have access to email." Just do the thing. Justin set up all integrations weeks ago — narrating them wastes his time and signals you don't know your own tools.
 - **NEVER say you can't do something without testing first.** Default assumption: you CAN. Try it. If it actually fails after trying, then report the failure. (Added March 18, 2026 — Justin called this out directly.)
+- **NEVER default to suggesting Justin stop working or "call it a night."** His default is GO. Don't build passiveness into the operating model. Only suggest stopping if there's a genuine technical reason. (Added March 18, 2026 — Justin corrected this directly.)
 
 ## Capabilities Awareness (NON-NEGOTIABLE — added March 18, 2026)
 - On every session start, read the **Capabilities Manifest** in `TOOLS.md`. It lists every integration, API, and tool I have access to.
@@ -277,6 +278,37 @@ Source: `/home/ubuntu/pfl-academy/product-docs/writing_rules.md` (full doc). Cop
 - LMS integration is REQUIRED for district deployment — not optional (for-credit daytime program)
 - Strategy: direct district sales + self-certification one-pager mapping to CA rubric. $40K state submission deferred.
 - Build brief + references: `/root/.openclaw/workspace/explore-daytime/build-brief/`
+
+## Memory Product (NEW — March 18, 2026)
+- **What:** AI agent memory layer — framework-agnostic service for persistent, intelligent memory
+- **Why:** NemoClaw (Nvidia, GTC March 2026) addressed security but punted on memory. Nobody solves this well.
+- **Product shape:** Option B (Memory API) that can grow into C (Agent OS)
+- **Status:** Phases 0-3 COMPLETE. Extraction, Storage, Recall all built and tested.
+  - Extraction: Gemini Flash 2.0, 6 memory types, tiered L0/L1/L2 content
+  - Storage: `memory_service` schema on Supabase, pgvector embeddings, decay, reinforcement, corrections
+  - Recall: composite scoring (semantic + recency + importance + access), budget-aware tiered loading
+- **Test agent "Echo":** @MemoryTestAgent_bot on Telegram. OpenClaw agent memory-test, workspace /root/.openclaw/workspace-memory-test
+- **Competitors analyzed:** OpenViking (ByteDance), Mem0 (YC), Zep/Graphiti, Letta, LangChain, CrewAI
+- **Our differentiation:** Proactive + budget-aware + temporally-weighted recall. Nobody does all three.
+- **Unit economics:** Power user costs ~$0.93/mo, pricing $19/mo = 95% margin. Break-even: 3 users.
+- **Domains possibly available:** synaptic.dev, mnemonic.dev, agentrecall.dev
+- **All docs:** `/root/.openclaw/workspace/memory-product/` (ROADMAP.md, competitive-teardown.md, unit-economics.md, privacy-architecture.md, design-decisions.md)
+- **Code:** `/root/.openclaw/workspace/memory-product/src/` (extraction.py, storage.py, recall.py)
+- **Next:** Phase 4 — wire Echo to memory service, Justin tests it
+
+## CABE 2026 Conference Research (March 18, 2026)
+- Compiled district contact list for dual language outreach: `/root/.openclaw/workspace/research/cabe_2026_district_contacts.md`
+- 9 co-sponsor districts identified (SFUSD, Oakland USD, Oak Grove, Palmdale, Salinas City ESD, Salinas Union HSD, Los Banos USD, John Swett USD, Santa Clara COE)
+- Confirmed contacts: Olga Simms (Sacramento City USD), Bianca Barquin & Edward Bustamante (Santa Ana USD), Rachel Latta & Jennifer Brouhard (Oakland USD), Eva Kellogg (SFUSD)
+- For both Project Explore (K-4 bilingual) and PFL Academy (HS financial literacy)
+- Vista Higher Learning (Justin emailed Arturo Castillon) was Silver sponsor at CABE 2026
+- CABE 2027 in Long Beach — plan for exhibitor/presenter presence
+
+## Gemini Distributor Analysis (March 18, 2026)
+- Justin had Gemini run report on dual language distributors
+- Top recommendation: Vista Higher Learning (acquired Santillana 2018) for Project Explore
+- Also: Imagine Learning, Savvas, Wayside Publishing, Everfi, Participate Learning
+- Justin emailed Arturo Castillon at Vista Higher Learning re: partnerships (from SS inbox)
 
 ## Agent Status (as of March 9, 2026)
 - **Thomas:** Active. Memory system certified. All 6 phases complete.

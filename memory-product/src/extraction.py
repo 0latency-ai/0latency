@@ -64,6 +64,13 @@ For each extracted memory, provide:
     - "event": Something that happened at a specific time (dinner tonight, meeting yesterday)
     - "goal": A future aspiration or target ($1M ARR goal)
 
+MULTI-TURN INFERENCE: You are given the CURRENT exchange plus RECENT CONTEXT (previous turns). Use the recent context to:
+- Catch information IMPLIED across messages but never stated explicitly in one turn
+- Understand evolving discussions (e.g., frustration building over multiple messages, decisions being refined)
+- Connect references ("that thing we discussed" → match to specific prior turn)
+- Extract memories that only become clear when multiple turns are considered together
+Do NOT re-extract memories from the recent context turns — only extract NEW memories from the current exchange, informed by the context.
+
 CONTRADICTION CHECK: Before extracting, compare against the existing memory context below. If a new statement CONTRADICTS an existing memory:
 - Mark the new memory as type "correction"
 - Include BOTH the old fact and new fact in full_content
@@ -76,7 +83,10 @@ Respond with a JSON array of memory objects.
 EXISTING MEMORY CONTEXT (to avoid duplicates):
 {existing_context}
 
-CONVERSATION EXCHANGE:
+RECENT CONVERSATION CONTEXT (previous turns for multi-turn inference):
+{recent_context}
+
+CURRENT EXCHANGE (extract memories from THIS):
 Human: {human_message}
 Agent: {agent_message}
 
@@ -192,9 +202,11 @@ def extract_memories(
     session_key: Optional[str] = None,
     turn_id: Optional[str] = None,
     existing_context: str = "",
+    recent_turns: Optional[list[tuple[str, str]]] = None,
 ) -> list[dict]:
     """
-    Extract structured memories from a single conversation exchange.
+    Extract structured memories from a single conversation exchange,
+    with multi-turn context for inference across messages.
     
     Args:
         human_message: The human's message
@@ -203,6 +215,7 @@ def extract_memories(
         session_key: Current session identifier
         turn_id: Specific turn/message ID
         existing_context: Recent memories to avoid duplicates (L0 headlines)
+        recent_turns: List of (human_msg, agent_msg) tuples for the previous 3-4 turns
     
     Returns:
         List of structured memory objects ready for storage
@@ -211,9 +224,18 @@ def extract_memories(
     if len(human_message) < 20 and len(agent_message) < 50:
         return []
     
+    # Build recent context string from sliding window
+    recent_context = "(no prior turns)"
+    if recent_turns:
+        parts = []
+        for i, (h, a) in enumerate(recent_turns[-4:]):  # Max 4 prior turns
+            parts.append(f"[Turn -{len(recent_turns)-i}]\nHuman: {h[:500]}\nAgent: {a[:500]}")
+        recent_context = "\n\n".join(parts)
+    
     # Build the prompt
     prompt = EXTRACTION_PROMPT.format(
         existing_context=existing_context or "(no existing context)",
+        recent_context=recent_context,
         human_message=human_message,
         agent_message=agent_message,
     )
