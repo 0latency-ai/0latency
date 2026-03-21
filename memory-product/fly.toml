@@ -1,0 +1,36 @@
+# fly.io deployment config
+# Deploy: fly launch → fly deploy
+app = "zerolatency-api"
+primary_region = "ewr"  # Newark (east coast, close to Supabase)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  EXTRACTION_MODEL = "gemini-2.0-flash"
+
+[http_service]
+  internal_port = 8420
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 100
+    soft_limit = 80
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+
+[checks]
+  [checks.health]
+    type = "http"
+    port = 8420
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"

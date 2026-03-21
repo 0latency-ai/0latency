@@ -1,0 +1,23 @@
+{
+  "name": "zerolatency",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Zero Latency Memory API — structured memory for AI agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["ai", "memory", "agents", "llm", "context", "recall"],
+  "author": "0Latency",
+  "license": "MIT",
+  "homepage": "https://0latency.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jghiglia2380/0Latency"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
