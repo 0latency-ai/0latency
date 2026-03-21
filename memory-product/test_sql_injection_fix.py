@@ -10,7 +10,7 @@ import psycopg2
 
 # Test DB connection
 DB_CONN = os.environ.get("MEMORY_DB_CONN", 
-    "postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres")
+    os.environ.get("MEMORY_DB_CONN", ""))
 
 def test_parameterized_queries():
     """Test that parameterized queries work correctly and prevent SQL injection."""

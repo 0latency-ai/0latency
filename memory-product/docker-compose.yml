@@ -10,8 +10,10 @@ services:
       - MEMORY_ADMIN_KEY=${MEMORY_ADMIN_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8420}
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
-      - redis
+      redis:
+        condition: service_started
     restart: unless-stopped
 
   redis:

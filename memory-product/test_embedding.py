@@ -8,7 +8,7 @@ import requests
 
 # Test the embedding API
 def test_embedding():
-    api_key = "AIzaSyAvFCk21Sz4G3AbKm9USob55DqJnpJBVmI"
+    api_key = os.environ.get("GOOGLE_API_KEY", "")
     model_name = "gemini-embedding-001"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:embedContent"
     

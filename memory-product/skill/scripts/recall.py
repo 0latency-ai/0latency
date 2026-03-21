@@ -16,8 +16,7 @@ from typing import Optional
 # --- Configuration ---
 
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
-DB_CONN = os.environ.get("MEMORY_DB_CONN",
-    "postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres")
+DB_CONN = os.environ.get("MEMORY_DB_CONN", "")
 
 
 def _db_execute(query: str) -> list:
@@ -25,7 +24,7 @@ def _db_execute(query: str) -> list:
     result = subprocess.run(
         ["psql", DB_CONN, "-t", "-A", "-F", "|||", "-c", query],
         capture_output=True, text=True, timeout=15,
-        env={**os.environ, "PGPASSWORD": "jcYlwEhuHN9VcOuj"}
+        env={**os.environ, "PGPASSWORD": os.environ.get("MEMORY_DB_PASSWORD", "")}
     )
     if result.returncode != 0:
         raise RuntimeError(f"DB error: {result.stderr}")
@@ -639,7 +638,7 @@ def _format_context_block(always_block: str, selected: list) -> str:
 if __name__ == "__main__":
     import sys
     
-    os.environ["GOOGLE_API_KEY"] = os.environ.get("GOOGLE_API_KEY", "AIzaSyAvFCk21Sz4G3AbKm9USob55DqJnpJBVmI")
+    # GOOGLE_API_KEY must be set in environment
     
     agent = sys.argv[1] if len(sys.argv) > 1 else "test-agent"
     context = sys.argv[2] if len(sys.argv) > 2 else "Tell me about NemoClaw and the memory product"

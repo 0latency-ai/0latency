@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""Memory Engine — Health Check"""
+"""Memory Engine — Health Check
 
+SECURITY HARDENED: psycopg2 parameterized queries, no hardcoded credentials.
+"""
 import os
 import sys
 import subprocess
-import json
+
+sys.path.insert(0, os.path.dirname(__file__))
+
+import psycopg2
+import psycopg2.extras
 
 DB_CONN = os.environ.get("MEMORY_DB_CONN", "")
 if not DB_CONN:
@@ -14,79 +20,90 @@ if not DB_CONN:
 agent_id = sys.argv[1] if len(sys.argv) > 1 else "default"
 
 
-def query(sql):
-    password = ""
+def query(sql, params=None):
+    """Execute a parameterized query and return rows as dicts."""
     try:
-        from urllib.parse import urlparse
-        password = urlparse(DB_CONN).password or ""
-    except:
-        pass
-    env = {**os.environ}
-    if password:
-        env["PGPASSWORD"] = password
-    r = subprocess.run(["psql", DB_CONN, "-t", "-A", "-F", "|", "-c", sql],
-                       capture_output=True, text=True, timeout=15, env=env)
-    if r.returncode != 0:
+        conn = psycopg2.connect(DB_CONN)
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return rows
+    except Exception as e:
+        print(f"DB error: {e}")
         return []
-    return [l for l in r.stdout.strip().split("\n") if l]
+
+
+def scalar(sql, params=None):
+    """Return first column of first row."""
+    rows = query(sql, params)
+    if rows:
+        return list(rows[0].values())[0]
+    return None
 
 
 print(f"🧠 Memory Engine Health — Agent: {agent_id}")
 print("=" * 50)
 
 # Total memories
-rows = query(f"SELECT COUNT(*) FROM memory_service.memories WHERE agent_id = '{agent_id}'")
-total = int(rows[0]) if rows else 0
-print(f"📦 Total memories: {total}")
+total = scalar("SELECT COUNT(*) FROM memory_service.memories WHERE agent_id = %s", (agent_id,))
+print(f"📦 Total memories: {total or 0}")
 
 # By type
-rows = query(f"SELECT memory_type, COUNT(*) FROM memory_service.memories WHERE agent_id = '{agent_id}' GROUP BY memory_type ORDER BY count DESC")
+rows = query(
+    "SELECT memory_type, COUNT(*) as cnt FROM memory_service.memories WHERE agent_id = %s GROUP BY memory_type ORDER BY cnt DESC",
+    (agent_id,))
 if rows:
     print("📊 By type:")
     for r in rows:
-        parts = r.split("|")
-        if len(parts) == 2:
-            print(f"   {parts[0]}: {parts[1]}")
+        print(f"   {r['memory_type']}: {r['cnt']}")
 
 # Active vs superseded
-rows = query(f"SELECT COUNT(*) FILTER (WHERE superseded_at IS NULL) as active, COUNT(*) FILTER (WHERE superseded_at IS NOT NULL) as superseded FROM memory_service.memories WHERE agent_id = '{agent_id}'")
-if rows:
-    parts = rows[0].split("|")
-    if len(parts) == 2:
-        print(f"✅ Active: {parts[0]} | 🔄 Superseded: {parts[1]}")
+row = query(
+    """SELECT COUNT(*) FILTER (WHERE superseded_at IS NULL) as active,
+              COUNT(*) FILTER (WHERE superseded_at IS NOT NULL) as superseded
+       FROM memory_service.memories WHERE agent_id = %s""",
+    (agent_id,))
+if row:
+    print(f"✅ Active: {row[0]['active']} | 🔄 Superseded: {row[0]['superseded']}")
 
 # Average importance
-rows = query(f"SELECT ROUND(AVG(importance)::numeric, 3) FROM memory_service.memories WHERE agent_id = '{agent_id}' AND superseded_at IS NULL")
-if rows and rows[0]:
-    print(f"⚖️  Avg importance: {rows[0]}")
+avg_imp = scalar(
+    "SELECT ROUND(AVG(importance)::numeric, 3) FROM memory_service.memories WHERE agent_id = %s AND superseded_at IS NULL",
+    (agent_id,))
+if avg_imp:
+    print(f"⚖️  Avg importance: {avg_imp}")
 
 # Entity edges
-rows = query(f"SELECT COUNT(*) FROM memory_service.memory_edges WHERE agent_id = '{agent_id}'")
-print(f"🔗 Entity edges: {rows[0] if rows else 0}")
+edges = scalar("SELECT COUNT(*) FROM memory_service.memory_edges WHERE agent_id = %s", (agent_id,))
+print(f"🔗 Entity edges: {edges or 0}")
 
 # Topics
-rows = query(f"SELECT COUNT(*) FROM memory_service.topic_coverage WHERE agent_id = '{agent_id}'")
-print(f"📚 Topics tracked: {rows[0] if rows else 0}")
+topics = scalar("SELECT COUNT(*) FROM memory_service.topic_coverage WHERE agent_id = %s", (agent_id,))
+print(f"📚 Topics tracked: {topics or 0}")
 
 # Clusters
-rows = query(f"SELECT COUNT(*) FROM memory_service.memory_clusters WHERE agent_id = '{agent_id}'")
-print(f"📁 Clusters: {rows[0] if rows else 0}")
+clusters = scalar("SELECT COUNT(*) FROM memory_service.memory_clusters WHERE agent_id = %s", (agent_id,))
+print(f"📁 Clusters: {clusters or 0}")
 
 # Latest memory
-rows = query(f"SELECT created_at FROM memory_service.memories WHERE agent_id = '{agent_id}' ORDER BY created_at DESC LIMIT 1")
-if rows:
-    print(f"🕒 Latest memory: {rows[0]}")
+latest = scalar(
+    "SELECT created_at FROM memory_service.memories WHERE agent_id = %s ORDER BY created_at DESC LIMIT 1",
+    (agent_id,))
+if latest:
+    print(f"🕒 Latest memory: {latest}")
 
 # Latest handoff
-rows = query(f"SELECT created_at, LEFT(summary, 80) FROM memory_service.session_handoffs WHERE agent_id = '{agent_id}' ORDER BY created_at DESC LIMIT 1")
-if rows:
-    parts = rows[0].split("|")
-    print(f"📋 Latest handoff: {parts[0]}")
-    if len(parts) > 1:
-        print(f"   Summary: {parts[1]}...")
+handoff_row = query(
+    "SELECT created_at, LEFT(summary, 80) as summary FROM memory_service.session_handoffs WHERE agent_id = %s ORDER BY created_at DESC LIMIT 1",
+    (agent_id,))
+if handoff_row:
+    print(f"📋 Latest handoff: {handoff_row[0]['created_at']}")
+    if handoff_row[0].get('summary'):
+        print(f"   Summary: {handoff_row[0]['summary']}...")
 
 # Daemon status
-import shutil
 daemon_running = False
 try:
     r = subprocess.run(["pgrep", "-f", "session_processor.py daemon"], capture_output=True, text=True)

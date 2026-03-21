@@ -9,7 +9,7 @@ import requests
 
 def get_embedding(text):
     """Get embedding for text using Google API."""
-    api_key = "AIzaSyAvFCk21Sz4G3AbKm9USob55DqJnpJBVmI"
+    api_key = os.environ.get("GOOGLE_API_KEY", "")
     model_name = "gemini-embedding-001"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:embedContent"
     
@@ -29,10 +29,10 @@ def get_embedding(text):
 def db_execute(query):
     """Execute a query against the database."""
     result = subprocess.run(
-        ["psql", "postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres", 
+        ["psql", os.environ.get("MEMORY_DB_CONN", ""), 
          "-t", "-A", "-F", "|||", "-c", query],
         capture_output=True, text=True, timeout=30,
-        env={**os.environ, "PGPASSWORD": "jcYlwEhuHN9VcOuj"}
+        env={**os.environ, "PGPASSWORD": os.environ.get("MEMORY_DB_PASSWORD", "")}
     )
     if result.returncode != 0:
         print(f"DB error: {result.stderr}")

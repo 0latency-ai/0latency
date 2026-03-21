@@ -9,7 +9,7 @@ import traceback
 
 # Add src to path and set environment
 sys.path.append('/root/.openclaw/workspace/memory-product/src')
-os.environ["GOOGLE_API_KEY"] = "AIzaSyAvFCk21Sz4G3AbKm9USob55DqJnpJBVmI"
+# GOOGLE_API_KEY must be set in environment
 
 def test_recall_step_by_step():
     from recall import (

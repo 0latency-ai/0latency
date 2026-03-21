@@ -12,7 +12,7 @@ import json
 sys.path.append('/root/.openclaw/workspace/memory-product/src')
 
 # Set up environment
-os.environ["GOOGLE_API_KEY"] = "AIzaSyAvFCk21Sz4G3AbKm9USob55DqJnpJBVmI"
+# GOOGLE_API_KEY must be set in environment
 
 from recall import recall
 

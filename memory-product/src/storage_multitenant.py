@@ -18,7 +18,7 @@ import time
 
 # --- Configuration ---
 
-SUPABASE_URL = os.environ.get("MEMORY_SUPABASE_URL", "https://fuojxlabvhtmysbsixdn.supabase.co")
+SUPABASE_URL = os.environ.get("MEMORY_SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("MEMORY_SUPABASE_KEY", "")
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")

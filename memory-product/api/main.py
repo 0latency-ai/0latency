@@ -73,7 +73,8 @@ def _get_redis():
     global _redis_client
     if _redis_client is None:
         try:
-            _redis_client = _redis.Redis(host='127.0.0.1', port=6379, db=0, decode_responses=True, socket_timeout=2)
+            _redis_url = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+            _redis_client = _redis.from_url(_redis_url, decode_responses=True, socket_timeout=2)
             _redis_client.ping()
         except Exception:
             _redis_client = None
@@ -94,8 +95,8 @@ def _check_rate_limit(tenant_id: str, rate_limit_rpm: int):
             return
         except HTTPException:
             raise
-        except Exception:
-            pass  # Fall through to in-memory
+        except Exception as e:
+            logger.debug(f"Redis rate-limit unavailable, falling back to in-memory: {e}")
     
     # In-memory fallback if Redis unavailable
     now = time.time()
@@ -159,8 +160,8 @@ def _invalidate_tenant_cache(tenant_id: str = None):
         if r:
             # Signal all workers to clear cache
             r.set("zl:cache_bust", str(time.time()), ex=60)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Redis cache-bust signal failed: {e}")
 
 def _check_cache_bust():
     """Check if another worker invalidated the cache."""
@@ -170,13 +171,12 @@ def _check_cache_bust():
             bust_time = r.get("zl:cache_bust")
             if bust_time:
                 bust_ts = float(bust_time)
-                # Clear local cache if bust signal is newer than any cached entry
                 for key in list(_tenant_cache.keys()):
                     _, cached_at = _tenant_cache[key]
                     if cached_at < bust_ts:
                         del _tenant_cache[key]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Redis cache-bust check failed: {e}")
 
 async def require_admin_key(request: Request, x_admin_key: str = Header(..., alias="X-Admin-Key")):
     """Admin authentication for tenant management. Restricted to localhost."""
@@ -288,8 +288,8 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
             """, (req.agent_id, tenant["id"]), tenant_id=tenant["id"])
             if recent:
                 existing_context = "\n".join(f"- {row[0]}" for row in recent)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to load existing context for dedup: {e}")
         
         memories = extract_memories(
             human_message=req.human_message,
@@ -577,8 +577,8 @@ async def health_check():
                 "pool_min": pool.minconn,
                 "pool_max": pool.maxconn,
             }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Pool info unavailable: {e}")
         
         # Redis status
         redis_ok = False
@@ -586,8 +586,8 @@ async def health_check():
             r = _get_redis()
             if r:
                 redis_ok = r.ping()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Redis health check failed: {e}")
         
         return {
             "status": "ok",

@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from extraction import extract_memories
 
 # Set API key
-os.environ["GOOGLE_API_KEY"] = "AIzaSyAvFCk21Sz4G3AbKm9USob55DqJnpJBVmI"
+# GOOGLE_API_KEY must be set in environment before running tests
 
 
 def test_preference_extraction():

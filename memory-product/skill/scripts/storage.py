@@ -15,14 +15,13 @@ from typing import Optional
 
 # --- Configuration ---
 
-SUPABASE_URL = os.environ.get("MEMORY_SUPABASE_URL", "https://fuojxlabvhtmysbsixdn.supabase.co")
+SUPABASE_URL = os.environ.get("MEMORY_SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("MEMORY_SUPABASE_KEY", "")
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
 
-DB_CONN = os.environ.get("MEMORY_DB_CONN", 
-    "postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres")
+DB_CONN = os.environ.get("MEMORY_DB_CONN", "")
 
 
 def _embed_text(text: str) -> list[float]:
@@ -92,7 +91,7 @@ def _db_execute(query: str, params: dict = None) -> list:
     result = subprocess.run(
         ["psql", DB_CONN, "-t", "-A", "-F", "|", "-c", query],
         capture_output=True, text=True, timeout=15,
-        env={**os.environ, "PGPASSWORD": "jcYlwEhuHN9VcOuj"}
+        env={**os.environ, "PGPASSWORD": os.environ.get("MEMORY_DB_PASSWORD", "")}
     )
     
     if result.returncode != 0:

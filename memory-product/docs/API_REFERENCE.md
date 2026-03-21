@@ -61,6 +61,73 @@ curl -X POST https://164.90.156.169/api/extract \
 
 ---
 
+### POST /extract/batch
+
+Extract memories from multiple conversation turns in a single request. Up to 50 turns per batch.
+
+**Request Body:**
+```json
+{
+  "turns": [
+    {
+      "human_message": "I just moved to Berlin",
+      "agent_message": "Congrats on the move!",
+      "agent_id": "my_agent",
+      "session_key": "session_123",
+      "turn_id": "turn_1"
+    },
+    {
+      "human_message": "Started a new job at Spotify",
+      "agent_message": "Great company!",
+      "agent_id": "my_agent",
+      "session_key": "session_123",
+      "turn_id": "turn_2"
+    }
+  ]
+}
+```
+
+**Response (200):**
+```json
+{
+  "turns_processed": 2,
+  "memories_stored": 3,
+  "memory_ids": ["uuid1", "uuid2", "uuid3"],
+  "errors": null
+}
+```
+
+---
+
+### GET /memories/export
+
+Export all active memories for an agent as JSON. For data portability and GDPR compliance.
+
+**Query Parameters:**
+- `agent_id` (required): Agent identifier
+
+**Response (200):**
+```json
+{
+  "agent_id": "my_agent",
+  "exported_at": "2026-03-21T05:00:00Z",
+  "count": 42,
+  "memories": [
+    {
+      "id": "uuid",
+      "headline": "User lives in Berlin",
+      "context": "Moved to Berlin recently, started at Spotify",
+      "memory_type": "fact",
+      "importance": 0.7,
+      "entities": ["Berlin", "Spotify"],
+      "created_at": "2026-03-20T..."
+    }
+  ]
+}
+```
+
+---
+
 ### POST /recall
 
 Retrieve contextually relevant memories scored by semantic similarity, recency, importance, and access frequency.

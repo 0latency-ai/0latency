@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import requests
 from storage import _db_execute, DB_CONN as DB_URL
 
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "AIzaSyAvFCk21Sz4G3AbKm9USob55DqJnpJBVmI")
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
 
 # --- Prompts ---
 

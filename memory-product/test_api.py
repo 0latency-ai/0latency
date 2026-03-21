@@ -25,7 +25,7 @@ def create_test_tenant():
     try:
         import subprocess
         
-        DB_CONN = "postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
+        DB_CONN = os.environ.get("MEMORY_DB_CONN", "")
         
         query = f"""
         INSERT INTO memory_service.tenants (name, api_key_hash, plan, memory_limit, rate_limit_rpm, active)
@@ -36,7 +36,7 @@ def create_test_tenant():
         result = subprocess.run(
             ["psql", DB_CONN, "-t", "-A", "-F", "|||", "-c", query],
             capture_output=True, text=True, timeout=15,
-            env={**os.environ, "PGPASSWORD": "jcYlwEhuHN9VcOuj"}
+            env={**os.environ, "PGPASSWORD": os.environ.get("MEMORY_DB_PASSWORD", "")}
         )
         
         if result.returncode != 0:

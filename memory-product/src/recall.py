@@ -191,6 +191,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                 cur.execute("BEGIN")
                 cur.execute("SELECT memory_service.set_tenant_context(%s)", ("00000000-0000-0000-0000-000000000000",))
                 
+                # condition_str is built from hardcoded "ILIKE %s" templates — safe
                 query = f"""
                     SELECT id, headline, context, full_content, memory_type,
                            importance, access_count, reinforcement_count,
@@ -202,7 +203,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                       AND id NOT IN (SELECT unnest(%s::uuid[]))
                     ORDER BY importance DESC
                     LIMIT 15
-                """
+                """  # nosec B608 — all values parameterized via %s
                 params = [agent_id] + keyword_params + [existing_ids]
                 cur.execute(query, params)
                 
@@ -452,7 +453,7 @@ def recall_fixed(
 
 # CLI test
 if __name__ == "__main__":
-    os.environ.setdefault("GOOGLE_API_KEY", "AIzaSyAvFCk21Sz4G3AbKm9USob55DqJnpJBVmI")
+    # GOOGLE_API_KEY must be set in environment
     
     test_queries = [
         "memory product decisions",

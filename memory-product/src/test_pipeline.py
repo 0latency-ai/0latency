@@ -7,7 +7,7 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(__file__))
 
-os.environ["GOOGLE_API_KEY"] = "AIzaSyAvFCk21Sz4G3AbKm9USob55DqJnpJBVmI"
+# GOOGLE_API_KEY must be set in environment before running tests
 
 from extraction import extract_memories
 from storage import store_memories, get_memory_stats, _db_execute
@@ -17,8 +17,8 @@ AGENT_ID = "test-agent"
 
 def clean_test_data():
     """Remove test agent data."""
-    _db_execute(f"DELETE FROM memory_service.memory_audit_log WHERE agent_id = '{AGENT_ID}'")
-    _db_execute(f"DELETE FROM memory_service.memories WHERE agent_id = '{AGENT_ID}'")
+    _db_execute("DELETE FROM memory_service.memory_audit_log WHERE agent_id = %s", (AGENT_ID,))
+    _db_execute("DELETE FROM memory_service.memories WHERE agent_id = %s", (AGENT_ID,))
     print("🧹 Cleaned test data\n")
 
 
