@@ -330,6 +330,20 @@ Source: `/home/ubuntu/pfl-academy/product-docs/writing_rules.md` (full doc). Cop
 - Also: Imagine Learning, Savvas, Wayside Publishing, Everfi, Participate Learning
 - Justin emailed Arturo Castillon at Vista Higher Learning re: partnerships (from SS inbox)
 
+## 0Latency Product (Memory-as-a-Service) — Status as of March 21, 2026
+- **Domain:** 0latency.ai (Cloudflare, SSL active)
+- **API:** api.0latency.ai (42 endpoints, live)
+- **Repo:** github.com/jghiglia2380/0Latency (private)
+- **GitHub creds:** ~/.netrc on thomas-server (jghiglia2380)
+- **Audit score:** 7.5/10 → fixing criticals brought it higher, re-audit pending
+- **Tests:** 147 passing (86 core + 61 feature parity)
+- **Chrome extension:** Built, not yet on Chrome Web Store ($5 dev account needed)
+- **SDKs:** Python + TypeScript both built
+- **Landing page:** Live at 0latency.ai with feature comparison vs mem0
+- **Scaling:** Stateless, Docker + fly.toml ready. Current droplet handles 10 concurrent. fly.io for production auto-scaling.
+- **Key files:** ARCHITECTURE.md, GAP_ANALYSIS_5.md, memory-product/
+- **Next:** Seb review, Chrome Web Store publish, fly.io production deploy, pricing model (Gemini analysis pending)
+
 ## Agent Status (as of March 9, 2026)
 - **Thomas:** Active. Memory system certified. All 6 phases complete.
 - **Steve:** Active. Both deliverables done (case study + spotlight spec). Two reference pillars loaded (Cody + Ras Mic).

@@ -258,7 +258,9 @@ def _parse_timestamp(ts_str: str) -> datetime:
 
 # Response cache — short TTL for identical recall queries
 import hashlib as _hashlib
+import threading as _threading
 _recall_cache: dict[str, tuple[dict, float]] = {}
+_recall_cache_lock = _threading.RLock()
 _RECALL_CACHE_TTL = 60  # 1 minute
 _RECALL_CACHE_MAX = 200
 
@@ -282,15 +284,16 @@ def recall_fixed(
     
     budget_tokens = max(500, min(budget_tokens, 16000))
     
-    # Check response cache
-    cache_key = _hashlib.md5(f"{agent_id}:{conversation_context[:500]}:{budget_tokens}".encode(), usedforsecurity=False).hexdigest()
+    # Check response cache (thread-safe)
+    cache_key = _hashlib.md5(f"{agent_id}:{conversation_context}:{budget_tokens}".encode(), usedforsecurity=False).hexdigest()
     now = _time.time()
-    if cache_key in _recall_cache:
-        cached_result, cached_at = _recall_cache[cache_key]
-        if now - cached_at < _RECALL_CACHE_TTL:
-            return cached_result
-        else:
-            del _recall_cache[cache_key]
+    with _recall_cache_lock:
+        if cache_key in _recall_cache:
+            cached_result, cached_at = _recall_cache[cache_key]
+            if now - cached_at < _RECALL_CACHE_TTL:
+                return cached_result
+            else:
+                del _recall_cache[cache_key]
     
     # Step 1: Load agent config
     config = _load_agent_config(agent_id)
@@ -348,7 +351,7 @@ def recall_fixed(
             semantic_sim = c["similarity"]
             
             days_since = (now - c["created_at"]).total_seconds() / 86400
-            recency = math.exp(-0.693 * days_since / half_life_days)
+            recency = math.exp(-0.693 * days_since / max(half_life_days, 0.01))
             
             importance = c["importance"] * (1 + 0.1 * min(c["reinforcement_count"], 5))
             importance = min(importance, 1.0)
@@ -442,11 +445,12 @@ def recall_fixed(
         ],
     }
     
-    # Cache the response
-    if len(_recall_cache) >= _RECALL_CACHE_MAX:
-        oldest = min(_recall_cache, key=lambda k: _recall_cache[k][1])
-        del _recall_cache[oldest]
-    _recall_cache[cache_key] = (result, _time.time())
+    # Cache the response (thread-safe)
+    with _recall_cache_lock:
+        if len(_recall_cache) >= _RECALL_CACHE_MAX:
+            oldest = min(_recall_cache, key=lambda k: _recall_cache[k][1])
+            del _recall_cache[oldest]
+        _recall_cache[cache_key] = (result, _time.time())
     
     return result
 

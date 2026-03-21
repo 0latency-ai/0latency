@@ -216,6 +216,31 @@ def _deliver_webhook(delivery: dict, retry: int = 0):
     status_code = None
     response_body = None
     
+    # Re-validate URL at delivery time (DNS rebinding protection)
+    try:
+        _validate_webhook_url(delivery["url"])
+    except ValueError:
+        status_code = 0
+        response_body = "URL failed re-validation (possible DNS rebinding)"
+        success = False
+        try:
+            _db_execute_rows("""
+                INSERT INTO memory_service.webhook_deliveries 
+                    (webhook_id, event_type, payload, status_code, response_body, success)
+                VALUES (%s::UUID, %s, %s::jsonb, %s, %s, %s)
+            """, (
+                delivery["webhook_id"], delivery["event_type"],
+                payload_json, status_code, response_body, success
+            ), tenant_id=delivery["tenant_id"], fetch_results=False)
+            _db_execute_rows("""
+                UPDATE memory_service.webhooks 
+                SET failure_count = failure_count + 1
+                WHERE id = %s::UUID
+            """, (delivery["webhook_id"],), tenant_id=delivery["tenant_id"], fetch_results=False)
+        except Exception:
+            pass
+        return
+    
     try:
         resp = requests.post(
             delivery["url"],
