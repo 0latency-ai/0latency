@@ -61,18 +61,48 @@ async def request_logging(request: Request, call_next):
 # --- Configuration ---
 def _admin_key(): return os.environ.get("MEMORY_ADMIN_KEY", "")
 
-# --- Rate Limiting (simple in-memory, replace with Redis for prod) ---
-_rate_limits: dict[str, list[float]] = {}
+# --- Rate Limiting (Redis-backed, survives restarts) ---
+import redis as _redis
+
+_redis_client = None
+
+def _get_redis():
+    global _redis_client
+    if _redis_client is None:
+        try:
+            _redis_client = _redis.Redis(host='127.0.0.1', port=6379, db=0, decode_responses=True, socket_timeout=2)
+            _redis_client.ping()
+        except Exception:
+            _redis_client = None
+    return _redis_client
 
 def _check_rate_limit(tenant_id: str, rate_limit_rpm: int):
-    """Check if tenant has exceeded their rate limit."""
+    """Check if tenant has exceeded their rate limit. Redis-backed with in-memory fallback."""
+    r = _get_redis()
+    if r:
+        try:
+            key = f"rl:{tenant_id}"
+            count = r.incr(key)
+            if count == 1:
+                r.expire(key, 60)
+            if count > rate_limit_rpm:
+                ttl = r.ttl(key)
+                raise HTTPException(429, detail=f"Rate limit exceeded ({rate_limit_rpm}/min). Try again in {ttl}s.")
+            return
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # Fall through to in-memory
+    
+    # In-memory fallback if Redis unavailable
     now = time.time()
-    window = _rate_limits.setdefault(tenant_id, [])
-    # Purge entries older than 60s
-    _rate_limits[tenant_id] = [t for t in window if now - t < 60]
-    if len(_rate_limits[tenant_id]) >= rate_limit_rpm:
+    window = _rate_limits_fallback.setdefault(tenant_id, [])
+    _rate_limits_fallback[tenant_id] = [t for t in window if now - t < 60]
+    if len(_rate_limits_fallback[tenant_id]) >= rate_limit_rpm:
         raise HTTPException(429, detail=f"Rate limit exceeded ({rate_limit_rpm}/min). Try again in 60 seconds.")
-    _rate_limits[tenant_id].append(now)
+    _rate_limits_fallback[tenant_id].append(now)
+
+_rate_limits_fallback: dict[str, list[float]] = {}
 
 # --- Auth ---
 async def require_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
@@ -119,6 +149,16 @@ async def require_admin_key(request: Request, x_admin_key: str = Header(..., ali
     return True
 
 # --- Models ---
+from fastapi.responses import HTMLResponse
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard():
+    """Tenant dashboard UI."""
+    dashboard_path = os.path.join(os.path.dirname(__file__), "dashboard.html")
+    with open(dashboard_path) as f:
+        return HTMLResponse(content=f.read())
+
+
 class ExtractRequest(BaseModel):
     agent_id: str
     human_message: str
