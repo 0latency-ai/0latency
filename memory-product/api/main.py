@@ -516,7 +516,7 @@ async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require
                 total_stored += len(ids)
                 all_ids.extend(ids)
         except Exception as e:
-            errors.append({"turn": i, "error": str(e)[:100]})
+            errors.append({"turn": i, "error": "extraction failed"})
     
     response_time = int((time.time() - start_time) * 1000)
     track_api_usage(tenant["id"], "/extract/batch", 
@@ -642,7 +642,8 @@ async def graph_entity_endpoint(
         track_api_usage(tenant["id"], "/graph/entity", response_time_ms=0)
         return result
     except Exception as e:
-        raise HTTPException(500, detail=f"Graph query failed: {str(e)[:100]}")
+        logger.error(f"Graph query failed: {e}")
+        raise HTTPException(500, detail="Graph query failed. Check agent_id and entity name.")
 
 
 @app.get("/graph/entities")
@@ -656,7 +657,7 @@ async def graph_entities_endpoint(
     try:
         return list_entities(agent_id, entity_type=entity_type, limit=limit, tenant_id=tenant["id"])
     except Exception as e:
-        raise HTTPException(500, detail=f"Entity list failed: {str(e)[:100]}")
+        raise HTTPException(500, detail="Failed to list entities.")
 
 
 @app.get("/graph/entity/memories")
@@ -670,7 +671,7 @@ async def graph_entity_memories_endpoint(
     try:
         return get_entity_memories(agent_id, entity, limit=limit, tenant_id=tenant["id"])
     except Exception as e:
-        raise HTTPException(500, detail=f"Entity memories failed: {str(e)[:100]}")
+        raise HTTPException(500, detail="Failed to retrieve entity memories.")
 
 
 @app.get("/graph/path")
@@ -686,7 +687,7 @@ async def graph_path_endpoint(
         path = find_path(agent_id, source, target, max_depth=max_depth, tenant_id=tenant["id"])
         return {"source": source, "target": target, "path": path, "hops": len(path) - 1 if path else 0}
     except Exception as e:
-        raise HTTPException(500, detail=f"Path finding failed: {str(e)[:100]}")
+        raise HTTPException(500, detail="Path query failed.")
 
 
 # === MEMORY VERSIONING ENDPOINTS ===
@@ -700,7 +701,7 @@ async def memory_history_endpoint(
     try:
         return get_history(memory_id, tenant["id"])
     except Exception as e:
-        raise HTTPException(500, detail=f"History retrieval failed: {str(e)[:100]}")
+        raise HTTPException(500, detail="Failed to retrieve memory history.")
 
 
 @app.put("/memories/{memory_id}")
@@ -750,7 +751,7 @@ async def update_memory_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, detail=f"Update failed: {str(e)[:100]}")
+        raise HTTPException(500, detail="Memory update failed.")
 
 
 # === WEBHOOK ENDPOINTS ===
@@ -768,7 +769,7 @@ async def create_webhook_endpoint(req: WebhookRequest, tenant: dict = Depends(re
     except ValueError as e:
         raise HTTPException(400, detail=str(e))
     except Exception as e:
-        raise HTTPException(500, detail=f"Webhook creation failed: {str(e)[:100]}")
+        raise HTTPException(500, detail="Webhook creation failed.")
 
 
 @app.get("/webhooks")
@@ -801,7 +802,7 @@ async def create_criteria_endpoint(req: CriteriaRequest, tenant: dict = Depends(
         return _create_criteria(tenant["id"], req.agent_id, req.name, req.weight,
                                req.description, req.scoring_prompt)
     except Exception as e:
-        raise HTTPException(500, detail=f"Criteria creation failed: {str(e)[:100]}")
+        raise HTTPException(500, detail="Criteria creation failed.")
 
 
 @app.get("/criteria")
@@ -837,7 +838,7 @@ async def create_schema_endpoint(req: SchemaRequest, tenant: dict = Depends(requ
     try:
         return _create_schema(tenant["id"], req.name, req.schema_definition, req.extraction_prompt)
     except Exception as e:
-        raise HTTPException(500, detail=f"Schema creation failed: {str(e)[:100]}")
+        raise HTTPException(500, detail="Schema creation failed.")
 
 
 @app.get("/schemas")
@@ -877,7 +878,7 @@ async def batch_delete_endpoint(req: BatchDeleteRequest, tenant: dict = Depends(
             else:
                 errors.append({"id": mid, "error": "not found"})
         except Exception as e:
-            errors.append({"id": mid, "error": str(e)[:100]})
+            errors.append({"id": mid, "error": "delete failed"})
     
     return {"deleted": deleted, "errors": errors if errors else None}
 
@@ -912,7 +913,7 @@ async def batch_search_endpoint(req: BatchSearchRequest, tenant: dict = Depends(
                 "created_at": str(r[4]),
             } for r in (rows or [])]
         except Exception as e:
-            results[query] = {"error": str(e)[:100]}
+            results[query] = {"error": "search failed"}
     
     return {"results": results}
 
@@ -949,7 +950,7 @@ async def store_org_memory_endpoint(req: OrgMemoryRequest, tenant: dict = Depend
         )
         return {"id": mem_id, "org_id": org_id}
     except Exception as e:
-        raise HTTPException(500, detail=f"Failed to store org memory: {str(e)[:100]}")
+        raise HTTPException(500, detail="Failed to store org memory.")
 
 
 @app.get("/org/memories")
@@ -987,7 +988,7 @@ async def promote_to_org_endpoint(memory_id: str, tenant: dict = Depends(require
     except ValueError as e:
         raise HTTPException(400, detail=str(e))
     except Exception as e:
-        raise HTTPException(500, detail=f"Promotion failed: {str(e)[:100]}")
+        raise HTTPException(500, detail="Memory promotion failed.")
 
 
 @app.delete("/org/memories/{memory_id}")
