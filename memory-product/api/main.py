@@ -338,6 +338,79 @@ async def list_memories(
         raise HTTPException(500, detail="Failed to list memories. Please try again.")
 
 
+@app.delete("/memories/{memory_id}")
+async def delete_memory(memory_id: str, tenant: dict = Depends(require_api_key)):
+    """Delete a specific memory. Tenant-isolated."""
+    from storage_multitenant import _db_execute
+    try:
+        rows = _db_execute("""
+            DELETE FROM memory_service.memories
+            WHERE id = %s::UUID AND tenant_id = %s::UUID
+            RETURNING id
+        """, (memory_id, tenant["id"]), tenant_id=tenant["id"])
+        if not rows:
+            raise HTTPException(404, detail="Memory not found")
+        
+        # Clean up entity index and edges
+        _db_execute("""
+            DELETE FROM memory_service.entity_index WHERE memory_id = %s
+        """, (memory_id,), tenant_id=tenant["id"], fetch_results=False)
+        _db_execute("""
+            DELETE FROM memory_service.memory_edges 
+            WHERE source_memory_id = %s OR target_memory_id = %s
+        """, (memory_id, memory_id), tenant_id=tenant["id"], fetch_results=False)
+        
+        # Audit log
+        _db_execute("""
+            INSERT INTO memory_service.memory_audit_log (tenant_id, agent_id, action, memory_id, details)
+            VALUES (%s::UUID, 'api', 'delete', %s, '{"source":"api"}'::jsonb)
+        """, (tenant["id"], memory_id), tenant_id=tenant["id"], fetch_results=False)
+        
+        logger.info(f"Memory deleted: {memory_id} tenant={tenant['id']}")
+        return {"deleted": memory_id}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(500, detail="Failed to delete memory.")
+
+
+@app.get("/memories/search")
+async def search_memories(
+    agent_id: str,
+    q: str,
+    limit: int = 20,
+    tenant: dict = Depends(require_api_key),
+):
+    """Search memories by keyword. Tenant-isolated."""
+    from storage_multitenant import _db_execute
+    try:
+        pattern = f"%{q}%"
+        rows = _db_execute("""
+            SELECT id, headline, memory_type, importance, created_at, context
+            FROM memory_service.memories
+            WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+              AND (headline ILIKE %s OR context ILIKE %s)
+            ORDER BY importance DESC, created_at DESC
+            LIMIT %s
+        """, (agent_id, tenant["id"], pattern, pattern, min(limit, 100)), tenant_id=tenant["id"])
+        
+        results = []
+        for row in (rows or []):
+            parts = row.split("|||")
+            if len(parts) >= 6:
+                results.append({
+                    "id": parts[0].strip(),
+                    "headline": parts[1].strip(),
+                    "memory_type": parts[2].strip(),
+                    "importance": float(parts[3].strip()),
+                    "created_at": parts[4].strip(),
+                    "context": parts[5].strip(),
+                })
+        return results
+    except Exception:
+        raise HTTPException(500, detail="Search failed.")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check — no auth required. Verifies DB connectivity."""

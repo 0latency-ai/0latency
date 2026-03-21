@@ -1,32 +1,22 @@
-# Session Handoff
-_Last updated: 2026-03-20 23:25 UTC_
+# Session Handoff (auto-generated)
+_Last updated: 2026-03-21 01:49 UTC_
 
 ## Current State
-Phase B hardening sprint. P0 COMPLETE (SQL injection, tenant isolation, admin security). P1 partially done (connection pooling, edge cases verified). Justin at Waterbar, intermittent.
+Justin is asking if the agent can immediately work on documentation updates, automated test suites, and embedding caching. The agent needs a domain pointed to 164.90.156.169 for Let's Encrypt to proceed with getting a real SSL certificate.
 
-## Phase B Status — PRODUCTION HARDENED
-- API live at https://164.90.156.169
-- SQL injection: FIXED (psycopg2 parameterized queries)
-- Tenant isolation: VERIFIED (Apple/Sarah/Swift vs Google/David/Go — zero cross-contamination)
-- Admin endpoints: localhost-only IP allowlist
-- API key auth: SHA-256 (correct for system-generated keys)
-- Connection pooling: psycopg2 ThreadedConnectionPool (2-10)
-- Edge cases: empty agents, min budgets, missing fields — all graceful
-- systemd + nginx + SSL: surviving reboots
+## Conversation Phase
+execution planning
 
-## What's Left
-- P1: Concurrent request testing, structured logging
-- P2: Key rotation, usage metering dashboard, monitoring
-- P3: Caching, load testing, backup procedures
-- Admin key: zl_admin_thomas_server_2026 (env var MEMORY_ADMIN_KEY)
-- CDE California replied to bilingual resources email (unread)
+## Decisions Made This Session
+- **Prioritize Phase B readiness ASAP** — To get the API ready for Greg's audience and potential business integration. (Justin, mid-session)
+- **Present finished Phase B for review, not half-built project** — To get more valuable feedback from Sebastian. (Justin, earlier)
 
-## Files Changed This Session
-- api/main.py — full API with real auth, tenant isolation, admin IP allowlist
-- src/storage_multitenant.py — psycopg2, parameterized queries, connection pool
-- src/extraction.py — lazy env loading
-- docs/QUICKSTART.md, docs/API_REFERENCE.md, README.md — docs
-- skill/SKILL.md — ClawHub skill polished
-- HARDENING_CHECKLIST.md — P0 done, P1 partial
-- COGNITIVE_FIREWALL_SPEC.md — product vision (Secretary Architecture)
-- GAP_ANALYSIS_3.md — compaction/batching failures + fixes
+## Open Threads
+- **LLC question** — Which entity receives payment? (waiting on: Justin to set up the entity and provide details.)
+
+## Active Projects
+- **Phase A: ClawHub Skill**: Packaging is mostly built, ready for submission. → Next: Finish packaging and submit to ClawHub.
+- **Phase B: API Infrastructure**: Rated 7.5/10. Security holes are closed, endpoints work, dashboard exists, backup script is present, Redis rate limiting is active, and structured logging is implemented. Needs domain/SSL, embedding/response caching, and automated test suite. → Next: Get a domain pointed to 164.90.156.169 for Let's Encrypt to enable SSL. Then, work on documentation updates, automated test suites, and embedding caching.
+
+## Key Context
+IP address: 164.90.156.169. Tasks to complete: Docs update, automated test suite, and embedding cache.

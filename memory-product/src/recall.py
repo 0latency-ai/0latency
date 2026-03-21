@@ -255,6 +255,12 @@ def _parse_timestamp(ts_str: str) -> datetime:
         return datetime.now(timezone.utc)
 
 
+# Response cache — short TTL for identical recall queries
+import hashlib as _hashlib
+_recall_cache: dict[str, tuple[dict, float]] = {}
+_RECALL_CACHE_TTL = 60  # 1 minute
+_RECALL_CACHE_MAX = 200
+
 def recall_fixed(
     agent_id: str,
     conversation_context: str,
@@ -262,8 +268,9 @@ def recall_fixed(
 ) -> dict:
     """
     Recall relevant memories for agent context injection.
-    Fully hardened with parameterized queries.
+    Fully hardened with parameterized queries. Response-cached.
     """
+    import time as _time
     
     # Validate inputs
     if not agent_id or not isinstance(agent_id, str):
@@ -273,6 +280,16 @@ def recall_fixed(
         return {"context_block": "", "memories_used": 0, "tokens_used": 1}
     
     budget_tokens = max(500, min(budget_tokens, 16000))
+    
+    # Check response cache
+    cache_key = _hashlib.md5(f"{agent_id}:{conversation_context[:500]}:{budget_tokens}".encode()).hexdigest()
+    now = _time.time()
+    if cache_key in _recall_cache:
+        cached_result, cached_at = _recall_cache[cache_key]
+        if now - cached_at < _RECALL_CACHE_TTL:
+            return cached_result
+        else:
+            del _recall_cache[cache_key]
     
     # Step 1: Load agent config
     config = _load_agent_config(agent_id)
@@ -405,7 +422,7 @@ def recall_fixed(
     
     total_tokens = always_tokens + tokens_used
     
-    return {
+    result = {
         "context_block": context_block,
         "memories_used": len(selected),
         "tokens_used": total_tokens,
@@ -421,6 +438,14 @@ def recall_fixed(
             for s in selected
         ],
     }
+    
+    # Cache the response
+    if len(_recall_cache) >= _RECALL_CACHE_MAX:
+        oldest = min(_recall_cache, key=lambda k: _recall_cache[k][1])
+        del _recall_cache[oldest]
+    _recall_cache[cache_key] = (result, _time.time())
+    
+    return result
 
 
 # CLI test
