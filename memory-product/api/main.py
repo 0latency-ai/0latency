@@ -181,6 +181,16 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
     """Extract memories from a conversation turn."""
     start_time = time.time()
     try:
+        # Enforce memory limit
+        from storage_multitenant import _db_execute as _smt_db_execute
+        count_rows = _smt_db_execute("""
+            SELECT COUNT(*) FROM memory_service.memories
+            WHERE tenant_id = %s::UUID AND superseded_at IS NULL
+        """, (tenant["id"],), tenant_id=tenant["id"])
+        current_count = int(count_rows[0].split("|||")[0]) if count_rows else 0
+        if current_count >= tenant["memory_limit"]:
+            raise HTTPException(429, detail=f"Memory limit reached ({tenant['memory_limit']}). Upgrade plan or delete old memories.")
+        
         memories = extract_memories(
             human_message=req.human_message,
             agent_message=req.agent_message,
@@ -324,6 +334,57 @@ async def get_tenant_info(tenant: dict = Depends(require_api_key)):
         rate_limit_rpm=tenant["rate_limit_rpm"],
         api_calls_count=tenant["api_calls_count"]
     )
+
+
+@app.get("/usage")
+async def get_usage(
+    days: int = 7,
+    tenant: dict = Depends(require_api_key),
+):
+    """Get API usage stats for current tenant."""
+    from storage_multitenant import _db_execute
+    tenant_id = tenant["id"]
+    
+    # Summary stats
+    rows = _db_execute("""
+        SELECT endpoint, COUNT(*) as calls, 
+               SUM(tokens_used) as total_tokens,
+               AVG(response_time_ms)::int as avg_latency_ms,
+               COUNT(*) FILTER (WHERE status_code >= 400) as errors
+        FROM memory_service.api_usage
+        WHERE tenant_id = %s::UUID AND timestamp > now() - make_interval(days => %s)
+        GROUP BY endpoint
+        ORDER BY calls DESC
+    """, (tenant_id, days), tenant_id=tenant_id)
+    
+    endpoints = []
+    for row in (rows or []):
+        parts = row.split("|||")
+        if len(parts) >= 5:
+            endpoints.append({
+                "endpoint": parts[0],
+                "calls": int(parts[1]),
+                "total_tokens": int(parts[2] or 0),
+                "avg_latency_ms": int(parts[3] or 0),
+                "errors": int(parts[4]),
+            })
+    
+    # Memory count for this tenant
+    mem_rows = _db_execute("""
+        SELECT COUNT(*) FROM memory_service.memories
+        WHERE tenant_id = %s::UUID AND superseded_at IS NULL
+    """, (tenant_id,), tenant_id=tenant_id)
+    memory_count = int(mem_rows[0].split("|||")[0]) if mem_rows else 0
+    
+    return {
+        "tenant_id": tenant_id,
+        "period_days": days,
+        "total_api_calls": tenant["api_calls_count"],
+        "memories_stored": memory_count,
+        "memory_limit": tenant["memory_limit"],
+        "memory_usage_pct": round(memory_count / tenant["memory_limit"] * 100, 1) if tenant["memory_limit"] > 0 else 0,
+        "endpoints": endpoints,
+    }
 
 
 # --- Admin Endpoints ---
