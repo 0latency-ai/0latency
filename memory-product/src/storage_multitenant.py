@@ -235,6 +235,13 @@ def store_memory(memory: dict, tenant_id: str = None) -> str:
                                memory_type=memory.get('memory_type'), tenant_id=current_tenant)
     
     if existing:
+        # Snapshot version before reinforcement
+        try:
+            from versioning import snapshot_version
+            snapshot_version(existing, current_tenant, changed_by="extraction", change_reason="reinforcement")
+        except Exception:
+            pass  # Don't break store on versioning failure
+        
         # Reinforce existing memory
         _db_execute("""
             UPDATE memory_service.memories 
@@ -243,6 +250,17 @@ def store_memory(memory: dict, tenant_id: str = None) -> str:
                 last_accessed = now()
             WHERE id = %s
         """, (existing,), tenant_id=current_tenant, fetch_results=False)
+        
+        # Fire webhook
+        try:
+            from webhooks import trigger_event
+            trigger_event(current_tenant, "memory.reinforced", {
+                "memory_id": existing,
+                "headline": memory.get("headline", ""),
+            })
+        except Exception:
+            pass
+        
         print(f"  ↑ Reinforced existing memory: {existing}")
         return existing
     
@@ -309,6 +327,27 @@ def store_memory(memory: dict, tenant_id: str = None) -> str:
         _index_entities(memory['agent_id'], mem_id, memory['entities'], current_tenant)
         # Auto-create edges between memories sharing entities
         _create_entity_edges(memory['agent_id'], mem_id, memory['entities'], current_tenant)
+    
+    # Auto-extract entity relationships for graph memory
+    if mem_id:
+        try:
+            from graph import extract_relationships_from_memory
+            extract_relationships_from_memory(memory, memory['agent_id'], tenant_id=current_tenant)
+        except Exception as e:
+            print(f"  ⚠ Graph extraction failed (non-fatal): {e}")
+    
+    # Fire webhook for new memory
+    event_type = "memory.corrected" if memory['memory_type'] == 'correction' else "memory.created"
+    try:
+        from webhooks import trigger_event
+        trigger_event(current_tenant, event_type, {
+            "memory_id": mem_id,
+            "headline": memory.get("headline", ""),
+            "memory_type": memory.get("memory_type", "fact"),
+            "importance": memory.get("importance", 0.5),
+        })
+    except Exception:
+        pass
     
     # Audit log
     _db_execute("""

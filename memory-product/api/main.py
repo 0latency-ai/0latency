@@ -32,6 +32,25 @@ from storage_multitenant import (
     _db_execute_rows,
 )
 from recall import recall_fixed as recall
+from graph import (
+    get_entity_subgraph, list_entities, get_entity_memories, 
+    find_path, upsert_entity, add_relationship,
+)
+from versioning import snapshot_version, get_history
+from webhooks import register_webhook, list_webhooks, delete_webhook, trigger_event
+from criteria import (
+    create_criteria as _create_criteria, list_criteria as _list_criteria,
+    delete_criteria as _delete_criteria,
+)
+from schemas import (
+    create_schema as _create_schema, list_schemas as _list_schemas,
+    delete_schema as _delete_schema, get_schema,
+)
+from org_memory import (
+    create_organization, add_tenant_to_org, get_tenant_org,
+    store_org_memory, recall_org_memories, list_org_memories,
+    delete_org_memory, promote_to_org,
+)
 
 # --- App ---
 app = FastAPI(
@@ -607,6 +626,382 @@ async def health_check():
             "redis": "unknown",
         }
 
+
+# === GRAPH MEMORY ENDPOINTS ===
+
+@app.get("/graph/entity")
+async def graph_entity_endpoint(
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    entity: str = Query(..., min_length=1, max_length=256),
+    depth: int = Query(2, ge=1, le=4),
+    tenant: dict = Depends(require_api_key),
+):
+    """Get knowledge graph around an entity with multi-hop traversal."""
+    try:
+        result = get_entity_subgraph(agent_id, entity, depth=depth, tenant_id=tenant["id"])
+        track_api_usage(tenant["id"], "/graph/entity", response_time_ms=0)
+        return result
+    except Exception as e:
+        raise HTTPException(500, detail=f"Graph query failed: {str(e)[:100]}")
+
+
+@app.get("/graph/entities")
+async def graph_entities_endpoint(
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    entity_type: Optional[str] = Query(None, max_length=32),
+    limit: int = Query(50, ge=1, le=200),
+    tenant: dict = Depends(require_api_key),
+):
+    """List all known entities for an agent."""
+    try:
+        return list_entities(agent_id, entity_type=entity_type, limit=limit, tenant_id=tenant["id"])
+    except Exception as e:
+        raise HTTPException(500, detail=f"Entity list failed: {str(e)[:100]}")
+
+
+@app.get("/graph/entity/memories")
+async def graph_entity_memories_endpoint(
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    entity: str = Query(..., min_length=1, max_length=256),
+    limit: int = Query(20, ge=1, le=100),
+    tenant: dict = Depends(require_api_key),
+):
+    """Get all memories associated with an entity."""
+    try:
+        return get_entity_memories(agent_id, entity, limit=limit, tenant_id=tenant["id"])
+    except Exception as e:
+        raise HTTPException(500, detail=f"Entity memories failed: {str(e)[:100]}")
+
+
+@app.get("/graph/path")
+async def graph_path_endpoint(
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    source: str = Query(..., min_length=1, max_length=256),
+    target: str = Query(..., min_length=1, max_length=256),
+    max_depth: int = Query(4, ge=1, le=6),
+    tenant: dict = Depends(require_api_key),
+):
+    """Find shortest path between two entities in the knowledge graph."""
+    try:
+        path = find_path(agent_id, source, target, max_depth=max_depth, tenant_id=tenant["id"])
+        return {"source": source, "target": target, "path": path, "hops": len(path) - 1 if path else 0}
+    except Exception as e:
+        raise HTTPException(500, detail=f"Path finding failed: {str(e)[:100]}")
+
+
+# === MEMORY VERSIONING ENDPOINTS ===
+
+@app.get("/memories/{memory_id}/history")
+async def memory_history_endpoint(
+    memory_id: str,
+    tenant: dict = Depends(require_api_key),
+):
+    """Get full version history for a memory."""
+    try:
+        return get_history(memory_id, tenant["id"])
+    except Exception as e:
+        raise HTTPException(500, detail=f"History retrieval failed: {str(e)[:100]}")
+
+
+@app.put("/memories/{memory_id}")
+async def update_memory_endpoint(
+    memory_id: str,
+    request: Request,
+    tenant: dict = Depends(require_api_key),
+):
+    """Update a memory. Automatically creates a version snapshot before updating."""
+    try:
+        body = await request.json()
+        
+        # Snapshot current state before update
+        snapshot_version(memory_id, tenant["id"], changed_by="api", change_reason="manual_update")
+        
+        # Build update query from provided fields
+        allowed_fields = {"headline", "context", "full_content", "memory_type", "importance", "confidence"}
+        updates = []
+        params = []
+        for field in allowed_fields:
+            if field in body:
+                updates.append(f"{field} = %s")
+                params.append(body[field])
+        
+        if not updates:
+            raise HTTPException(400, detail="No valid fields to update")
+        
+        params.extend([memory_id, tenant["id"]])
+        query = f"""
+            UPDATE memory_service.memories 
+            SET {', '.join(updates)}
+            WHERE id = %s::UUID AND tenant_id = %s::UUID
+            RETURNING id
+        """
+        rows = _db_execute_rows(query, tuple(params), tenant_id=tenant["id"])
+        
+        if not rows:
+            raise HTTPException(404, detail="Memory not found")
+        
+        # Trigger webhook
+        trigger_event(tenant["id"], "memory.updated", {
+            "memory_id": memory_id,
+            "fields_updated": list(body.keys()),
+        })
+        
+        return {"updated": memory_id, "version": "incremented"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, detail=f"Update failed: {str(e)[:100]}")
+
+
+# === WEBHOOK ENDPOINTS ===
+
+class WebhookRequest(BaseModel):
+    url: str = Field(..., min_length=10, max_length=2048)
+    events: list[str] = Field(..., min_length=1, max_length=10)
+    secret: Optional[str] = Field(None, max_length=256)
+
+@app.post("/webhooks")
+async def create_webhook_endpoint(req: WebhookRequest, tenant: dict = Depends(require_api_key)):
+    """Register a webhook for memory events."""
+    try:
+        return register_webhook(tenant["id"], req.url, req.events, req.secret)
+    except ValueError as e:
+        raise HTTPException(400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(500, detail=f"Webhook creation failed: {str(e)[:100]}")
+
+
+@app.get("/webhooks")
+async def list_webhooks_endpoint(tenant: dict = Depends(require_api_key)):
+    """List all webhooks for the current tenant."""
+    return list_webhooks(tenant["id"])
+
+
+@app.delete("/webhooks/{webhook_id}")
+async def delete_webhook_endpoint(webhook_id: str, tenant: dict = Depends(require_api_key)):
+    """Delete a webhook."""
+    if delete_webhook(tenant["id"], webhook_id):
+        return {"deleted": webhook_id}
+    raise HTTPException(404, detail="Webhook not found")
+
+
+# === CRITERIA ENDPOINTS ===
+
+class CriteriaRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    name: str = Field(..., min_length=1, max_length=64)
+    weight: float = Field(default=0.5, ge=0.0, le=1.0)
+    description: Optional[str] = Field(None, max_length=500)
+    scoring_prompt: Optional[str] = Field(None, max_length=2000)
+
+@app.post("/criteria")
+async def create_criteria_endpoint(req: CriteriaRequest, tenant: dict = Depends(require_api_key)):
+    """Create a custom recall scoring criteria."""
+    try:
+        return _create_criteria(tenant["id"], req.agent_id, req.name, req.weight,
+                               req.description, req.scoring_prompt)
+    except Exception as e:
+        raise HTTPException(500, detail=f"Criteria creation failed: {str(e)[:100]}")
+
+
+@app.get("/criteria")
+async def list_criteria_endpoint(
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    tenant: dict = Depends(require_api_key),
+):
+    """List all criteria for an agent."""
+    return _list_criteria(tenant["id"], agent_id)
+
+
+@app.delete("/criteria/{criteria_id}")
+async def delete_criteria_endpoint(criteria_id: str, tenant: dict = Depends(require_api_key)):
+    """Delete a criteria."""
+    if _delete_criteria(tenant["id"], criteria_id):
+        return {"deleted": criteria_id}
+    raise HTTPException(404, detail="Criteria not found")
+
+
+# === SCHEMA ENDPOINTS ===
+
+class SchemaRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=128)
+    schema_definition: dict = Field(..., alias="schema")
+    extraction_prompt: Optional[str] = Field(None, max_length=2000)
+    
+    class Config:
+        populate_by_name = True
+
+@app.post("/schemas")
+async def create_schema_endpoint(req: SchemaRequest, tenant: dict = Depends(require_api_key)):
+    """Create a custom extraction schema."""
+    try:
+        return _create_schema(tenant["id"], req.name, req.schema_definition, req.extraction_prompt)
+    except Exception as e:
+        raise HTTPException(500, detail=f"Schema creation failed: {str(e)[:100]}")
+
+
+@app.get("/schemas")
+async def list_schemas_endpoint(tenant: dict = Depends(require_api_key)):
+    """List all schemas for the current tenant."""
+    return _list_schemas(tenant["id"])
+
+
+@app.delete("/schemas/{schema_id}")
+async def delete_schema_endpoint(schema_id: str, tenant: dict = Depends(require_api_key)):
+    """Delete a schema."""
+    if _delete_schema(tenant["id"], schema_id):
+        return {"deleted": schema_id}
+    raise HTTPException(404, detail="Schema not found")
+
+
+# === BATCH OPERATION ENDPOINTS ===
+
+class BatchDeleteRequest(BaseModel):
+    memory_ids: list[str] = Field(..., min_length=1, max_length=100)
+
+@app.post("/memories/batch-delete")
+async def batch_delete_endpoint(req: BatchDeleteRequest, tenant: dict = Depends(require_api_key)):
+    """Delete multiple memories in one request."""
+    deleted = []
+    errors = []
+    for mid in req.memory_ids:
+        try:
+            rows = _db_execute_rows("""
+                DELETE FROM memory_service.memories
+                WHERE id = %s::UUID AND tenant_id = %s::UUID
+                RETURNING id
+            """, (mid, tenant["id"]), tenant_id=tenant["id"])
+            if rows:
+                deleted.append(mid)
+                trigger_event(tenant["id"], "memory.deleted", {"memory_id": mid})
+            else:
+                errors.append({"id": mid, "error": "not found"})
+        except Exception as e:
+            errors.append({"id": mid, "error": str(e)[:100]})
+    
+    return {"deleted": deleted, "errors": errors if errors else None}
+
+
+class BatchSearchRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    queries: list[str] = Field(..., min_length=1, max_length=20)
+    limit_per_query: int = Field(default=10, ge=1, le=50)
+
+@app.post("/memories/batch-search")
+async def batch_search_endpoint(req: BatchSearchRequest, tenant: dict = Depends(require_api_key)):
+    """Search with multiple queries in one request."""
+    results = {}
+    for query in req.queries:
+        try:
+            pattern = f"%{query}%"
+            rows = _db_execute_rows("""
+                SELECT id, headline, memory_type, importance, created_at
+                FROM memory_service.memories
+                WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+                  AND (headline ILIKE %s OR context ILIKE %s)
+                ORDER BY importance DESC
+                LIMIT %s
+            """, (req.agent_id, tenant["id"], pattern, pattern, req.limit_per_query),
+                tenant_id=tenant["id"])
+            
+            results[query] = [{
+                "id": str(r[0]),
+                "headline": str(r[1]),
+                "memory_type": str(r[2]),
+                "importance": float(r[3]) if r[3] else 0.5,
+                "created_at": str(r[4]),
+            } for r in (rows or [])]
+        except Exception as e:
+            results[query] = {"error": str(e)[:100]}
+    
+    return {"results": results}
+
+
+# === ORG MEMORY ENDPOINTS ===
+
+class OrgMemoryRequest(BaseModel):
+    headline: str = Field(..., min_length=1, max_length=500)
+    context: Optional[str] = Field(None, max_length=2000)
+    full_content: Optional[str] = Field(None, max_length=10000)
+    memory_type: str = Field(default="fact", max_length=32)
+    importance: float = Field(default=0.5, ge=0.0, le=1.0)
+    entities: Optional[list[str]] = None
+    categories: Optional[list[str]] = None
+
+@app.post("/org/memories")
+async def store_org_memory_endpoint(req: OrgMemoryRequest, tenant: dict = Depends(require_api_key)):
+    """Store an organization-level shared memory."""
+    org_id = get_tenant_org(tenant["id"])
+    if not org_id:
+        raise HTTPException(403, detail="Tenant not part of an organization. Contact admin to set up org.")
+    
+    try:
+        mem_id = store_org_memory(
+            org_id=org_id,
+            headline=req.headline,
+            context=req.context,
+            full_content=req.full_content,
+            memory_type=req.memory_type,
+            importance=req.importance,
+            entities=req.entities,
+            categories=req.categories,
+            created_by=tenant["id"],
+        )
+        return {"id": mem_id, "org_id": org_id}
+    except Exception as e:
+        raise HTTPException(500, detail=f"Failed to store org memory: {str(e)[:100]}")
+
+
+@app.get("/org/memories")
+async def list_org_memories_endpoint(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    tenant: dict = Depends(require_api_key),
+):
+    """List org-level memories."""
+    org_id = get_tenant_org(tenant["id"])
+    if not org_id:
+        raise HTTPException(403, detail="Tenant not part of an organization")
+    return list_org_memories(org_id, limit=limit, offset=offset)
+
+
+@app.get("/org/memories/recall")
+async def recall_org_memories_endpoint(
+    q: str = Query(..., min_length=1, max_length=500),
+    limit: int = Query(10, ge=1, le=50),
+    tenant: dict = Depends(require_api_key),
+):
+    """Recall relevant org-level memories by semantic search."""
+    org_id = get_tenant_org(tenant["id"])
+    if not org_id:
+        raise HTTPException(403, detail="Tenant not part of an organization")
+    return recall_org_memories(org_id, query=q, limit=limit)
+
+
+@app.post("/memories/{memory_id}/promote")
+async def promote_to_org_endpoint(memory_id: str, tenant: dict = Depends(require_api_key)):
+    """Promote an agent memory to organization level."""
+    try:
+        org_mem_id = promote_to_org(tenant["id"], memory_id)
+        return {"promoted": memory_id, "org_memory_id": org_mem_id}
+    except ValueError as e:
+        raise HTTPException(400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(500, detail=f"Promotion failed: {str(e)[:100]}")
+
+
+@app.delete("/org/memories/{memory_id}")
+async def delete_org_memory_endpoint(memory_id: str, tenant: dict = Depends(require_api_key)):
+    """Delete an org memory."""
+    org_id = get_tenant_org(tenant["id"])
+    if not org_id:
+        raise HTTPException(403, detail="Tenant not part of an organization")
+    if delete_org_memory(org_id, memory_id):
+        return {"deleted": memory_id}
+    raise HTTPException(404, detail="Org memory not found")
+
+
+# === EXISTING ENDPOINTS ===
 
 @app.get("/tenant-info", response_model=TenantInfo)
 async def get_tenant_info(tenant: dict = Depends(require_api_key)):
