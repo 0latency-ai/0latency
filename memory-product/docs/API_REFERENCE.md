@@ -126,6 +126,46 @@ List memories with optional filtering.
 
 ---
 
+### GET /memories/search
+
+Search memories by keyword. Tenant-isolated.
+
+**Query Parameters:**
+| Param | Required | Default | Description |
+|-------|----------|---------|-------------|
+| agent_id | Yes | — | Agent identifier |
+| q | Yes | — | Search query (matched against headline + context) |
+| limit | No | 20 | Max results (cap: 100) |
+
+**Response (200):**
+```json
+[
+  {
+    "id": "uuid",
+    "headline": "Pricing set to $20/student",
+    "memory_type": "decision",
+    "importance": 0.8,
+    "created_at": "2026-03-20T22:15:30+00:00",
+    "context": "New contracts start at $20/student, replacing the $16 legacy price."
+  }
+]
+```
+
+---
+
+### DELETE /memories/{memory_id}
+
+Delete a specific memory. Cascades to entity index and edges. Audit-logged.
+
+**Response (200):**
+```json
+{"deleted": "uuid"}
+```
+
+**Errors:** `404` memory not found (or wrong tenant).
+
+---
+
 ## Account & Usage
 
 ### GET /tenant-info
