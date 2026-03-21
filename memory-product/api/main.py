@@ -278,12 +278,26 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
         if current_count >= tenant["memory_limit"]:
             raise HTTPException(429, detail=f"Memory limit reached ({tenant['memory_limit']}). Upgrade plan or delete old memories.")
         
+        # Fetch recent headlines for dedup context
+        existing_context = ""
+        try:
+            recent = _db_execute_rows("""
+                SELECT headline FROM memory_service.memories
+                WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+                ORDER BY created_at DESC LIMIT 20
+            """, (req.agent_id, tenant["id"]), tenant_id=tenant["id"])
+            if recent:
+                existing_context = "\n".join(f"- {row[0]}" for row in recent)
+        except Exception:
+            pass
+        
         memories = extract_memories(
             human_message=req.human_message,
             agent_message=req.agent_message,
             agent_id=req.agent_id,
             session_key=req.session_key,
             turn_id=req.turn_id,
+            existing_context=existing_context,
         )
         if not memories:
             response = ExtractResponse(memories_stored=0, memory_ids=[])

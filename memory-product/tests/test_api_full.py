@@ -78,7 +78,7 @@ def test_03_create_tenant():
         print("  ⚠️  Skipped (no MEMORY_ADMIN_KEY set)")
         return
     
-    r = api("post", "/api-keys", admin=True, json={"name": "CI Test Tenant", "plan": "free"})
+    r = api("post", "/api-keys", admin=True, json={"name": "CI Test Tenant", "plan": "pro"})
     check("admin create → 200", r.status_code == 200, f"got {r.status_code}: {r.text[:200]}")
     
     if r.status_code == 200:
@@ -86,8 +86,8 @@ def test_03_create_tenant():
         TEST_API_KEY = d["api_key"]
         TEST_TENANT_ID = d["tenant_id"]
         check("key format correct", TEST_API_KEY.startswith("zl_live_") and len(TEST_API_KEY) == 40)
-        check("plan is free", d["plan"] == "free")
-        check("memory_limit is 1000", d["memory_limit"] == 1000)
+        check("plan is pro", d["plan"] == "pro")
+        check("memory_limit is 50000", d["memory_limit"] == 50000)
 
 
 def test_04_tenant_info():
@@ -101,7 +101,7 @@ def test_04_tenant_info():
     check("returns 200", r.status_code == 200)
     d = r.json()
     check("correct tenant id", d["id"] == TEST_TENANT_ID)
-    check("correct plan", d["plan"] == "free")
+    check("correct plan", d["plan"] == "pro")
 
 
 def test_05_extract():
@@ -325,13 +325,167 @@ def test_14_validation():
     check("budget too low → 422", r.status_code == 422)
 
 
-def test_15_dashboard():
+def test_15_search():
+    """Search endpoint."""
+    print("\n🧪 Search")
+    if not TEST_API_KEY:
+        print("  ⚠️  Skipped")
+        return
+    
+    r = api("get", "/memories/search", key=TEST_API_KEY, params={
+        "agent_id": "ci_test",
+        "q": "Alice"
+    })
+    check("search returns 200", r.status_code == 200)
+    results = r.json()
+    check("search returns list", isinstance(results, list))
+    
+    # Validate input limits
+    r = api("get", "/memories/search", key=TEST_API_KEY, params={
+        "agent_id": "ci_test",
+        "q": ""
+    })
+    check("empty search → 422", r.status_code == 422)
+
+
+def test_16_export():
+    """Export endpoint."""
+    print("\n🧪 Export")
+    if not TEST_API_KEY:
+        print("  ⚠️  Skipped")
+        return
+    
+    r = api("get", "/memories/export", key=TEST_API_KEY, params={"agent_id": "ci_test"})
+    check("export returns 200", r.status_code == 200)
+    d = r.json()
+    check("has agent_id", d["agent_id"] == "ci_test")
+    check("has exported_at", "exported_at" in d)
+    check("has memories array", isinstance(d["memories"], list))
+    check("has total_memories", isinstance(d["total_memories"], int))
+    
+    if d["memories"]:
+        m = d["memories"][0]
+        check("export has full_content", "full_content" in m)
+        check("export has entities", "entities" in m)
+        check("export has confidence", "confidence" in m)
+
+
+def test_17_delete():
+    """Delete endpoint."""
+    print("\n🧪 Delete")
+    if not TEST_API_KEY:
+        print("  ⚠️  Skipped")
+        return
+    
+    # First create a memory to delete
+    r = api("post", "/extract", key=TEST_API_KEY, json={
+        "agent_id": "ci_delete_test",
+        "human_message": "I live on Mars and my pet dragon is named Sparky",
+        "agent_message": "Mars sounds lovely! Sparky is an excellent dragon name."
+    })
+    if r.status_code == 200 and r.json()["memory_ids"]:
+        mem_id = r.json()["memory_ids"][0]
+        
+        # Delete it
+        r = api("delete", f"/memories/{mem_id}", key=TEST_API_KEY)
+        check("delete returns 200", r.status_code == 200)
+        check("returns deleted id", r.json()["deleted"] == mem_id)
+        
+        # Delete again — should 404
+        r = api("delete", f"/memories/{mem_id}", key=TEST_API_KEY)
+        check("re-delete → 404", r.status_code == 404)
+    else:
+        check("setup for delete test", False, "extraction returned no memories")
+    
+    # Bad UUID
+    r = api("delete", "/memories/00000000-0000-0000-0000-000000000000", key=TEST_API_KEY)
+    check("nonexistent → 404", r.status_code == 404)
+
+
+def test_18_batch_extract():
+    """Batch extract endpoint."""
+    print("\n🧪 Batch Extract")
+    if not TEST_API_KEY:
+        print("  ⚠️  Skipped")
+        return
+    
+    r = api("post", "/extract/batch", key=TEST_API_KEY, json={
+        "turns": [
+            {
+                "agent_id": "ci_batch",
+                "human_message": "I work at NASA",
+                "agent_message": "NASA is amazing!"
+            },
+            {
+                "agent_id": "ci_batch",
+                "human_message": "My favorite planet is Saturn",
+                "agent_message": "Saturn's rings are beautiful!"
+            }
+        ]
+    })
+    check("batch returns 200", r.status_code == 200, f"got {r.status_code}: {r.text[:200]}")
+    if r.status_code == 200:
+        d = r.json()
+        check("turns_processed = 2", d["turns_processed"] == 2)
+        check("memories stored", d["memories_stored"] >= 0)
+
+
+def test_19_health_enhanced():
+    """Health endpoint has pool and redis info."""
+    print("\n🧪 Health Enhanced")
+    r = api("get", "/health")
+    d = r.json()
+    check("has db_pool", "db_pool" in d)
+    check("has redis", "redis" in d)
+    check("redis connected", d["redis"] == "connected")
+
+
+def test_20_pagination():
+    """Pagination with offset."""
+    print("\n🧪 Pagination")
+    if not TEST_API_KEY:
+        print("  ⚠️  Skipped")
+        return
+    
+    r1 = api("get", "/memories", key=TEST_API_KEY, params={"agent_id": "ci_test", "limit": 1, "offset": 0})
+    check("page 1 returns 200", r1.status_code == 200)
+    
+    r2 = api("get", "/memories", key=TEST_API_KEY, params={"agent_id": "ci_test", "limit": 1, "offset": 100})
+    check("high offset returns 200", r2.status_code == 200)
+    check("high offset returns empty", len(r2.json()) == 0)
+
+
+def test_21_input_limits():
+    """Input length validation."""
+    print("\n🧪 Input Limits")
+    if not TEST_API_KEY:
+        print("  ⚠️  Skipped")
+        return
+    
+    # Agent ID too long
+    r = api("get", "/memories", key=TEST_API_KEY, params={"agent_id": "a" * 200, "limit": 1})
+    check("agent_id too long → 422", r.status_code == 422)
+    
+    # Search query too long
+    r = api("get", "/memories/search", key=TEST_API_KEY, params={"agent_id": "test", "q": "x" * 600})
+    check("search query too long → 422", r.status_code == 422)
+
+
+def test_22_dashboard():
     """Dashboard serves HTML."""
     print("\n🧪 Dashboard")
     r = api("get", "/dashboard")
     check("returns 200", r.status_code == 200)
     check("returns HTML", "<!DOCTYPE html>" in r.text)
     check("has Zero Latency title", "Zero Latency" in r.text)
+
+
+def test_23_v1_path():
+    """API v1 path works via nginx."""
+    print("\n🧪 API Versioning")
+    r = requests.get("https://164.90.156.169/api/v1/health", verify=False, timeout=10)
+    check("/api/v1/health returns 200", r.status_code == 200)
+    check("v1 returns valid JSON", "status" in r.json())
 
 
 def test_99_cleanup():
@@ -376,7 +530,15 @@ def main():
         test_12_key_rotation,
         test_13_revocation,
         test_14_validation,
-        test_15_dashboard,
+        test_15_search,
+        test_16_export,
+        test_17_delete,
+        test_18_batch_extract,
+        test_19_health_enhanced,
+        test_20_pagination,
+        test_21_input_limits,
+        test_22_dashboard,
+        test_23_v1_path,
         test_99_cleanup,
     ]
     

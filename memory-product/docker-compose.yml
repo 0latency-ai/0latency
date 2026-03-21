@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  api:
+    build: .
+    ports:
+      - "8420:8420"
+    environment:
+      - MEMORY_DB_CONN=${MEMORY_DB_CONN}
+      - MEMORY_ADMIN_KEY=${MEMORY_ADMIN_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8420}
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
