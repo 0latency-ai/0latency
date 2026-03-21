@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>0Latency — Memory Layer for AI Agents</title>
+    <meta name="description" content="Structured memory extraction, storage, and recall for AI agents. Your agent remembers everything. Zero latency.">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --border: #1e1e2e;
+            --text: #e4e4e7;
+            --text-dim: #71717a;
+            --accent: #818cf8;
+            --accent-glow: rgba(129, 140, 248, 0.15);
+            --green: #34d399;
+            --orange: #fb923c;
+        }
+        
+        body {
+            font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        /* Subtle grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: 
+                linear-gradient(rgba(129, 140, 248, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(129, 140, 248, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: -1;
+        }
+        
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 3rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .logo {
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        .logo span { color: var(--accent); }
+        
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            margin-left: 2rem;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--text); }
+        .nav-links .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            padding: 0.5rem 1.2rem;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .nav-links .btn-primary:hover { opacity: 0.9; }
+        
+        .hero {
+            text-align: center;
+            padding: 6rem 2rem 4rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .hero-badge {
+            display: inline-block;
+            background: var(--accent-glow);
+            color: var(--accent);
+            padding: 0.3rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(129, 140, 248, 0.2);
+        }
+        
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -1.5px;
+            margin-bottom: 1.5rem;
+        }
+        h1 .gradient {
+            background: linear-gradient(135deg, var(--accent), #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-dim);
+            max-width: 600px;
+            margin: 0 auto 2.5rem;
+        }
+        
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .hero-buttons a {
+            padding: 0.8rem 2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        .btn-hero-primary {
+            background: var(--accent);
+            color: #fff;
+        }
+        .btn-hero-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--accent-glow); }
+        .btn-hero-secondary {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-hero-secondary:hover { border-color: var(--accent); }
+        
+        /* Code block */
+        .code-section {
+            max-width: 700px;
+            margin: 3rem auto;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .code-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.8rem 1.2rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+        .code-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .code-dot-r { background: #ef4444; }
+        .code-dot-y { background: #eab308; }
+        .code-dot-g { background: #22c55e; }
+        pre {
+            padding: 1.5rem;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            line-height: 1.7;
+        }
+        .kw { color: #c084fc; }
+        .fn { color: #818cf8; }
+        .str { color: #34d399; }
+        .cm { color: #52525b; }
+        .num { color: #fb923c; }
+        
+        /* Features grid */
+        .features {
+            max-width: 1100px;
+            margin: 4rem auto;
+            padding: 0 2rem;
+        }
+        .features h2 {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        .features .subtitle {
+            text-align: center;
+            color: var(--text-dim);
+            margin-bottom: 3rem;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        .feature-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.8rem;
+            transition: border-color 0.2s;
+        }
+        .feature-card:hover { border-color: var(--accent); }
+        .feature-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.8rem;
+        }
+        .feature-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+        .feature-card p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+        
+        /* Comparison */
+        .comparison {
+            max-width: 900px;
+            margin: 5rem auto;
+            padding: 0 2rem;
+        }
+        .comparison h2 {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        .comparison .subtitle {
+            text-align: center;
+            color: var(--text-dim);
+            margin-bottom: 2rem;
+        }
+        .compare-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--surface);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+        .compare-table th, .compare-table td {
+            padding: 1rem 1.5rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        .compare-table th {
+            background: rgba(129, 140, 248, 0.05);
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-dim);
+        }
+        .compare-table td { font-size: 0.9rem; }
+        .compare-table tr:last-child td { border-bottom: none; }
+        .check { color: var(--green); }
+        .cross { color: #ef4444; }
+        .advantage { color: var(--accent); font-weight: 600; font-size: 0.75rem; }
+        
+        /* Stats */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 4rem;
+            padding: 3rem 2rem;
+            flex-wrap: wrap;
+        }
+        .stat { text-align: center; }
+        .stat-num {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--accent);
+        }
+        .stat-label {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-top: 0.3rem;
+        }
+        
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 2rem;
+            border-top: 1px solid var(--border);
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+        footer a { color: var(--accent); text-decoration: none; }
+        
+        /* API status indicator */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--green);
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.4rem;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        @media (max-width: 768px) {
+            h1 { font-size: 2.2rem; }
+            nav { padding: 1rem; }
+            .stats { gap: 2rem; }
+            .nav-links a { margin-left: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo"><span>0</span>Latency</div>
+        <div class="nav-links">
+            <a href="https://github.com/jghiglia2380/0Latency">GitHub</a>
+            <a href="https://api.0latency.ai/docs">API Docs</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="https://api.0latency.ai/health" class="btn-primary"><span class="status-dot"></span>API Status</a>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <span class="hero-badge">✦ Open Infrastructure for AI Memory</span>
+        <h1>Your agent forgets <br><span class="gradient">36% of critical context.</span><br>We fix that.</h1>
+        <p>Structured memory extraction, storage, and recall with temporal intelligence, knowledge graphs, and composite scoring. Three lines of code.</p>
+        <div class="hero-buttons">
+            <a href="https://api.0latency.ai/docs" class="btn-hero-primary">Get API Key</a>
+            <a href="https://github.com/jghiglia2380/0Latency" class="btn-hero-secondary">View on GitHub →</a>
+        </div>
+    </section>
+
+    <section class="code-section">
+        <div class="code-header">
+            <div class="code-dot code-dot-r"></div>
+            <div class="code-dot code-dot-y"></div>
+            <div class="code-dot code-dot-g"></div>
+            <span>quickstart.py</span>
+        </div>
+        <pre><code><span class="kw">from</span> <span class="fn">zerolatency</span> <span class="kw">import</span> ZeroLatencyClient
+
+client = ZeroLatencyClient(api_key=<span class="str">"zl_live_..."</span>)
+
+<span class="cm"># Extract memories from any conversation</span>
+client.<span class="fn">extract</span>(
+    agent_id=<span class="str">"my-agent"</span>,
+    human_message=<span class="str">"I prefer Python and hate meetings before 10am"</span>,
+    agent_message=<span class="str">"Noted — Python preference, no early meetings."</span>
+)
+
+<span class="cm"># Recall with composite scoring (semantic + recency + importance)</span>
+context = client.<span class="fn">recall</span>(
+    agent_id=<span class="str">"my-agent"</span>,
+    conversation_context=<span class="str">"Schedule a code review"</span>
+)
+
+<span class="cm"># → Automatically recalls: Python preference, no meetings before 10am</span>
+<span class="cm"># → Temporal decay + reinforcement ensures fresh context</span></code></pre>
+    </section>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-num">42</div>
+            <div class="stat-label">API Endpoints</div>
+        </div>
+        <div class="stat">
+            <div class="stat-num">147</div>
+            <div class="stat-label">Tests Passing</div>
+        </div>
+        <div class="stat">
+            <div class="stat-num">&lt;50ms</div>
+            <div class="stat-label">Recall Latency</div>
+        </div>
+        <div class="stat">
+            <div class="stat-num">$0.93</div>
+            <div class="stat-label">Per User / Month</div>
+        </div>
+    </div>
+
+    <section class="features">
+        <h2>Built Different</h2>
+        <p class="subtitle">Not another RAG wrapper. An actual memory system.</p>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🧠</div>
+                <h3>Temporal Intelligence</h3>
+                <p>Memories decay, reinforce, and evolve over time. Half-life scoring ensures your agent prioritizes what's current, not just what's similar.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🕸️</div>
+                <h3>Knowledge Graph</h3>
+                <p>Entity relationships with multi-hop traversal. Find connections between people, projects, and concepts — no Neo4j required.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Proactive Recall</h3>
+                <p>Context injection without explicit search. Tiered loading (L0/L1/L2) fits your context window budget automatically.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔄</div>
+                <h3>Contradiction Detection</h3>
+                <p>When facts change, old memories get superseded — not stacked. Correction cascading ensures your agent never serves stale context.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🚫</div>
+                <h3>Negative Recall</h3>
+                <p>Knows what it doesn't know. When context is missing, your agent says "I don't have that information" instead of hallucinating.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🎯</div>
+                <h3>Custom Criteria</h3>
+                <p>Define scoring attributes like urgency, joy, or confidence. Re-rank recalled memories by what matters to your application.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📜</div>
+                <h3>Version History</h3>
+                <p>Full changelog per memory. Every update snapshots the previous state. Audit trail for compliance and debugging.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔔</div>
+                <h3>Webhooks</h3>
+                <p>Real-time notifications on memory events. HMAC-signed payloads with retry logic and delivery audit logs.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🏢</div>
+                <h3>Organization Memory</h3>
+                <p>Shared memory across team agents. Promote individual memories to org level. Build institutional knowledge.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="comparison">
+        <h2>Feature Comparison</h2>
+        <p class="subtitle">What you get on the free plan vs. their $249/mo Pro tier.</p>
+        <table class="compare-table">
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>0Latency (Free)</th>
+                    <th>Mem0 Pro ($249/mo)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Temporal Decay & Reinforcement</td>
+                    <td><span class="check">✓</span> <span class="advantage">EXCLUSIVE</span></td>
+                    <td><span class="cross">✗</span></td>
+                </tr>
+                <tr>
+                    <td>Proactive Context Injection</td>
+                    <td><span class="check">✓</span> <span class="advantage">EXCLUSIVE</span></td>
+                    <td><span class="cross">✗</span></td>
+                </tr>
+                <tr>
+                    <td>Context Budget Management</td>
+                    <td><span class="check">✓</span> <span class="advantage">EXCLUSIVE</span></td>
+                    <td><span class="cross">✗</span></td>
+                </tr>
+                <tr>
+                    <td>Negative Recall</td>
+                    <td><span class="check">✓</span> <span class="advantage">EXCLUSIVE</span></td>
+                    <td><span class="cross">✗</span></td>
+                </tr>
+                <tr>
+                    <td>Knowledge Graph</td>
+                    <td><span class="check">✓</span> All plans</td>
+                    <td><span class="check">✓</span> Pro only ($249/mo)</td>
+                </tr>
+                <tr>
+                    <td>Contradiction Detection</td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+                <tr>
+                    <td>Memory Versioning</td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+                <tr>
+                    <td>Webhooks</td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+                <tr>
+                    <td>SOC 2</td>
+                    <td><span class="cross">✗</span> Roadmap</td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <footer>
+        <p>
+            <a href="https://github.com/jghiglia2380/0Latency">GitHub</a> · 
+            <a href="https://api.0latency.ai/docs">API Docs</a> · 
+            <a href="https://api.0latency.ai/health">Status</a>
+        </p>
+        <p style="margin-top: 0.5rem;">Built by <a href="https://github.com/jghiglia2380">Justin Ghiglia</a>. Open infrastructure for AI memory.</p>
+    </footer>
+</body>
+</html>
