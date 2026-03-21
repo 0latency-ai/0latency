@@ -78,6 +78,12 @@ async def request_logging(request: Request, call_next):
     tenant_id = getattr(request.state, "tenant_id", "anon") if hasattr(request, "state") else "anon"
     logger.info(f"req={request_id} method={request.method} path={request.url.path} status={response.status_code} latency={latency_ms}ms tenant={tenant_id}")
     response.headers["X-Request-ID"] = request_id
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     return response
 
 # --- Configuration ---
@@ -217,8 +223,8 @@ async def require_admin_key(request: Request, x_admin_key: str = Header(..., ali
 from fastapi.responses import HTMLResponse
 
 @app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard():
-    """Tenant dashboard UI."""
+async def dashboard(request: Request, tenant=Depends(require_api_key)):
+    """Tenant dashboard UI (requires API key)."""
     dashboard_path = os.path.join(os.path.dirname(__file__), "dashboard.html")
     with open(dashboard_path) as f:
         return HTMLResponse(content=f.read())

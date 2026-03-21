@@ -75,11 +75,16 @@ def register_webhook(tenant_id: str, url: str, events: list[str],
     if not filtered_events:
         raise ValueError(f"No valid events. Choose from: {valid_events}")
     
+    # Hash the secret before storing — only return plaintext once at registration
+    secret_hash = None
+    if secret:
+        secret_hash = hashlib.sha256(secret.encode()).hexdigest()
+    
     rows = _db_execute_rows("""
         INSERT INTO memory_service.webhooks (tenant_id, url, events, secret)
         VALUES (%s::UUID, %s, %s, %s)
         RETURNING id, created_at
-    """, (tenant_id, url, filtered_events, secret), tenant_id=tenant_id)
+    """, (tenant_id, url, filtered_events, secret_hash), tenant_id=tenant_id)
     
     if rows:
         return {
