@@ -54,7 +54,37 @@ def set_tenant_context(tenant_id: str):
     _current_tenant_id = tenant_id
 
 
+# Embedding cache — avoids re-embedding identical text
+_embed_cache: dict[str, tuple[list[float], float]] = {}
+_EMBED_CACHE_MAX = 500
+_EMBED_CACHE_TTL = 300  # 5 minutes
+
 def _embed_text(text: str) -> list[float]:
+    """Generate embedding with LRU cache. Avoids re-embedding identical queries."""
+    import time as _time
+    
+    cache_key = text[:2000]  # Cap key length
+    now = _time.time()
+    
+    if cache_key in _embed_cache:
+        cached_vec, cached_at = _embed_cache[cache_key]
+        if now - cached_at < _EMBED_CACHE_TTL:
+            return cached_vec
+        else:
+            del _embed_cache[cache_key]
+    
+    vec = _embed_text_uncached(text)
+    
+    # Evict oldest if at capacity
+    if len(_embed_cache) >= _EMBED_CACHE_MAX:
+        oldest_key = min(_embed_cache, key=lambda k: _embed_cache[k][1])
+        del _embed_cache[oldest_key]
+    
+    _embed_cache[cache_key] = (vec, now)
+    return vec
+
+
+def _embed_text_uncached(text: str) -> list[float]:
     """Generate embedding for text using configured model."""
     
     # Try Google first (cheaper)
