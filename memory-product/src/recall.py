@@ -282,7 +282,7 @@ def recall_fixed(
     budget_tokens = max(500, min(budget_tokens, 16000))
     
     # Check response cache
-    cache_key = _hashlib.md5(f"{agent_id}:{conversation_context[:500]}:{budget_tokens}".encode()).hexdigest()
+    cache_key = _hashlib.md5(f"{agent_id}:{conversation_context[:500]}:{budget_tokens}".encode(), usedforsecurity=False).hexdigest()
     now = _time.time()
     if cache_key in _recall_cache:
         cached_result, cached_at = _recall_cache[cache_key]
@@ -361,13 +361,15 @@ def recall_fixed(
                 access_weight * access_freq
             )
             
-            # Type bonuses
+            # Type bonuses (tuned: identity was drowning out topically relevant results)
             if c["memory_type"] == "identity":
-                composite *= 1.5
-            elif c["memory_type"] in ("correction", "preference"):
-                composite *= 1.3
+                composite *= 1.15  # Was 1.5 — too aggressive, caused identity to always win
+            elif c["memory_type"] == "correction":
+                composite *= 1.25  # Corrections are important — recent overrides matter
+            elif c["memory_type"] == "preference":
+                composite *= 1.15  # Preferences matter but shouldn't dominate
             elif c["memory_type"] == "decision" and days_since < 7:
-                composite *= 1.2
+                composite *= 1.2   # Recent decisions are highly relevant
             
             if c.get("superseded_at"):
                 continue
