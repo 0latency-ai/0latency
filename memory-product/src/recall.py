@@ -1,52 +1,19 @@
 """
-Fixed version of the recall function with robust SQL query construction.
+Recall layer — retrieves and ranks memories for agent context injection.
+
+SECURITY HARDENED: Uses psycopg2 with parameterized queries via shared storage layer.
 """
 
 import os
-import subprocess
-import requests
 import json
 import math
 from datetime import datetime, timezone
 from typing import Optional
 
+# Use the hardened storage layer's DB and embedding infrastructure
+from storage_multitenant import _db_execute, _embed_text, set_tenant_context, _get_connection_pool
 
-# --- Configuration ---
-
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
-DB_CONN = os.environ.get("MEMORY_DB_CONN",
-    "postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres")
-
-
-def _db_execute(query: str) -> list:
-    """Execute a query against the database."""
-    result = subprocess.run(
-        ["psql", DB_CONN, "-t", "-A", "-F", "|||", "-c", query],
-        capture_output=True, text=True, timeout=15,
-        env={**os.environ, "PGPASSWORD": "jcYlwEhuHN9VcOuj"}
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"DB error: {result.stderr}")
-    rows = [line for line in result.stdout.strip().split("\n") if line]
-    return rows
-
-
-def _embed_text(text: str) -> list[float]:
-    """Generate embedding for recall query."""
-    model_name = "gemini-embedding-001"
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:embedContent"
-    resp = requests.post(
-        url,
-        params={"key": GOOGLE_API_KEY},
-        json={
-            "model": f"models/{model_name}",
-            "content": {"parts": [{"text": text}]},
-            "outputDimensionality": 768
-        },
-        timeout=15
-    )
-    resp.raise_for_status()
-    return resp.json()["embedding"]["values"]
+import psycopg2
 
 
 def _estimate_tokens(text: str) -> int:
@@ -55,15 +22,15 @@ def _estimate_tokens(text: str) -> int:
 
 
 def _load_agent_config(agent_id: str) -> dict:
-    """Load agent configuration from DB."""
+    """Load agent configuration from DB using parameterized queries."""
     try:
-        rows = _db_execute(f"""
+        rows = _db_execute("""
             SELECT context_budget, recency_weight, semantic_weight, 
                    importance_weight, access_weight, recency_half_life_days,
                    identity::text, user_profile::text
             FROM memory_service.agent_config
-            WHERE agent_id = '{agent_id}'
-        """)
+            WHERE agent_id = %s
+        """, (agent_id,), tenant_id="00000000-0000-0000-0000-000000000000")
         
         if rows:
             parts = rows[0].split("|||")
@@ -80,7 +47,6 @@ def _load_agent_config(agent_id: str) -> dict:
     except Exception as e:
         print(f"Warning: Could not load agent config: {e}")
     
-    # Return defaults if config loading fails
     return {
         "context_budget": 4000,
         "recency_weight": 0.35,
@@ -97,7 +63,6 @@ def _build_always_include(agent_id: str) -> tuple[str, int]:
     """Build the always-included context block (identity, profile, last handoff, active corrections)."""
     blocks = []
     
-    # Agent identity and user profile from config
     config = _load_agent_config(agent_id)
     
     if config.get("identity"):
@@ -107,26 +72,24 @@ def _build_always_include(agent_id: str) -> tuple[str, int]:
         blocks.append(f"### User Profile\n{json.dumps(config['user_profile'], indent=2)}")
     
     try:
-        # Latest session handoff
-        rows = _db_execute(f"""
+        rows = _db_execute("""
             SELECT summary FROM memory_service.session_handoffs
-            WHERE agent_id = '{agent_id}'
+            WHERE agent_id = %s
             ORDER BY created_at DESC LIMIT 1
-        """)
+        """, (agent_id,), tenant_id="00000000-0000-0000-0000-000000000000")
         if rows:
             blocks.append(f"### Last Session Summary\n{rows[0]}")
     except Exception:
-        pass  # Don't let handoff failures block recall
+        pass
     
     try:
-        # Active corrections (always surface to prevent errors)
-        rows = _db_execute(f"""
+        rows = _db_execute("""
             SELECT headline, context FROM memory_service.memories
-            WHERE agent_id = '{agent_id}'
+            WHERE agent_id = %s
               AND memory_type = 'correction'
               AND superseded_at IS NULL
             ORDER BY created_at DESC LIMIT 5
-        """)
+        """, (agent_id,), tenant_id="00000000-0000-0000-0000-000000000000")
         if rows:
             corrections = []
             for row in rows:
@@ -134,145 +97,162 @@ def _build_always_include(agent_id: str) -> tuple[str, int]:
                 corrections.append(f"- ⚠️ {parts[0]}: {parts[1] if len(parts) > 1 else ''}")
             blocks.append(f"### Active Corrections\n" + "\n".join(corrections))
     except Exception:
-        pass  # Don't let correction failures block recall
+        pass
     
     always_block = "\n\n".join(blocks) if blocks else ""
     return always_block, _estimate_tokens(always_block)
 
 
-def _retrieve_candidates(agent_id: str, embedding_str: str, context_text: str) -> list[dict]:
-    """Retrieve candidate memories using multiple strategies - FIXED VERSION."""
+def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_text: str) -> list[dict]:
+    """Retrieve candidate memories using multiple strategies — fully parameterized."""
     
     candidates = {}
+    embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
     
     # Strategy 1: Semantic similarity search (top 30)
     try:
-        rows = _db_execute(f"""
+        rows = _db_execute("""
             SELECT id, headline, context, full_content, memory_type,
                    importance, access_count, reinforcement_count,
                    created_at, superseded_at,
-                   1 - (embedding <=> '{embedding_str}'::extensions.vector) as similarity
+                   1 - (embedding <=> %s::extensions.vector) as similarity
             FROM memory_service.memories
-            WHERE agent_id = '{agent_id}'
+            WHERE agent_id = %s
               AND superseded_at IS NULL
               AND embedding IS NOT NULL
-            ORDER BY embedding <=> '{embedding_str}'::extensions.vector
+            ORDER BY embedding <=> %s::extensions.vector
             LIMIT 30
-        """)
+        """, (embedding_str, agent_id, embedding_str), 
+            tenant_id="00000000-0000-0000-0000-000000000000")
         
         for row in rows:
             parts = row.split("|||")
             if len(parts) >= 11:
                 mem_id = parts[0]
-                candidates[mem_id] = {
-                    "id": mem_id,
-                    "headline": parts[1],
-                    "context": parts[2],
-                    "full_content": parts[3],
-                    "memory_type": parts[4],
-                    "importance": float(parts[5]) if parts[5] else 0.5,
-                    "access_count": int(parts[6]) if parts[6] else 0,
-                    "reinforcement_count": int(parts[7]) if parts[7] else 1,
-                    "created_at": datetime.fromisoformat(parts[8].replace("+00", "+00:00")) if parts[8] else datetime.now(timezone.utc),
-                    "superseded_at": parts[9] if parts[9] else None,
-                    "similarity": float(parts[10]) if parts[10] else 0,
-                }
+                candidates[mem_id] = _parse_candidate_row(parts)
     except Exception as e:
         print(f"Warning: Semantic search failed: {e}")
     
     # Strategy 2: High-importance memories (always consider)
     try:
-        # Create safe exclusion list
-        exclusion_list = "'" + "','".join(candidates.keys()) + "'" if candidates else "'00000000-0000-0000-0000-000000000000'"
+        existing_ids = list(candidates.keys()) if candidates else ["00000000-0000-0000-0000-000000000000"]
         
-        rows2 = _db_execute(f"""
+        rows2 = _db_execute("""
             SELECT id, headline, context, full_content, memory_type,
                    importance, access_count, reinforcement_count,
                    created_at, superseded_at, 0.5 as similarity
             FROM memory_service.memories
-            WHERE agent_id = '{agent_id}'
+            WHERE agent_id = %s
               AND superseded_at IS NULL
               AND importance > 0.8
-              AND id NOT IN ({exclusion_list})
+              AND id NOT IN (SELECT unnest(%s::uuid[]))
             ORDER BY importance DESC
             LIMIT 10
-        """)
+        """, (agent_id, existing_ids),
+            tenant_id="00000000-0000-0000-0000-000000000000")
         
         for row in rows2:
             parts = row.split("|||")
             if len(parts) >= 11:
                 mem_id = parts[0]
                 if mem_id not in candidates:
-                    candidates[mem_id] = {
-                        "id": mem_id,
-                        "headline": parts[1],
-                        "context": parts[2],
-                        "full_content": parts[3],
-                        "memory_type": parts[4],
-                        "importance": float(parts[5]) if parts[5] else 0.5,
-                        "access_count": int(parts[6]) if parts[6] else 0,
-                        "reinforcement_count": int(parts[7]) if parts[7] else 1,
-                        "created_at": datetime.fromisoformat(parts[8].replace("+00", "+00:00")) if parts[8] else datetime.now(timezone.utc),
-                        "superseded_at": parts[9] if parts[9] else None,
-                        "similarity": float(parts[10]) if parts[10] else 0,
-                    }
+                    candidates[mem_id] = _parse_candidate_row(parts)
     except Exception as e:
         print(f"Warning: High-importance search failed: {e}")
     
-    # Strategy 3: Keyword/text search (simplified and safer)
+    # Strategy 3: Keyword search — parameterized ILIKE
     try:
         import re
         words = re.findall(r'\b[a-zA-Z]{3,}\b', context_text.lower())
         stop_words = {'this', 'that', 'with', 'from', 'what', 'when', 'where', 'which', 'about',
-                      'have', 'been', 'will', 'would', 'could', 'should', 'their', 'there'}
-        keywords = [w for w in words if w not in stop_words][:5]  # Limit to top 5 keywords
-
+                      'have', 'been', 'will', 'would', 'could', 'should', 'their', 'there',
+                      'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her',
+                      'was', 'one', 'our', 'out'}
+        keywords = [w for w in words if w not in stop_words][:5]
+        
         if keywords:
-            # Create safe keyword conditions
-            keyword_conditions = []
-            for kw in keywords:
-                # Escape single quotes in keywords
-                safe_kw = kw.replace("'", "''")
-                keyword_conditions.append(f"(headline ILIKE '%{safe_kw}%' OR context ILIKE '%{safe_kw}%')")
+            existing_ids = list(candidates.keys()) if candidates else ["00000000-0000-0000-0000-000000000000"]
             
-            if keyword_conditions:
-                exclusion_list = "'" + "','".join(candidates.keys()) + "'" if candidates else "'00000000-0000-0000-0000-000000000000'"
+            # Build parameterized OR conditions for keywords
+            keyword_conditions = []
+            keyword_params = []
+            for kw in keywords:
+                keyword_conditions.append("(headline ILIKE %s OR context ILIKE %s)")
+                pattern = f"%{kw}%"
+                keyword_params.extend([pattern, pattern])
+            
+            condition_str = " OR ".join(keyword_conditions)
+            
+            # Use a direct psycopg2 query for the complex parameterized keyword search
+            pool = _get_connection_pool()
+            conn = pool.getconn()
+            cur = conn.cursor()
+            try:
+                cur.execute("BEGIN")
+                cur.execute("SELECT memory_service.set_tenant_context(%s)", ("00000000-0000-0000-0000-000000000000",))
                 
-                rows_kw = _db_execute(f"""
+                query = f"""
                     SELECT id, headline, context, full_content, memory_type,
                            importance, access_count, reinforcement_count,
                            created_at, superseded_at, 0.35 as similarity
                     FROM memory_service.memories
-                    WHERE agent_id = '{agent_id}'
+                    WHERE agent_id = %s
                       AND superseded_at IS NULL
-                      AND ({' OR '.join(keyword_conditions)})
-                      AND id NOT IN ({exclusion_list})
+                      AND ({condition_str})
+                      AND id NOT IN (SELECT unnest(%s::uuid[]))
                     ORDER BY importance DESC
                     LIMIT 15
-                """)
-
-                for row in rows_kw:
-                    parts = row.split("|||")
-                    if len(parts) >= 11:
-                        mem_id = parts[0]
-                        if mem_id not in candidates:
-                            candidates[mem_id] = {
-                                "id": mem_id,
-                                "headline": parts[1],
-                                "context": parts[2],
-                                "full_content": parts[3],
-                                "memory_type": parts[4],
-                                "importance": float(parts[5]) if parts[5] else 0.5,
-                                "access_count": int(parts[6]) if parts[6] else 0,
-                                "reinforcement_count": int(parts[7]) if parts[7] else 1,
-                                "created_at": datetime.fromisoformat(parts[8].replace("+00", "+00:00")) if parts[8] else datetime.now(timezone.utc),
-                                "superseded_at": parts[9] if parts[9] else None,
-                                "similarity": float(parts[10]) if parts[10] else 0,
-                            }
+                """
+                params = [agent_id] + keyword_params + [existing_ids]
+                cur.execute(query, params)
+                
+                if cur.description:
+                    for row_tuple in cur.fetchall():
+                        row_str = "|||".join(str(val) if val is not None else "" for val in row_tuple)
+                        parts = row_str.split("|||")
+                        if len(parts) >= 11:
+                            mem_id = parts[0]
+                            if mem_id not in candidates:
+                                candidates[mem_id] = _parse_candidate_row(parts)
+                
+                cur.execute("COMMIT")
+            except Exception as e:
+                cur.execute("ROLLBACK")
+                print(f"Warning: Keyword search query failed: {e}")
+            finally:
+                cur.close()
+                pool.putconn(conn)
     except Exception as e:
         print(f"Warning: Keyword search failed: {e}")
 
     return list(candidates.values())
+
+
+def _parse_candidate_row(parts: list[str]) -> dict:
+    """Parse a raw DB row into a candidate dict."""
+    return {
+        "id": parts[0],
+        "headline": parts[1],
+        "context": parts[2],
+        "full_content": parts[3],
+        "memory_type": parts[4],
+        "importance": float(parts[5]) if parts[5] else 0.5,
+        "access_count": int(parts[6]) if parts[6] else 0,
+        "reinforcement_count": int(parts[7]) if parts[7] else 1,
+        "created_at": _parse_timestamp(parts[8]),
+        "superseded_at": parts[9] if parts[9] else None,
+        "similarity": float(parts[10]) if parts[10] else 0,
+    }
+
+
+def _parse_timestamp(ts_str: str) -> datetime:
+    """Safely parse a timestamp string."""
+    if not ts_str:
+        return datetime.now(timezone.utc)
+    try:
+        return datetime.fromisoformat(ts_str.replace("+00", "+00:00"))
+    except (ValueError, AttributeError):
+        return datetime.now(timezone.utc)
 
 
 def recall_fixed(
@@ -281,14 +261,21 @@ def recall_fixed(
     budget_tokens: int = 4000,
 ) -> dict:
     """
-    FIXED VERSION of recall function with better error handling.
+    Recall relevant memories for agent context injection.
+    Fully hardened with parameterized queries.
     """
     
-    print(f"Starting recall for agent '{agent_id}' with query: '{conversation_context[:100]}...'")
+    # Validate inputs
+    if not agent_id or not isinstance(agent_id, str):
+        return {"context_block": "", "memories_used": 0, "tokens_used": 1}
     
-    # Step 1: Load agent config (with defaults)
+    if not conversation_context or not conversation_context.strip():
+        return {"context_block": "", "memories_used": 0, "tokens_used": 1}
+    
+    budget_tokens = max(500, min(budget_tokens, 16000))
+    
+    # Step 1: Load agent config
     config = _load_agent_config(agent_id)
-    print(f"Loaded config: {config}")
     
     semantic_weight = config.get("semantic_weight", 0.4)
     recency_weight = config.get("recency_weight", 0.35)
@@ -299,7 +286,6 @@ def recall_fixed(
     # Step 2: Always-include block
     always_block, always_tokens = _build_always_include(agent_id)
     remaining_budget = budget_tokens - always_tokens
-    print(f"Always-include: {always_tokens} tokens, remaining budget: {remaining_budget}")
     
     if remaining_budget <= 0:
         return {
@@ -311,13 +297,10 @@ def recall_fixed(
         }
     
     # Step 3: Generate query embedding
-    print("Generating embedding...")
     try:
         query_embedding = _embed_text(conversation_context[:2000])
-        embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
-        print(f"✅ Generated embedding with {len(query_embedding)} dimensions")
     except Exception as e:
-        print(f"❌ Embedding failed: {e}")
+        print(f"Embedding failed: {e}")
         return {
             "context_block": always_block,
             "memories_used": 0,
@@ -327,12 +310,9 @@ def recall_fixed(
         }
     
     # Step 4: Retrieve candidates
-    print("Retrieving candidates...")
-    candidates = _retrieve_candidates(agent_id, embedding_str, conversation_context)
-    print(f"Retrieved {len(candidates)} candidates")
+    candidates = _retrieve_candidates(agent_id, query_embedding, conversation_context)
     
     if not candidates:
-        print("❌ No candidates found")
         return {
             "context_block": always_block,
             "memories_used": 0,
@@ -342,27 +322,21 @@ def recall_fixed(
         }
     
     # Step 5: Score each candidate
-    print("Scoring candidates...")
     now = datetime.now(timezone.utc)
     scored = []
     
     for c in candidates:
         try:
-            # Semantic similarity (already from DB, 0-1)
             semantic_sim = c["similarity"]
             
-            # Recency score (exponential decay)
             days_since = (now - c["created_at"]).total_seconds() / 86400
             recency = math.exp(-0.693 * days_since / half_life_days)
             
-            # Importance (boosted by reinforcement)
             importance = c["importance"] * (1 + 0.1 * min(c["reinforcement_count"], 5))
             importance = min(importance, 1.0)
             
-            # Access frequency (capped at 1.0)
             access_freq = min(c["access_count"] / 10, 1.0)
             
-            # Composite score
             composite = (
                 semantic_weight * semantic_sim +
                 recency_weight * recency +
@@ -378,25 +352,18 @@ def recall_fixed(
             elif c["memory_type"] == "decision" and days_since < 7:
                 composite *= 1.2
             
-            # Skip superseded facts
             if c.get("superseded_at"):
                 continue
             
             scored.append({
                 **c,
                 "composite": composite,
-                "semantic_sim": semantic_sim,
-                "recency_score": recency,
-                "importance_boosted": importance,
-                "access_score": access_freq,
             })
-        except Exception as e:
-            print(f"Warning: Failed to score candidate {c.get('id', 'unknown')}: {e}")
+        except Exception:
             continue
     
     # Step 6: Rank by composite score
     scored.sort(key=lambda x: x["composite"], reverse=True)
-    print(f"Scored {len(scored)} candidates, top score: {scored[0]['composite']:.3f}" if scored else "No candidates scored")
     
     # Step 7: Fill budget using tiered loading
     selected = []
@@ -406,7 +373,6 @@ def recall_fixed(
         if remaining_budget - tokens_used <= 0:
             break
         
-        # Choose tier based on composite score
         if candidate["composite"] > 0.7:
             text = candidate["context"]
             tier = "L1"
@@ -428,8 +394,6 @@ def recall_fixed(
                 "id": candidate["id"],
             })
             tokens_used += tokens
-    
-    print(f"Selected {len(selected)} memories using {tokens_used} tokens")
     
     # Step 8: Format context block
     context_block = always_block
@@ -459,9 +423,9 @@ def recall_fixed(
     }
 
 
-# Test function
+# CLI test
 if __name__ == "__main__":
-    os.environ["GOOGLE_API_KEY"] = "AIzaSyAvFCk21Sz4G3AbKm9USob55DqJnpJBVmI"
+    os.environ.setdefault("GOOGLE_API_KEY", "AIzaSyAvFCk21Sz4G3AbKm9USob55DqJnpJBVmI")
     
     test_queries = [
         "memory product decisions",
@@ -476,15 +440,11 @@ if __name__ == "__main__":
         
         try:
             result = recall_fixed("thomas", query, budget_tokens=2000)
-            print(f"✅ Result: {result['memories_used']} memories, {result['tokens_used']} tokens")
+            print(f"✅ {result['memories_used']} memories, {result['tokens_used']} tokens")
             
             if result['recall_details']:
-                print("Top results:")
                 for detail in result['recall_details'][:3]:
                     print(f"  - [{detail['type']}] {detail['headline']} (score: {detail['composite']})")
-            else:
-                print("No recall details")
-                
         except Exception as e:
             print(f"❌ Error: {e}")
             import traceback

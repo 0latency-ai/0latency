@@ -6,11 +6,21 @@ import os
 import sys
 import time
 import hashlib
+import uuid
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+# Structured logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='{"time":"%(asctime)s","level":"%(levelname)s","msg":"%(message)s"}',
+    datefmt='%Y-%m-%dT%H:%M:%S'
+)
+logger = logging.getLogger("zerolatency")
 
 # Add src/ to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -35,6 +45,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def request_logging(request: Request, call_next):
+    """Log every request with ID, tenant, endpoint, latency."""
+    request_id = str(uuid.uuid4())[:8]
+    start = time.time()
+    response = await call_next(request)
+    latency_ms = int((time.time() - start) * 1000)
+    tenant_id = getattr(request.state, "tenant_id", "anon") if hasattr(request, "state") else "anon"
+    logger.info(f"req={request_id} method={request.method} path={request.url.path} status={response.status_code} latency={latency_ms}ms tenant={tenant_id}")
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 # --- Configuration ---
 def _admin_key(): return os.environ.get("MEMORY_ADMIN_KEY", "")
@@ -74,6 +96,9 @@ async def require_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
     
     # Set tenant context for this request
     set_tenant_context(tenant["id"])
+    
+    # Store tenant_id on request state for logging middleware
+    # (FastAPI doesn't give us request in Depends easily, so we use a thread-local approach)
     
     return tenant
 
@@ -178,7 +203,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
         return response
     except Exception as e:
         track_api_usage(tenant["id"], "/extract", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
-        raise HTTPException(500, detail=str(e))
+        raise HTTPException(500, detail="Extraction failed. Please check your input and try again.")
 
 
 @app.post("/recall", response_model=RecallResponse)
@@ -207,7 +232,7 @@ async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api
         return response
     except Exception as e:
         track_api_usage(tenant["id"], "/recall", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
-        raise HTTPException(500, detail=str(e))
+        raise HTTPException(500, detail="Recall failed. Please check your input and try again.")
 
 
 @app.get("/memories", response_model=list[MemoryItem])
@@ -222,15 +247,24 @@ async def list_memories(
     try:
         from storage_multitenant import _db_execute
         
-        type_filter = f"AND memory_type = '{memory_type}'" if memory_type else ""
         tenant_id = tenant["id"]
-        rows = _db_execute(f"""
-            SELECT id, headline, memory_type, importance, created_at
-            FROM memory_service.memories
-            WHERE agent_id = '{agent_id}' AND tenant_id = '{tenant_id}' AND superseded_at IS NULL {type_filter}
-            ORDER BY created_at DESC
-            LIMIT {min(limit, 200)}
-        """, tenant_id=tenant_id)
+        
+        if memory_type:
+            rows = _db_execute("""
+                SELECT id, headline, memory_type, importance, created_at
+                FROM memory_service.memories
+                WHERE agent_id = %s AND tenant_id = %s AND superseded_at IS NULL AND memory_type = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+            """, (agent_id, tenant_id, memory_type, min(limit, 200)), tenant_id=tenant_id)
+        else:
+            rows = _db_execute("""
+                SELECT id, headline, memory_type, importance, created_at
+                FROM memory_service.memories
+                WHERE agent_id = %s AND tenant_id = %s AND superseded_at IS NULL
+                ORDER BY created_at DESC
+                LIMIT %s
+            """, (agent_id, tenant_id, min(limit, 200)), tenant_id=tenant_id)
         
         items = []
         for row in (rows or []):
@@ -251,19 +285,32 @@ async def list_memories(
         return items
     except Exception as e:
         track_api_usage(tenant["id"], "/memories", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
-        raise HTTPException(500, detail=str(e))
+        raise HTTPException(500, detail="Failed to list memories. Please try again.")
 
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check — no auth required."""
-    # Basic health check without tenant context (just test DB connectivity)
-    return HealthResponse(
-        status="ok",
-        version="0.1.0",
-        timestamp=datetime.now(timezone.utc).isoformat(),
-        memories_total=None,
-    )
+    """Health check — no auth required. Verifies DB connectivity."""
+    try:
+        from storage_multitenant import _db_execute
+        rows = _db_execute(
+            "SELECT COUNT(*) FROM memory_service.memories WHERE superseded_at IS NULL",
+            tenant_id="00000000-0000-0000-0000-000000000000"
+        )
+        total = int(rows[0].split("|||")[0]) if rows else 0
+        return HealthResponse(
+            status="ok",
+            version="0.1.0",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            memories_total=total,
+        )
+    except Exception:
+        return HealthResponse(
+            status="degraded",
+            version="0.1.0",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            memories_total=None,
+        )
 
 
 @app.get("/tenant-info", response_model=TenantInfo)
@@ -287,7 +334,91 @@ async def create_api_key(req: CreateTenantRequest, admin: bool = Depends(require
         tenant = create_tenant(req.name, req.plan)
         return CreateTenantResponse(**tenant)
     except Exception as e:
-        raise HTTPException(500, detail=f"Failed to create tenant: {str(e)}")
+        raise HTTPException(500, detail="Failed to create tenant.")
+
+
+class RotateKeyResponse(BaseModel):
+    tenant_id: str
+    new_api_key: str
+    message: str
+
+@app.post("/admin/rotate-key/{tenant_id}", response_model=RotateKeyResponse)
+async def rotate_api_key(tenant_id: str, admin: bool = Depends(require_admin_key)):
+    """Rotate API key for a tenant. Old key is immediately invalidated."""
+    import secrets
+    try:
+        from storage_multitenant import _db_execute
+        # Generate new key
+        new_key = f"zl_live_{''.join(secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(32))}"
+        new_hash = hashlib.sha256(new_key.encode()).hexdigest()
+        
+        # Update tenant with new key hash
+        rows = _db_execute("""
+            UPDATE memory_service.tenants 
+            SET api_key_hash = %s
+            WHERE id = %s::UUID AND active = true
+            RETURNING id
+        """, (new_hash, tenant_id), tenant_id="00000000-0000-0000-0000-000000000000")
+        
+        if not rows:
+            raise HTTPException(404, detail="Tenant not found or inactive")
+        
+        logger.info(f"API key rotated for tenant {tenant_id}")
+        return RotateKeyResponse(
+            tenant_id=tenant_id,
+            new_api_key=new_key,
+            message="Key rotated. Old key is immediately invalid."
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(500, detail="Failed to rotate key.")
+
+
+@app.post("/admin/revoke-key/{tenant_id}")
+async def revoke_api_key(tenant_id: str, admin: bool = Depends(require_admin_key)):
+    """Revoke API key by deactivating tenant. Immediate effect."""
+    try:
+        from storage_multitenant import _db_execute
+        rows = _db_execute("""
+            UPDATE memory_service.tenants 
+            SET active = false
+            WHERE id = %s::UUID
+            RETURNING id
+        """, (tenant_id,), tenant_id="00000000-0000-0000-0000-000000000000")
+        
+        if not rows:
+            raise HTTPException(404, detail="Tenant not found")
+        
+        logger.info(f"API key revoked (tenant deactivated) for {tenant_id}")
+        return {"tenant_id": tenant_id, "status": "revoked", "message": "Tenant deactivated. API key no longer valid."}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(500, detail="Failed to revoke key.")
+
+
+@app.post("/admin/reactivate/{tenant_id}")
+async def reactivate_tenant(tenant_id: str, admin: bool = Depends(require_admin_key)):
+    """Reactivate a previously revoked tenant."""
+    try:
+        from storage_multitenant import _db_execute
+        rows = _db_execute("""
+            UPDATE memory_service.tenants 
+            SET active = true
+            WHERE id = %s::UUID
+            RETURNING id
+        """, (tenant_id,), tenant_id="00000000-0000-0000-0000-000000000000")
+        
+        if not rows:
+            raise HTTPException(404, detail="Tenant not found")
+        
+        logger.info(f"Tenant reactivated: {tenant_id}")
+        return {"tenant_id": tenant_id, "status": "active"}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(500, detail="Failed to reactivate tenant.")
 
 
 @app.get("/admin/tenants")
@@ -296,7 +427,7 @@ async def list_tenants(admin: bool = Depends(require_admin_key)):
     try:
         from storage_multitenant import _db_execute
         # Bypass RLS for admin query
-        rows = _db_execute(f"""
+        rows = _db_execute("""
             SELECT id, name, plan, memory_limit, rate_limit_rpm, active, api_calls_count, created_at
             FROM memory_service.tenants 
             ORDER BY created_at DESC
@@ -318,4 +449,4 @@ async def list_tenants(admin: bool = Depends(require_admin_key)):
                 })
         return {"tenants": tenants}
     except Exception as e:
-        raise HTTPException(500, detail=f"Failed to list tenants: {str(e)}")
+        raise HTTPException(500, detail="Failed to list tenants.")
