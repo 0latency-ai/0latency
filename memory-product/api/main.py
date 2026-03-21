@@ -108,15 +108,34 @@ def _check_rate_limit(tenant_id: str, rate_limit_rpm: int):
 _rate_limits_fallback: dict[str, list[float]] = {}
 
 # --- Auth ---
+# Tenant auth cache — avoids DB lookup on every request
+_tenant_cache: dict[str, tuple[dict, float]] = {}
+_TENANT_CACHE_TTL = 30  # 30 seconds
+
 async def require_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
-    """Multi-tenant auth via API key header with real validation."""
+    """Multi-tenant auth via API key header with cached validation."""
     if not x_api_key or not x_api_key.startswith("zl_live_") or len(x_api_key) != 40:
         raise HTTPException(401, detail="Invalid API key format")
     
-    # Hash the API key to look up tenant
     api_key_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
+    now = time.time()
     
-    # Look up tenant by hashed key
+    # Check for cross-worker cache invalidation
+    _check_cache_bust()
+    
+    # Check cache first
+    if api_key_hash in _tenant_cache:
+        cached_tenant, cached_at = _tenant_cache[api_key_hash]
+        if now - cached_at < _TENANT_CACHE_TTL:
+            if not cached_tenant["active"]:
+                raise HTTPException(401, detail="Account suspended")
+            _check_rate_limit(cached_tenant["id"], cached_tenant["rate_limit_rpm"])
+            set_tenant_context(cached_tenant["id"])
+            return cached_tenant
+        else:
+            del _tenant_cache[api_key_hash]
+    
+    # DB lookup
     tenant = get_tenant_by_api_key(api_key_hash)
     if not tenant:
         raise HTTPException(401, detail="Invalid API key")
@@ -124,16 +143,40 @@ async def require_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
     if not tenant["active"]:
         raise HTTPException(401, detail="Account suspended")
     
-    # Check rate limit
+    # Cache it
+    _tenant_cache[api_key_hash] = (tenant, now)
+    
     _check_rate_limit(tenant["id"], tenant["rate_limit_rpm"])
-    
-    # Set tenant context for this request
     set_tenant_context(tenant["id"])
-    
-    # Store tenant_id on request state for logging middleware
-    # (FastAPI doesn't give us request in Depends easily, so we use a thread-local approach)
-    
     return tenant
+
+def _invalidate_tenant_cache(tenant_id: str = None):
+    """Clear tenant cache after key rotation/revocation.
+    Also sets a Redis flag so other workers know to clear their cache."""
+    _tenant_cache.clear()
+    try:
+        r = _get_redis()
+        if r:
+            # Signal all workers to clear cache
+            r.set("zl:cache_bust", str(time.time()), ex=60)
+    except Exception:
+        pass
+
+def _check_cache_bust():
+    """Check if another worker invalidated the cache."""
+    try:
+        r = _get_redis()
+        if r:
+            bust_time = r.get("zl:cache_bust")
+            if bust_time:
+                bust_ts = float(bust_time)
+                # Clear local cache if bust signal is newer than any cached entry
+                for key in list(_tenant_cache.keys()):
+                    _, cached_at = _tenant_cache[key]
+                    if cached_at < bust_ts:
+                        del _tenant_cache[key]
+    except Exception:
+        pass
 
 async def require_admin_key(request: Request, x_admin_key: str = Header(..., alias="X-Admin-Key")):
     """Admin authentication for tenant management. Restricted to localhost."""
@@ -217,6 +260,8 @@ class HealthResponse(BaseModel):
     version: str
     timestamp: str
     memories_total: Optional[int] = None
+    db_pool: Optional[dict] = None
+    redis: Optional[str] = None
 
 # --- Endpoints ---
 @app.post("/extract", response_model=ExtractResponse)
@@ -406,28 +451,147 @@ async def search_memories(
         raise HTTPException(500, detail="Search failed.")
 
 
+class BatchExtractItem(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    human_message: str = Field(..., min_length=1, max_length=50000)
+    agent_message: str = Field(..., min_length=1, max_length=50000)
+    session_key: Optional[str] = Field(None, max_length=256)
+    turn_id: Optional[str] = Field(None, max_length=256)
+
+class BatchExtractRequest(BaseModel):
+    turns: list[BatchExtractItem] = Field(..., min_length=1, max_length=50)
+
+@app.post("/extract/batch")
+async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require_api_key)):
+    """Extract memories from multiple conversation turns in one request."""
+    start_time = time.time()
+    total_stored = 0
+    all_ids = []
+    errors = []
+    
+    for i, turn in enumerate(req.turns):
+        try:
+            memories = extract_memories(
+                human_message=turn.human_message,
+                agent_message=turn.agent_message,
+                agent_id=turn.agent_id,
+                session_key=turn.session_key,
+                turn_id=turn.turn_id,
+            )
+            if memories:
+                ids = store_memories(memories, tenant["id"])
+                total_stored += len(ids)
+                all_ids.extend(ids)
+        except Exception as e:
+            errors.append({"turn": i, "error": str(e)[:100]})
+    
+    response_time = int((time.time() - start_time) * 1000)
+    track_api_usage(tenant["id"], "/extract/batch", 
+                   tokens_used=sum(len(t.human_message + t.agent_message) for t in req.turns),
+                   response_time_ms=response_time)
+    
+    return {
+        "turns_processed": len(req.turns),
+        "memories_stored": total_stored,
+        "memory_ids": all_ids,
+        "errors": errors if errors else None,
+    }
+
+
+@app.get("/memories/export")
+async def export_memories(
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    tenant: dict = Depends(require_api_key),
+):
+    """Export all memories for an agent as JSON. For data portability and GDPR compliance."""
+    rows = _db_execute_rows("""
+        SELECT id, headline, context, full_content, memory_type, 
+               importance, confidence, entities, project, categories, scope,
+               created_at, reinforcement_count, access_count
+        FROM memory_service.memories
+        WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+        ORDER BY created_at ASC
+    """, (agent_id, tenant["id"]), tenant_id=tenant["id"])
+    
+    memories = []
+    for row in rows:
+        memories.append({
+            "id": str(row[0]),
+            "headline": str(row[1]),
+            "context": str(row[2]) if row[2] else "",
+            "full_content": str(row[3]) if row[3] else "",
+            "memory_type": str(row[4]),
+            "importance": float(row[5]) if row[5] is not None else 0.5,
+            "confidence": float(row[6]) if row[6] is not None else 0.8,
+            "entities": list(row[7]) if row[7] else [],
+            "project": str(row[8]) if row[8] else None,
+            "categories": list(row[9]) if row[9] else [],
+            "scope": str(row[10]) if row[10] else "/",
+            "created_at": str(row[11]),
+            "reinforcement_count": int(row[12]) if row[12] else 0,
+            "access_count": int(row[13]) if row[13] else 0,
+        })
+    
+    track_api_usage(tenant["id"], "/memories/export", response_time_ms=0)
+    
+    return {
+        "agent_id": agent_id,
+        "tenant_id": tenant["id"],
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "total_memories": len(memories),
+        "memories": memories,
+    }
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check — no auth required. Verifies DB connectivity."""
+    """Health check — no auth required. Verifies DB connectivity and pool status."""
     try:
+        from storage_multitenant import _get_connection_pool
+        
         rows = _db_execute_rows(
             "SELECT COUNT(*) FROM memory_service.memories WHERE superseded_at IS NULL",
             tenant_id="00000000-0000-0000-0000-000000000000"
         )
         total = int(rows[0][0]) if rows else 0
-        return HealthResponse(
-            status="ok",
-            version="0.1.0",
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            memories_total=total,
-        )
+        
+        # Pool stats
+        pool_info = {}
+        try:
+            pool = _get_connection_pool()
+            pool_info = {
+                "pool_min": pool.minconn,
+                "pool_max": pool.maxconn,
+            }
+        except Exception:
+            pass
+        
+        # Redis status
+        redis_ok = False
+        try:
+            r = _get_redis()
+            if r:
+                redis_ok = r.ping()
+        except Exception:
+            pass
+        
+        return {
+            "status": "ok",
+            "version": "0.1.0",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "memories_total": total,
+            "db_pool": pool_info,
+            "redis": "connected" if redis_ok else "unavailable",
+        }
     except Exception:
-        return HealthResponse(
-            status="degraded",
-            version="0.1.0",
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            memories_total=None,
-        )
+        return {
+            "status": "degraded",
+            "version": "0.1.0",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "memories_total": None,
+            "db_pool": {},
+            "redis": "unknown",
+        }
 
 
 @app.get("/tenant-info", response_model=TenantInfo)
@@ -528,6 +692,7 @@ async def rotate_api_key(tenant_id: str, admin: bool = Depends(require_admin_key
         if not rows:
             raise HTTPException(404, detail="Tenant not found or inactive")
         
+        _invalidate_tenant_cache(tenant_id)
         logger.info(f"API key rotated for tenant {tenant_id}")
         return RotateKeyResponse(
             tenant_id=tenant_id,
@@ -555,6 +720,7 @@ async def revoke_api_key(tenant_id: str, admin: bool = Depends(require_admin_key
         if not rows:
             raise HTTPException(404, detail="Tenant not found")
         
+        _invalidate_tenant_cache(tenant_id)
         logger.info(f"API key revoked (tenant deactivated) for {tenant_id}")
         return {"tenant_id": tenant_id, "status": "revoked", "message": "Tenant deactivated. API key no longer valid."}
     except HTTPException:
@@ -578,6 +744,7 @@ async def reactivate_tenant(tenant_id: str, admin: bool = Depends(require_admin_
         if not rows:
             raise HTTPException(404, detail="Tenant not found")
         
+        _invalidate_tenant_cache(tenant_id)
         logger.info(f"Tenant reactivated: {tenant_id}")
         return {"tenant_id": tenant_id, "status": "active"}
     except HTTPException:
