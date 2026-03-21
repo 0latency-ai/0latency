@@ -1,7 +1,7 @@
 #!/bin/bash
 # Zero Latency Memory — Backup Script
 BACKUP_DIR="/root/backups/memory-api/$(date +%Y-%m-%d_%H%M)"
-DB_CONN="postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
+DB_CONN="${MEMORY_DB_CONN:?'MEMORY_DB_CONN env var must be set'}"
 
 mkdir -p "$BACKUP_DIR"
 

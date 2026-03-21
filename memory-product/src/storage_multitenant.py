@@ -24,8 +24,12 @@ EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
 
-DB_CONN = os.environ.get("MEMORY_DB_CONN", 
-    "postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres")
+def _get_db_conn():
+    """Get DB connection string from env. Never hardcoded."""
+    conn = os.environ.get("MEMORY_DB_CONN", "")
+    if not conn:
+        raise RuntimeError("MEMORY_DB_CONN environment variable must be set")
+    return conn
 
 # Global tenant context
 _current_tenant_id = None
@@ -43,7 +47,7 @@ def _get_connection_pool():
                 _connection_pool = psycopg2.pool.ThreadedConnectionPool(
                     minconn=2,
                     maxconn=10,
-                    dsn=DB_CONN
+                    dsn=_get_db_conn()
                 )
     return _connection_pool
 
@@ -135,6 +139,24 @@ def _db_execute(query: str, params: tuple = None, tenant_id: str = None, fetch_r
     Execute a query against the database with tenant isolation.
     
     SECURITY: Uses parameterized queries to prevent SQL injection.
+    Returns list of pipe-separated strings for backward compat.
+    Use _db_execute_rows() for proper tuple results.
+    """
+    rows = _db_execute_rows(query, params, tenant_id, fetch_results)
+    # Convert tuples to pipe-separated strings for backward compat
+    results = []
+    for row in rows:
+        row_str = "|||".join(str(val) if val is not None else "" for val in row)
+        results.append(row_str)
+    return results
+
+
+def _db_execute_rows(query: str, params: tuple = None, tenant_id: str = None, fetch_results: bool = True) -> list[tuple]:
+    """
+    Execute a query against the database with tenant isolation.
+    Returns raw tuples — no string conversion, no delimiter issues.
+    
+    SECURITY: Uses parameterized queries to prevent SQL injection.
     """
     pool = _get_connection_pool()
     current_tenant = tenant_id or _current_tenant_id
@@ -164,23 +186,21 @@ def _db_execute(query: str, params: tuple = None, tenant_id: str = None, fetch_r
             
             results = []
             if fetch_results and cur.description:
-                # Fetch all results and format as pipe-separated values for compatibility
-                rows = cur.fetchall()
-                for row in rows:
-                    # Convert row tuple to string, handling None values
-                    row_str = "|||".join(str(val) if val is not None else "" for val in row)
-                    results.append(row_str)
+                results = cur.fetchall()
             
             cur.execute("COMMIT")
             return results
             
         except psycopg2.Error as e:
             if cur:
-                cur.execute("ROLLBACK")
+                try:
+                    cur.execute("ROLLBACK")
+                except Exception:
+                    pass
             retries += 1
             if retries >= max_retries:
                 raise RuntimeError(f"DB error after {max_retries} retries: {e}")
-            time.sleep(0.1 * retries)  # Brief backoff
+            time.sleep(0.1 * retries)
             
         finally:
             if cur:

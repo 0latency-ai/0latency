@@ -11,14 +11,14 @@ import subprocess
 from datetime import datetime, timezone
 
 DB_CONN = os.environ.get("MEMORY_DB_CONN",
-    "postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres")
+    os.environ.get("MEMORY_DB_CONN", ""))
 
 
 def _db_execute(query: str) -> list:
     result = subprocess.run(
         ["psql", DB_CONN, "-t", "-A", "-F", "|||", "-c", query],
         capture_output=True, text=True, timeout=15,
-        env={**os.environ, "PGPASSWORD": "jcYlwEhuHN9VcOuj"}
+        env={**os.environ, "PGPASSWORD": os.environ.get("MEMORY_DB_PASSWORD", "")}
     )
     if result.returncode != 0:
         raise RuntimeError(f"DB error: {result.stderr}")

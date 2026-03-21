@@ -28,7 +28,7 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
 
 DB_CONN = os.environ.get("MEMORY_DB_CONN", 
-    "postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres")
+    os.environ.get("MEMORY_DB_CONN", ""))
 
 # Connection pool - thread-safe
 _connection_pool = None

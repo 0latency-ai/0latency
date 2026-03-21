@@ -10,7 +10,7 @@ import uuid
 import logging
 from datetime import datetime, timezone
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Depends, Header, Request
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -28,7 +28,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from extraction import extract_memories
 from storage_multitenant import (
     store_memory, store_memories, set_tenant_context, 
-    get_tenant_by_api_key, create_tenant, track_api_usage
+    get_tenant_by_api_key, create_tenant, track_api_usage,
+    _db_execute_rows,
 )
 from recall import recall_fixed as recall
 
@@ -39,11 +40,13 @@ app = FastAPI(
     description="Structured memory extraction, storage, and recall for AI agents.",
 )
 
+_CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "https://164.90.156.169").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_CORS_ORIGINS,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["X-API-Key", "X-Admin-Key", "Content-Type"],
 )
 
 @app.middleware("http")
@@ -160,19 +163,19 @@ async def dashboard():
 
 
 class ExtractRequest(BaseModel):
-    agent_id: str
-    human_message: str
-    agent_message: str
-    session_key: Optional[str] = None
-    turn_id: Optional[str] = None
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    human_message: str = Field(..., min_length=1, max_length=50000)
+    agent_message: str = Field(..., min_length=1, max_length=50000)
+    session_key: Optional[str] = Field(None, max_length=256)
+    turn_id: Optional[str] = Field(None, max_length=256)
 
 class ExtractResponse(BaseModel):
     memories_stored: int
     memory_ids: list[str]
 
 class RecallRequest(BaseModel):
-    agent_id: str
-    conversation_context: str
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    conversation_context: str = Field(..., min_length=1, max_length=50000)
     budget_tokens: int = Field(default=4000, ge=500, le=16000)
     dynamic_budget: bool = False
 
@@ -189,7 +192,7 @@ class MemoryItem(BaseModel):
     created_at: str
 
 class CreateTenantRequest(BaseModel):
-    name: str
+    name: str = Field(..., min_length=1, max_length=256)
     plan: str = Field(default="free", pattern="^(free|pro|enterprise)$")
 
 class CreateTenantResponse(BaseModel):
@@ -222,12 +225,11 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
     start_time = time.time()
     try:
         # Enforce memory limit
-        from storage_multitenant import _db_execute as _smt_db_execute
-        count_rows = _smt_db_execute("""
+        count_rows = _db_execute_rows("""
             SELECT COUNT(*) FROM memory_service.memories
             WHERE tenant_id = %s::UUID AND superseded_at IS NULL
         """, (tenant["id"],), tenant_id=tenant["id"])
-        current_count = int(count_rows[0].split("|||")[0]) if count_rows else 0
+        current_count = int(count_rows[0][0]) if count_rows else 0
         if current_count >= tenant["memory_limit"]:
             raise HTTPException(429, detail=f"Memory limit reached ({tenant['memory_limit']}). Upgrade plan or delete old memories.")
         
@@ -287,46 +289,43 @@ async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api
 
 @app.get("/memories", response_model=list[MemoryItem])
 async def list_memories(
-    agent_id: str,
-    limit: int = 50,
-    memory_type: Optional[str] = None,
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    memory_type: Optional[str] = Query(None, max_length=32),
     tenant: dict = Depends(require_api_key),
 ):
-    """List memories for an agent."""
+    """List memories for an agent with pagination."""
     start_time = time.time()
     try:
-        from storage_multitenant import _db_execute
-        
         tenant_id = tenant["id"]
         
         if memory_type:
-            rows = _db_execute("""
+            rows = _db_execute_rows("""
                 SELECT id, headline, memory_type, importance, created_at
                 FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s AND superseded_at IS NULL AND memory_type = %s
                 ORDER BY created_at DESC
-                LIMIT %s
-            """, (agent_id, tenant_id, memory_type, min(limit, 200)), tenant_id=tenant_id)
+                LIMIT %s OFFSET %s
+            """, (agent_id, tenant_id, memory_type, limit, offset), tenant_id=tenant_id)
         else:
-            rows = _db_execute("""
+            rows = _db_execute_rows("""
                 SELECT id, headline, memory_type, importance, created_at
                 FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s AND superseded_at IS NULL
                 ORDER BY created_at DESC
-                LIMIT %s
-            """, (agent_id, tenant_id, min(limit, 200)), tenant_id=tenant_id)
+                LIMIT %s OFFSET %s
+            """, (agent_id, tenant_id, limit, offset), tenant_id=tenant_id)
         
         items = []
         for row in (rows or []):
-            parts = row.split("|||")
-            if len(parts) >= 5:
-                items.append(MemoryItem(
-                    id=parts[0].strip(),
-                    headline=parts[1].strip(),
-                    memory_type=parts[2].strip(),
-                    importance=float(parts[3].strip()),
-                    created_at=parts[4].strip(),
-                ))
+            items.append(MemoryItem(
+                id=str(row[0]),
+                headline=str(row[1]),
+                memory_type=str(row[2]),
+                importance=float(row[3]) if row[3] is not None else 0.5,
+                created_at=str(row[4]),
+            ))
         
         # Track usage
         response_time = int((time.time() - start_time) * 1000)
@@ -341,9 +340,8 @@ async def list_memories(
 @app.delete("/memories/{memory_id}")
 async def delete_memory(memory_id: str, tenant: dict = Depends(require_api_key)):
     """Delete a specific memory. Tenant-isolated."""
-    from storage_multitenant import _db_execute
     try:
-        rows = _db_execute("""
+        rows = _db_execute_rows("""
             DELETE FROM memory_service.memories
             WHERE id = %s::UUID AND tenant_id = %s::UUID
             RETURNING id
@@ -352,16 +350,16 @@ async def delete_memory(memory_id: str, tenant: dict = Depends(require_api_key))
             raise HTTPException(404, detail="Memory not found")
         
         # Clean up entity index and edges
-        _db_execute("""
+        _db_execute_rows("""
             DELETE FROM memory_service.entity_index WHERE memory_id = %s
         """, (memory_id,), tenant_id=tenant["id"], fetch_results=False)
-        _db_execute("""
+        _db_execute_rows("""
             DELETE FROM memory_service.memory_edges 
             WHERE source_memory_id = %s OR target_memory_id = %s
         """, (memory_id, memory_id), tenant_id=tenant["id"], fetch_results=False)
         
         # Audit log
-        _db_execute("""
+        _db_execute_rows("""
             INSERT INTO memory_service.memory_audit_log (tenant_id, agent_id, action, memory_id, details)
             VALUES (%s::UUID, 'api', 'delete', %s, '{"source":"api"}'::jsonb)
         """, (tenant["id"], memory_id), tenant_id=tenant["id"], fetch_results=False)
@@ -376,36 +374,33 @@ async def delete_memory(memory_id: str, tenant: dict = Depends(require_api_key))
 
 @app.get("/memories/search")
 async def search_memories(
-    agent_id: str,
-    q: str,
-    limit: int = 20,
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    q: str = Query(..., min_length=1, max_length=500),
+    limit: int = Query(20, ge=1, le=100),
     tenant: dict = Depends(require_api_key),
 ):
     """Search memories by keyword. Tenant-isolated."""
-    from storage_multitenant import _db_execute
     try:
         pattern = f"%{q}%"
-        rows = _db_execute("""
+        rows = _db_execute_rows("""
             SELECT id, headline, memory_type, importance, created_at, context
             FROM memory_service.memories
             WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
               AND (headline ILIKE %s OR context ILIKE %s)
             ORDER BY importance DESC, created_at DESC
             LIMIT %s
-        """, (agent_id, tenant["id"], pattern, pattern, min(limit, 100)), tenant_id=tenant["id"])
+        """, (agent_id, tenant["id"], pattern, pattern, limit), tenant_id=tenant["id"])
         
         results = []
         for row in (rows or []):
-            parts = row.split("|||")
-            if len(parts) >= 6:
-                results.append({
-                    "id": parts[0].strip(),
-                    "headline": parts[1].strip(),
-                    "memory_type": parts[2].strip(),
-                    "importance": float(parts[3].strip()),
-                    "created_at": parts[4].strip(),
-                    "context": parts[5].strip(),
-                })
+            results.append({
+                "id": str(row[0]),
+                "headline": str(row[1]),
+                "memory_type": str(row[2]),
+                "importance": float(row[3]) if row[3] is not None else 0.5,
+                "created_at": str(row[4]),
+                "context": str(row[5]) if row[5] else "",
+            })
         return results
     except Exception:
         raise HTTPException(500, detail="Search failed.")
@@ -415,12 +410,11 @@ async def search_memories(
 async def health_check():
     """Health check — no auth required. Verifies DB connectivity."""
     try:
-        from storage_multitenant import _db_execute
-        rows = _db_execute(
+        rows = _db_execute_rows(
             "SELECT COUNT(*) FROM memory_service.memories WHERE superseded_at IS NULL",
             tenant_id="00000000-0000-0000-0000-000000000000"
         )
-        total = int(rows[0].split("|||")[0]) if rows else 0
+        total = int(rows[0][0]) if rows else 0
         return HealthResponse(
             status="ok",
             version="0.1.0",
@@ -451,18 +445,17 @@ async def get_tenant_info(tenant: dict = Depends(require_api_key)):
 
 @app.get("/usage")
 async def get_usage(
-    days: int = 7,
+    days: int = Query(7, ge=1, le=90),
     tenant: dict = Depends(require_api_key),
 ):
     """Get API usage stats for current tenant."""
-    from storage_multitenant import _db_execute
     tenant_id = tenant["id"]
     
     # Summary stats
-    rows = _db_execute("""
+    rows = _db_execute_rows("""
         SELECT endpoint, COUNT(*) as calls, 
-               SUM(tokens_used) as total_tokens,
-               AVG(response_time_ms)::int as avg_latency_ms,
+               COALESCE(SUM(tokens_used), 0) as total_tokens,
+               COALESCE(AVG(response_time_ms)::int, 0) as avg_latency_ms,
                COUNT(*) FILTER (WHERE status_code >= 400) as errors
         FROM memory_service.api_usage
         WHERE tenant_id = %s::UUID AND timestamp > now() - make_interval(days => %s)
@@ -472,22 +465,20 @@ async def get_usage(
     
     endpoints = []
     for row in (rows or []):
-        parts = row.split("|||")
-        if len(parts) >= 5:
-            endpoints.append({
-                "endpoint": parts[0],
-                "calls": int(parts[1]),
-                "total_tokens": int(parts[2] or 0),
-                "avg_latency_ms": int(parts[3] or 0),
-                "errors": int(parts[4]),
-            })
+        endpoints.append({
+            "endpoint": str(row[0]),
+            "calls": int(row[1]),
+            "total_tokens": int(row[2]),
+            "avg_latency_ms": int(row[3]),
+            "errors": int(row[4]),
+        })
     
     # Memory count for this tenant
-    mem_rows = _db_execute("""
+    mem_rows = _db_execute_rows("""
         SELECT COUNT(*) FROM memory_service.memories
         WHERE tenant_id = %s::UUID AND superseded_at IS NULL
     """, (tenant_id,), tenant_id=tenant_id)
-    memory_count = int(mem_rows[0].split("|||")[0]) if mem_rows else 0
+    memory_count = int(mem_rows[0][0]) if mem_rows else 0
     
     return {
         "tenant_id": tenant_id,
@@ -599,9 +590,7 @@ async def reactivate_tenant(tenant_id: str, admin: bool = Depends(require_admin_
 async def list_tenants(admin: bool = Depends(require_admin_key)):
     """List all tenants. Admin only."""
     try:
-        from storage_multitenant import _db_execute
-        # Bypass RLS for admin query
-        rows = _db_execute("""
+        rows = _db_execute_rows("""
             SELECT id, name, plan, memory_limit, rate_limit_rpm, active, api_calls_count, created_at
             FROM memory_service.tenants 
             ORDER BY created_at DESC
@@ -609,18 +598,16 @@ async def list_tenants(admin: bool = Depends(require_admin_key)):
         
         tenants = []
         for row in (rows or []):
-            parts = row.split("|||")
-            if len(parts) >= 8:
-                tenants.append({
-                    "id": parts[0],
-                    "name": parts[1],
-                    "plan": parts[2],
-                    "memory_limit": int(parts[3]),
-                    "rate_limit_rpm": int(parts[4]),
-                    "active": parts[5].lower() in ('t', 'true', '1'),
-                    "api_calls_count": int(parts[6] or 0),
-                    "created_at": parts[7]
-                })
+            tenants.append({
+                "id": str(row[0]),
+                "name": str(row[1]),
+                "plan": str(row[2]),
+                "memory_limit": int(row[3]),
+                "rate_limit_rpm": int(row[4]),
+                "active": bool(row[5]),
+                "api_calls_count": int(row[6] or 0),
+                "created_at": str(row[7])
+            })
         return {"tenants": tenants}
     except Exception as e:
         raise HTTPException(500, detail="Failed to list tenants.")
