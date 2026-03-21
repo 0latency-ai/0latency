@@ -199,7 +199,9 @@ def _db_execute_rows(query: str, params: tuple = None, tenant_id: str = None, fe
                     pass
             retries += 1
             if retries >= max_retries:
-                raise RuntimeError(f"DB error after {max_retries} retries: {e}")
+                import logging
+                logging.getLogger("zerolatency").error(f"DB error after {max_retries} retries: {e}")
+                raise RuntimeError("Database operation failed. Please try again.")
             time.sleep(0.1 * retries)
             
         finally:
