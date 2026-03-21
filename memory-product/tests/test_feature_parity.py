@@ -11,7 +11,10 @@ import os
 import json
 
 BASE = os.environ.get("ZL_TEST_URL", "http://127.0.0.1:8420")
-ADMIN_KEY = os.environ.get("MEMORY_ADMIN_KEY", "zl_admin_thomas_server_2026")
+ADMIN_KEY = os.environ.get("MEMORY_ADMIN_KEY", "")
+if not ADMIN_KEY:
+    print("⚠️  MEMORY_ADMIN_KEY not set. Admin tests will be skipped.")
+
 
 TEST_API_KEY = None
 TEST_TENANT_ID = None

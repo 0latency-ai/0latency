@@ -27,9 +27,46 @@ MAX_RETRIES = 3
 MAX_FAILURE_COUNT = 10  # disable webhook after this many consecutive failures
 
 
+def _validate_webhook_url(url: str) -> bool:
+    """Validate webhook URL to prevent SSRF attacks."""
+    from urllib.parse import urlparse
+    import ipaddress
+    import socket
+    
+    parsed = urlparse(url)
+    
+    # Must be HTTPS
+    if parsed.scheme != 'https':
+        raise ValueError("Webhook URL must use HTTPS")
+    
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("Invalid webhook URL")
+    
+    # Block obvious internal targets
+    blocked_hosts = {'localhost', '127.0.0.1', '0.0.0.0', '169.254.169.254', 'metadata.google.internal'}
+    if hostname in blocked_hosts:
+        raise ValueError("Webhook URL cannot target internal services")
+    
+    # Resolve and check for private IPs
+    try:
+        resolved = socket.getaddrinfo(hostname, None)
+        for _, _, _, _, sockaddr in resolved:
+            ip = ipaddress.ip_address(sockaddr[0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                raise ValueError("Webhook URL cannot target private/internal networks")
+    except socket.gaierror:
+        raise ValueError("Webhook URL hostname could not be resolved")
+    
+    return True
+
+
 def register_webhook(tenant_id: str, url: str, events: list[str],
                      secret: str = None) -> dict:
     """Register a new webhook for a tenant."""
+    # SSRF protection
+    _validate_webhook_url(url)
+    
     valid_events = {
         "memory.created", "memory.updated", "memory.deleted",
         "memory.corrected", "memory.reinforced", "extraction.completed",

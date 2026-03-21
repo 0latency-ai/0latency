@@ -64,7 +64,7 @@ _CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "https://164.90.156.169").split("
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS,
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["X-API-Key", "X-Admin-Key", "Content-Type"],
 )
 
