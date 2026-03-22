@@ -59,14 +59,23 @@ app = FastAPI(
     description="Structured memory extraction, storage, and recall for AI agents.",
 )
 
-_CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "https://164.90.156.169").split(",")
+_CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "https://164.90.156.169,https://0latency.ai,https://www.0latency.ai,https://api.0latency.ai").split(",")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["X-API-Key", "X-Admin-Key", "Content-Type"],
+    allow_headers=["X-API-Key", "X-Admin-Key", "Content-Type", "Authorization"],
+    allow_credentials=True,
 )
+
+# --- Auth Module ---
+from api.auth import router as auth_router
+app.include_router(auth_router)
+
+# --- Billing Module ---
+from api.billing import router as billing_router
+app.include_router(billing_router)
 
 @app.middleware("http")
 async def request_logging(request: Request, call_next):
@@ -237,6 +246,11 @@ class ExtractRequest(BaseModel):
     session_key: Optional[str] = Field(None, max_length=256)
     turn_id: Optional[str] = Field(None, max_length=256)
 
+class AsyncExtractRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    content: str = Field(..., min_length=1, max_length=100000)
+    session_key: Optional[str] = Field(None, max_length=256)
+
 class ExtractResponse(BaseModel):
     memories_stored: int
     memory_ids: list[str]
@@ -340,6 +354,81 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
     except Exception as e:
         track_api_usage(tenant["id"], "/extract", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
         raise HTTPException(500, detail="Extraction failed. Please check your input and try again.")
+
+
+# --- Async Extraction Job Store (in-memory for now, Redis-backed in production) ---
+_extract_jobs: dict[str, dict] = {}
+
+@app.post("/memories/extract", status_code=202)
+async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depends(require_api_key)):
+    """Async memory extraction. Accepts instantly (202), processes in background.
+    
+    This is the preferred extraction path. Recall is always sync and fast.
+    Extraction accepts instantly and processes in the background.
+    Partial results beat blocking.
+    """
+    import threading
+    
+    job_id = str(uuid.uuid4())
+    _extract_jobs[job_id] = {
+        "status": "accepted",
+        "tenant_id": tenant["id"],
+        "agent_id": req.agent_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "memories_stored": 0,
+        "memory_ids": [],
+    }
+    
+    def _process_extraction():
+        try:
+            # Split content into human/agent turns or treat as raw content
+            memories = extract_memories(
+                human_message=req.content,
+                agent_message="",
+                agent_id=req.agent_id,
+                session_key=req.session_key,
+            )
+            if memories:
+                ids = store_memories(memories, tenant["id"])
+                _extract_jobs[job_id].update({
+                    "status": "complete",
+                    "memories_stored": len(ids),
+                    "memory_ids": ids,
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                })
+            else:
+                _extract_jobs[job_id].update({
+                    "status": "complete",
+                    "memories_stored": 0,
+                    "memory_ids": [],
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                })
+            
+            track_api_usage(tenant["id"], "/memories/extract", 
+                           tokens_used=len(req.content), response_time_ms=0)
+        except Exception as e:
+            logger.error(f"Async extraction failed for job {job_id}: {e}")
+            _extract_jobs[job_id].update({
+                "status": "failed",
+                "error": "extraction_failed",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            })
+    
+    thread = threading.Thread(target=_process_extraction, daemon=True)
+    thread.start()
+    
+    return {"job_id": job_id, "status": "accepted"}
+
+
+@app.get("/memories/extract/{job_id}")
+async def get_extract_job(job_id: str, tenant: dict = Depends(require_api_key)):
+    """Check status of an async extraction job."""
+    job = _extract_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, detail="Job not found")
+    if job["tenant_id"] != tenant["id"]:
+        raise HTTPException(404, detail="Job not found")
+    return {k: v for k, v in job.items() if k != "tenant_id"}
 
 
 @app.post("/recall", response_model=RecallResponse)

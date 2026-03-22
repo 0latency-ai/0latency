@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="og-accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#fb923c"/>
+    </linearGradient>
+    <linearGradient id="og-bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0a0f"/>
+      <stop offset="100%" stop-color="#0f0f1a"/>
+    </linearGradient>
+    <filter id="og-glow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="og-glow-sm">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#f97316" stroke-width="0.3" opacity="0.12"/>
+    </pattern>
+    <style>
+      .og-brand { font-family: -apple-system, 'SF Pro Display', 'Inter', 'Segoe UI', system-ui, sans-serif; }
+    </style>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#og-bg-grad)"/>
+  
+  <!-- Grid pattern -->
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  
+  <!-- Subtle radial glow behind logo -->
+  <ellipse cx="600" cy="260" rx="200" ry="200" fill="#f97316" opacity="0.04"/>
+  
+  <!-- Icon — centered, larger -->
+  <g transform="translate(600, 240)" filter="url(#og-glow)">
+    <!-- Zero ring -->
+    <ellipse cx="0" cy="0" rx="42" ry="54" fill="none" stroke="url(#og-accent)" stroke-width="5" stroke-linecap="round"/>
+    <!-- Inner data point -->
+    <circle cx="0" cy="0" r="5" fill="#34d399"/>
+    <!-- Circuit traces -->
+    <line x1="0" y1="-54" x2="0" y2="-72" stroke="#f97316" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="0" cy="-75" r="3" fill="#f97316"/>
+    <line x1="0" y1="54" x2="0" y2="72" stroke="#f97316" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="0" cy="75" r="3" fill="#f97316"/>
+    <line x1="-42" y1="0" x2="-60" y2="0" stroke="#f97316" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="-63" cy="0" r="3" fill="#f97316"/>
+    <line x1="42" y1="0" x2="60" y2="0" stroke="#f97316" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="63" cy="0" r="3" fill="#f97316"/>
+    <!-- Diagonals -->
+    <line x1="30" y1="-42" x2="46" y2="-58" stroke="#f97316" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+    <circle cx="48" cy="-60" r="2.5" fill="#f97316" opacity="0.5"/>
+    <line x1="-30" y1="-42" x2="-46" y2="-58" stroke="#f97316" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+    <circle cx="-48" cy="-60" r="2.5" fill="#f97316" opacity="0.5"/>
+    <line x1="30" y1="42" x2="46" y2="58" stroke="#f97316" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+    <circle cx="48" cy="60" r="2.5" fill="#f97316" opacity="0.5"/>
+    <line x1="-30" y1="42" x2="-46" y2="58" stroke="#f97316" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+    <circle cx="-48" cy="60" r="2.5" fill="#f97316" opacity="0.5"/>
+  </g>
+  
+  <!-- Wordmark below icon -->
+  <g filter="url(#og-glow-sm)">
+    <text x="600" y="400" text-anchor="middle" class="og-brand" font-size="52" font-weight="700" fill="#f97316">0</text>
+    <text x="627" y="400" text-anchor="start" class="og-brand" font-size="52" font-weight="600" fill="white" letter-spacing="-1">Latency</text>
+  </g>
+  
+  <!-- Tagline -->
+  <text x="600" y="450" text-anchor="middle" class="og-brand" font-size="22" font-weight="400" fill="#f97316" opacity="0.8">Memory Layer for AI Agents</text>
+  
+  <!-- URL bottom -->
+  <text x="600" y="580" text-anchor="middle" class="og-brand" font-size="16" font-weight="400" fill="white" opacity="0.3">0latency.ai</text>
+</svg>

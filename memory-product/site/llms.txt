@@ -1,0 +1,82 @@
+# 0Latency
+
+> Memory Layer for AI Agents
+
+0Latency provides automatic memory extraction, structured storage with temporal dynamics, and proactive recall with context budget management for AI agents. Give your agents persistent, intelligent memory without managing vector databases or writing extraction prompts.
+
+## What It Does
+
+0Latency sits between your AI agent and its conversations. It automatically extracts memories from interactions, stores them with rich metadata and temporal awareness, and proactively recalls relevant context when your agent needs it — all while respecting your token budget.
+
+## Key Features
+
+- **6 Memory Types**: Facts, preferences, events, relationships, procedures, and emotional context — each with type-specific storage and retrieval optimizations
+- **Temporal Intelligence**: Memories decay over time using a half-life model and reinforce on access, so recent and frequently-used memories naturally surface first
+- **Graph Memory**: Relationship traversal via Postgres recursive CTEs — no Neo4j dependency, no separate graph database to manage. Free on all plans.
+- **Negative Recall**: Explicitly track what an agent should NOT remember or act on (corrections, retractions, outdated info)
+- **Contradiction Detection**: Automatically flags when new information conflicts with existing memories, with configurable resolution strategies
+- **Context Budget Management**: L0/L1/L2 tiered loading system — L0 (critical identity) always loads, L1 (session-relevant) loads on match, L2 (deep archive) loads only on explicit recall
+- **Session Handoff**: Transfer memory context between agents or sessions with a single API call
+- **Webhooks**: Real-time notifications for memory events (extraction, contradiction, decay threshold)
+- **Batch Operations**: Bulk import, export, and manage memories efficiently
+
+## How It's Different
+
+| | 0Latency | Mem0 | Zep | Letta |
+|---|---|---|---|---|
+| Temporal decay/reinforcement | ✅ Built-in | ❌ | ❌ | ❌ |
+| Proactive recall | ✅ | ❌ Manual query | ❌ Manual query | Partial |
+| Context budgets (L0/L1/L2) | ✅ | ❌ | ❌ | ❌ |
+| Graph memory | ✅ All plans | Enterprise only | ❌ | ❌ |
+| Criteria scoring (no extra LLM) | ✅ | ❌ LLM rerank | ❌ LLM rerank | ❌ |
+| Negative recall | ✅ | ❌ | ❌ | ❌ |
+| Contradiction detection | ✅ | ❌ | ❌ | ❌ |
+
+## API Overview
+
+Base URL: `https://api.0latency.ai/v1`
+
+### Core Endpoints
+
+- `POST /extract` — Extract memories from a conversation or text
+- `POST /recall` — Proactively recall relevant memories for a given context
+- `GET /memories` — List and search stored memories
+- `GET /memories/:id` — Get a specific memory
+- `DELETE /memories/:id` — Delete a memory
+- `GET /health` — Service health check
+
+### Graph Endpoints
+
+- `GET /graph/relationships` — Query relationship graph
+- `GET /graph/traverse` — Traverse connections from a memory node
+- `POST /graph/connect` — Create explicit relationship between memories
+
+### Batch Endpoints
+
+- `POST /batch/extract` — Bulk extract from multiple conversations
+- `POST /batch/import` — Import memories from external sources
+- `GET /batch/export` — Export all memories for an agent
+
+### Webhook Endpoints
+
+- `POST /webhooks` — Register a webhook
+- `GET /webhooks` — List registered webhooks
+- `DELETE /webhooks/:id` — Remove a webhook
+
+## SDKs
+
+- **Python**: `pip install 0latency`
+- **TypeScript**: `npm install @0latency/sdk`
+
+## Pricing
+
+- **Free**: 50 memories, 1 agent — get started immediately
+- **Pro** ($9/mo): Unlimited memories, unlimited agents, all features
+- **API** ($19–49/mo): Higher rate limits, priority support, SLA
+
+## Links
+
+- Website: https://0latency.ai
+- Documentation: https://0latency.ai/docs
+- GitHub: https://github.com/0latency-ai/memory-engine
+- Full Technical Details: https://0latency.ai/llms-full.txt

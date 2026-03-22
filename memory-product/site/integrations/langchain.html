@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Layer for LangChain Agents — 0Latency</title>
+    <meta name="description" content="Persistent long-term memory for LangChain agents. Drop-in replacement for ConversationBufferMemory with temporal dynamics, contradiction detection, and context budgets. 3 lines of Python.">
+    <meta name="keywords" content="LangChain memory, LangChain agent memory, persistent memory LangChain, LangChain conversation memory, LangChain long-term memory, LangChain memory backend">
+    <meta name="author" content="Justin Ghiglia">
+    <meta name="robots" content="index, follow">
+
+    <link rel="canonical" href="https://0latency.ai/integrations/langchain.html">
+
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://0latency.ai/integrations/langchain.html">
+    <meta property="og:title" content="Memory Layer for LangChain Agents — 0Latency">
+    <meta property="og:description" content="Persistent long-term memory for LangChain agents. Drop-in replacement for ConversationBufferMemory. 3 lines of Python.">
+    <meta property="og:image" content="https://0latency.ai/og-image.png">
+    <meta property="og:site_name" content="0Latency">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Memory Layer for LangChain Agents — 0Latency">
+    <meta name="twitter:description" content="Persistent long-term memory for LangChain agents. Drop-in replacement for ConversationBufferMemory. 3 lines of Python.">
+    <meta name="twitter:image" content="https://0latency.ai/og-image.png">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": "Memory Layer for LangChain Agents — 0Latency",
+      "description": "How to add persistent long-term memory to LangChain agents using the 0Latency Python SDK. Drop-in replacement for built-in memory classes.",
+      "url": "https://0latency.ai/integrations/langchain.html",
+      "author": { "@type": "Person", "name": "Justin Ghiglia" },
+      "publisher": { "@type": "Organization", "name": "0Latency", "url": "https://0latency.ai/" },
+      "datePublished": "2026-03-22",
+      "proficiencyLevel": "Beginner",
+      "dependencies": "Python 3.9+, langchain, zero-latency-sdk",
+      "about": {
+        "@type": "SoftwareApplication",
+        "name": "0Latency",
+        "applicationCategory": "DeveloperApplication",
+        "url": "https://0latency.ai/"
+      }
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --border: #1e1e2e;
+            --text: #e4e4e7;
+            --text-dim: #71717a;
+            --accent: #f97316;
+            --accent-glow: rgba(249, 115, 22, 0.15);
+            --green: #34d399;
+            --orange: #fb923c;
+            --red: #f87171;
+        }
+        body {
+            font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image:
+                linear-gradient(rgba(249, 115, 22, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(249, 115, 22, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: -1;
+        }
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 3rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .logo { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px; }
+        .logo span { color: var(--accent); }
+        .logo a { color: var(--text); text-decoration: none; }
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            margin-left: 2rem;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--text); }
+        .nav-links .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            padding: 0.5rem 1.2rem;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .nav-links .btn-primary:hover { opacity: 0.9; }
+        article { max-width: 760px; margin: 0 auto; padding: 4rem 2rem 6rem; }
+        .breadcrumb { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 2rem; }
+        .breadcrumb a { color: var(--accent); text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 1rem;
+            line-height: 1.15;
+        }
+        h1 .gradient {
+            background: linear-gradient(135deg, var(--accent), #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .lead { font-size: 1.15rem; color: var(--text-dim); margin-bottom: 3rem; }
+        h2 { font-size: 1.5rem; font-weight: 700; margin-top: 3rem; margin-bottom: 1rem; letter-spacing: -0.3px; }
+        h3 { font-size: 1.15rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.75rem; }
+        p { margin-bottom: 1rem; }
+        a { color: var(--accent); }
+        pre {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+            font-size: 0.88rem;
+            line-height: 1.6;
+        }
+        code {
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.88rem;
+        }
+        p code, li code, td code {
+            background: rgba(249, 115, 22, 0.1);
+            color: var(--accent);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+        .callout {
+            background: var(--surface);
+            border-left: 3px solid var(--accent);
+            padding: 1.25rem 1.5rem;
+            border-radius: 0 8px 8px 0;
+            margin: 2rem 0;
+        }
+        ul, ol { margin: 1rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.5rem; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2rem 0;
+            font-size: 0.9rem;
+        }
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border: 1px solid var(--border);
+        }
+        th {
+            background: var(--surface);
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        td { background: var(--bg); }
+        .check { color: var(--green); }
+        .cross { color: var(--red); }
+        .partial { color: var(--orange); }
+        .cta {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 3rem;
+            text-align: center;
+            margin-top: 4rem;
+        }
+        .cta h2 { margin-top: 0; }
+        .cta p { color: var(--text-dim); }
+        .cta .btn {
+            display: inline-block;
+            background: var(--accent);
+            color: #fff;
+            padding: 0.8rem 2rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .cta .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--accent-glow); }
+        .integrations-nav {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+        }
+        .integrations-nav h3 { color: var(--text-dim); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .integrations-nav ul { list-style: none; margin-left: 0; display: flex; gap: 1.5rem; flex-wrap: wrap; }
+        .integrations-nav li { margin: 0; }
+        .integrations-nav a { text-decoration: none; font-weight: 500; }
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 2rem 3rem;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+        footer a { color: var(--accent); text-decoration: none; }
+        @media (max-width: 640px) {
+            nav { padding: 1rem 1.5rem; }
+            article { padding: 2rem 1.5rem 4rem; }
+            h1 { font-size: 1.8rem; }
+            table { font-size: 0.8rem; }
+            th, td { padding: 0.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo"><a href="https://0latency.ai/" style="text-decoration:none;color:#e4e4e7;"><span style="color:#f97316;">0</span>Latency</a></div>
+        <div class="nav-links">
+            <a href="https://0latency.ai/">Home</a>
+            <a href="https://0latency.ai/integrations/">Integrations</a>
+            <a href="https://0latency.ai/blog/why-your-agent-forgets.html">Blog</a>
+            <a href="https://api.0latency.ai/docs">Docs</a>
+            <a href="https://api.0latency.ai/docs" class="btn-primary">Get Started</a>
+        </div>
+    </nav>
+
+    <article>
+        <div class="breadcrumb">
+            <a href="https://0latency.ai/">Home</a> → <a href="https://0latency.ai/integrations/">Integrations</a> → LangChain
+        </div>
+
+        <h1><span class="gradient">Memory Layer for LangChain Agents</span></h1>
+        <p class="lead">LangChain gives you powerful agent frameworks — but its built-in memory is session-scoped and lossy. 0Latency adds persistent, structured long-term memory that works across sessions, handles contradictions, and respects your context budget. Three lines of Python.</p>
+
+        <h2>The Problem: Built-in Memory Doesn't Scale</h2>
+
+        <p>LangChain ships several memory classes. Every one of them has a fundamental limitation:</p>
+
+        <ul>
+            <li><strong><code>ConversationBufferMemory</code></strong> stores everything — until the context window fills up. Then you're truncating from the front, losing your earliest (often most important) context. It's a FIFO queue pretending to be memory.</li>
+            <li><strong><code>ConversationSummaryMemory</code></strong> compresses via summarization. But summarization is lossy. Nuances, specific numbers, negative preferences ("never use yarn") — these get averaged into oblivion. The summary says what happened in broad strokes; it can't tell you what <em>mattered</em>.</li>
+            <li><strong><code>VectorStoreMemory</code></strong> does similarity search, which sounds right but isn't. Similarity isn't relevance. The most semantically similar past conversation might be completely irrelevant to what the agent needs right now. And vector search has no concept of time — a preference from six months ago ranks the same as one from yesterday.</li>
+        </ul>
+
+        <p>Worse, all three are <strong>session-scoped by default</strong>. When the Python process exits, the memory is gone. You can persist to a vector store or database, but now you're building your own memory infrastructure — deduplication, contradiction handling, temporal decay, relevance scoring. That's a product, not a weekend project.</p>
+
+        <h2>The Solution: 0Latency as Your Memory Backend</h2>
+
+        <p>0Latency replaces LangChain's memory classes with a purpose-built memory layer. The integration is three lines:</p>
+
+        <pre><code>pip install zero-latency-sdk</code></pre>
+
+        <pre><code>from zero_latency import Memory
+
+mem = Memory("your-api-key")
+
+# Store a memory
+mem.add("User prefers Python and deploys to AWS us-east-1")
+
+# Recall — sub-100ms, always
+context = mem.recall("Set up the deployment pipeline")</code></pre>
+
+        <p>That's it. <code>.add()</code> stores memories (extraction happens asynchronously — your agent never waits). <code>.recall()</code> returns the most relevant memories in under 100ms. Everything else — deduplication, temporal scoring, contradiction detection, knowledge graph construction — happens automatically. No configuration.</p>
+
+        <h3>Full LangChain Agent Example</h3>
+
+        <pre><code>from langchain.agents import AgentExecutor, create_openai_tools_agent
+from langchain_openai import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from zero_latency import Memory
+
+# Initialize — that's all the setup you need
+mem = Memory("your-api-key")
+
+# Build agent
+llm = ChatOpenAI(model="gpt-4o")
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful support agent.\n\nRelevant memory:\n{memory_context}"),
+    MessagesPlaceholder("chat_history"),
+    ("human", "{input}"),
+    MessagesPlaceholder("agent_scratchpad"),
+])
+
+agent = create_openai_tools_agent(llm, tools=[], prompt=prompt)
+executor = AgentExecutor(agent=agent, tools=[])
+
+# Conversation loop with persistent memory
+def chat(user_input, chat_history):
+    # Recall relevant memories — sub-100ms
+    recalled = mem.recall(user_input)
+
+    result = executor.invoke({
+        "input": user_input,
+        "chat_history": chat_history,
+        "memory_context": recalled.text,
+    })
+
+    # Store new memories — returns instantly, processes in background
+    mem.add(f"User: {user_input}\nAssistant: {result['output']}")
+
+    return result["output"]</code></pre>
+
+        <p>The agent now remembers across sessions. Restart the process, come back tomorrow, deploy to a different server — <code>recall()</code> returns the same memories because they're stored in 0Latency, not in local Python objects.</p>
+
+        <h2>What You Get vs. Built-in Memory</h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>BufferMemory</th>
+                    <th>SummaryMemory</th>
+                    <th>VectorStore</th>
+                    <th>0Latency</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Cross-session persistence</td>
+                    <td class="cross">✗</td>
+                    <td class="cross">✗</td>
+                    <td class="check">✓</td>
+                    <td class="check">✓</td>
+                </tr>
+                <tr>
+                    <td>Lossless extraction</td>
+                    <td class="partial">~truncates</td>
+                    <td class="cross">✗ lossy</td>
+                    <td class="check">✓</td>
+                    <td class="check">✓</td>
+                </tr>
+                <tr>
+                    <td>Temporal decay</td>
+                    <td class="cross">✗</td>
+                    <td class="cross">✗</td>
+                    <td class="cross">✗</td>
+                    <td class="check">✓</td>
+                </tr>
+                <tr>
+                    <td>Contradiction detection</td>
+                    <td class="cross">✗</td>
+                    <td class="cross">✗</td>
+                    <td class="cross">✗</td>
+                    <td class="check">✓</td>
+                </tr>
+                <tr>
+                    <td>Negative recall</td>
+                    <td class="cross">✗</td>
+                    <td class="cross">✗</td>
+                    <td class="cross">✗</td>
+                    <td class="check">✓</td>
+                </tr>
+                <tr>
+                    <td>Context budget</td>
+                    <td class="cross">✗ full dump</td>
+                    <td class="partial">~fixed size</td>
+                    <td class="partial">~top-k</td>
+                    <td class="check">✓ token-aware</td>
+                </tr>
+                <tr>
+                    <td>Knowledge graph</td>
+                    <td class="cross">✗</td>
+                    <td class="cross">✗</td>
+                    <td class="cross">✗</td>
+                    <td class="check">✓</td>
+                </tr>
+                <tr>
+                    <td>Setup complexity</td>
+                    <td class="check">1 line</td>
+                    <td class="check">1 line</td>
+                    <td class="partial">10+ lines</td>
+                    <td class="check">3 lines</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>How 0Latency Memory Actually Works</h2>
+
+        <p>When you call <code>extract()</code>, the API doesn't just store raw text. It runs a multi-stage pipeline:</p>
+
+        <ol>
+            <li><strong>Fact extraction.</strong> The conversation is analyzed for discrete facts, decisions, preferences, and commitments. "The user wants dark mode and deploys to AWS us-east-1" becomes two separate memory records.</li>
+            <li><strong>Deduplication.</strong> If the user already said they want dark mode, the existing memory is reinforced (boosting its temporal score) rather than duplicated.</li>
+            <li><strong>Contradiction check.</strong> If the user previously said "deploy to GCP" and now says "deploy to AWS," both memories are flagged with the contradiction and the newer one is marked as the current state.</li>
+            <li><strong>Graph linking.</strong> Related memories are connected. "Uses Clerk for auth" links to "Clerk webhook at /api/webhook" links to "webhook secret in .env.local." Recalling any one of these can surface the others.</li>
+        </ol>
+
+        <p>When you call <code>recall()</code>, results are ranked by a composite score that blends semantic relevance, temporal recency, reinforcement count, priority, and graph proximity. You get the most useful memories — not just the most similar ones.</p>
+
+        <div class="callout">
+            <strong>Context budget:</strong> Pass <code>max_tokens=2000</code> to <code>recall()</code> and you'll get exactly the highest-value memories that fit within 2,000 tokens. No manual truncation. No guessing.
+        </div>
+
+        <h2>Pricing</h2>
+
+        <p>Free tier: 1,000 memories, 10,000 recall queries/month. No credit card, no expiration. Pro ($29/month): unlimited. If your LangChain agent handles moderate traffic, free tier is enough. For production deployments with hundreds of users, Pro scales without limits.</p>
+
+        <div class="cta">
+            <h2>Give your LangChain agent long-term memory</h2>
+            <p>Three lines of Python. Memories that persist across sessions, handle contradictions, and respect your context budget.</p>
+            <a href="https://api.0latency.ai/docs" class="btn">Try 0Latency Free →</a>
+        </div>
+
+        <div class="integrations-nav">
+            <h3>Other Integrations</h3>
+            <ul>
+                <li><a href="openclaw.html">🦞 OpenClaw</a></li>
+                <li><a href="crewai.html">🚀 CrewAI</a></li>
+                <li><a href="autogen.html">🤖 AutoGen</a></li>
+                <li><a href="https://api.0latency.ai/docs">📖 REST API</a></li>
+            </ul>
+        </div>
+    </article>
+
+    <footer>
+        <p>© 2026 0Latency. Built by <a href="https://github.com/jghiglia2380">Justin Ghiglia</a>.</p>
+    </footer>
+</body>
+</html>

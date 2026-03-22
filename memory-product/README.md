@@ -1,129 +1,207 @@
-# ⚡ Zero Latency Memory
+<p align="center">
+  <h1 align="center">0Latency</h1>
+  <p align="center"><strong>Memory Layer for AI Agents</strong></p>
+  <p align="center"><em>It just works. Zero latency. No configuration.</em></p>
+</p>
 
-Structured memory extraction, storage, and recall for AI agents. Your agent remembers everything — across sessions, compactions, and restarts.
+<p align="center">
+  <a href="https://github.com/0latency-ai/0latency/actions"><img src="https://img.shields.io/github/actions/workflow/status/0latency-ai/0latency/ci.yml?branch=main&label=tests&style=flat-square" alt="Tests"></a>
+  <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square" alt="License"></a>
+  <a href="https://pypi.org/project/0latency/"><img src="https://img.shields.io/pypi/pyversions/0latency?style=flat-square" alt="Python"></a>
+  <a href="https://www.npmjs.com/package/@0latency/sdk"><img src="https://img.shields.io/npm/v/@0latency/sdk?style=flat-square&label=npm" alt="npm"></a>
+  <a href="https://discord.gg/0latency"><img src="https://img.shields.io/discord/000000000000000000?style=flat-square&label=discord" alt="Discord"></a>
+</p>
+
+---
+
+## Philosophy
+
+**We decide how memory works. You build your agent.**
+
+0Latency is opinionated by design. There are no latency settings to tune, no performance knobs to configure, no scoring parameters to adjust. Sub-100ms recall, always, by default. Extraction is always async under the hood — your agent never waits. These aren't features you enable. They're how the system works.
+
+Three rules:
+1. **Recall is always sync, always fast.** Sub-100ms. Every time.
+2. **Extraction accepts instantly, processes in background.** Your agent never blocks.
+3. **Partial results beat blocking.** If extraction is still processing, recall returns what's ready.
 
 ## The Problem
 
-Every AI agent has the same memory problem: context windows fill up, compaction loses important details, and the agent wakes up each session as a blank slate. We measured a **36% loss rate** on critical decisions and facts after a single compaction event.
+AI agents forget everything between sessions. Context windows compress and discard. Sessions reset to zero. The "memory" solutions that exist today — vector databases for raw embeddings, flat files, chat log replay — solve the wrong problem. They store text. They don't understand what matters, what changed, or what your agent actually needs to know right now.
 
-## The Solution
+**Agents don't need a database. They need a memory.**
 
-Zero Latency Memory extracts structured memories from conversations in real-time, stores them with semantic embeddings, and recalls the most relevant ones on demand — all within a token budget you control.
+## What 0Latency Does
 
-### Key Capabilities
+Everything below happens automatically. You don't configure any of it.
 
-- **Automatic extraction** — facts, preferences, decisions, relationships, corrections identified from natural conversation
-- **Smart recall** — composite scoring: semantic similarity (0.4) + recency (0.35) + importance (0.15) + access frequency (0.1)
-- **Contradiction detection** — new info automatically supersedes old info
-- **Multi-tenant** — full Row Level Security isolation between tenants
-- **Budget-aware** — never exceeds your token limit; tiered loading (L0 headlines, L1 full context)
-- **Self-correcting** — corrections cascade, old facts are superseded, not deleted
+- **Automatic memory extraction** — Memories are extracted from conversations asynchronously. Your agent calls `.add()` and gets an instant acknowledgment. Processing happens in the background.
+- **6 structured memory types** — Facts, preferences, decisions, corrections, tasks, and relationships. Not a blob of embeddings — typed, queryable, composable memory.
+- **Temporal dynamics** — Memories aren't static. Reinforcement strengthens frequently-accessed memories. Time-based decay fades what's no longer relevant. Your agent's memory evolves like a human's.
+- **Proactive recall with context budgets** — L0 (always loaded), L1 (session-relevant), L2 (on-demand). Context budgets are managed automatically so your agent gets the right memories without blowing its context window.
+- **Graph memory via Postgres** — Relationship traversal through recursive CTEs. Entity graphs, connection paths, influence mapping — all in Postgres. No Neo4j. No extra infrastructure.
+- **Negative recall** — Your agent knows what it *doesn't* know. "I have no memory of their dietary preferences" is more useful than silence.
+- **Contradiction detection** — When new information conflicts with existing memory, 0Latency detects it, resolves it, and cascades corrections to dependent memories.
+- **Session handoff** — Memories survive context compaction, session restarts, and agent swaps. The next session picks up where the last one left off.
+- **Webhooks & batch ops** — Subscribe to memory events. Bulk import/export. Memory versioning with full history.
 
 ## Quick Start
 
-```bash
-# Store a memory
-curl -X POST https://your-server/api/v1/extract \
-  -H "X-API-Key: zl_live_your_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agent_id": "my_agent",
-    "human_message": "I live in Portland and my dog is named Kona",
-    "agent_message": "Portland is great! What breed is Kona?"
-  }'
+### Install
 
-# Recall relevant context
-curl -X POST https://your-server/api/v1/recall \
-  -H "X-API-Key: zl_live_your_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agent_id": "my_agent",
-    "conversation_context": "pet-friendly restaurant recommendations",
-    "budget_tokens": 1000
-  }'
+```bash
+pip install 0latency
 ```
 
-## API Endpoints
+### Use
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | /extract | API key | Extract memories from a conversation turn |
-| POST | /extract/batch | API key | Extract from multiple turns at once (up to 50) |
-| POST | /recall | API key | Recall relevant memories within token budget |
-| GET | /memories | API key | List memories with pagination and type filter |
-| GET | /memories/search | API key | Search memories by keyword |
-| GET | /memories/export | API key | Export all memories as JSON (GDPR) |
-| DELETE | /memories/{id} | API key | Delete a specific memory |
-| GET | /usage | API key | Per-endpoint usage breakdown |
-| GET | /tenant-info | API key | Current tenant details |
-| GET | /health | None | DB connectivity + pool + Redis status |
-| GET | /dashboard | None | Browser-based tenant dashboard |
+```python
+from zero_latency import Memory
 
-### Admin Endpoints (localhost only)
+mem = Memory("your-api-key")
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | /api-keys | Create tenant |
-| POST | /admin/rotate-key/{id} | Rotate API key (old key immediately invalid) |
-| POST | /admin/revoke-key/{id} | Revoke access |
-| POST | /admin/reactivate/{id} | Restore access |
-| GET | /admin/tenants | List all tenants |
+# Store a memory — returns instantly, extracts in background
+mem.add("User is allergic to shellfish and prefers window seats")
+
+# Recall — sub-100ms, always
+memories = mem.recall("Book a flight and dinner for the user")
+# → [fact] User is allergic to shellfish
+# → [preference] User prefers window seats
+```
+
+That's it. No configuration. No tuning. No schema. It just works.
 
 ## Architecture
 
 ```
-Client → nginx (HTTPS + /api/v1/) → FastAPI (uvicorn, 2 workers)
-                                        ↓
-                                   psycopg2 pool (2-10 conns)
-                                        ↓
-                                   Supabase PostgreSQL + pgvector
-                                        ↓
-                                   Row Level Security per tenant
+Conversation → Extraction → Storage → Recall → Agent Context
+                  │              │          │
+            Gemini Flash    Postgres    Composite
+              2.0          + pgvector    Scoring
+                                            │
+                                    ┌───────┴────────┐
+                                    │  semantic sim   │
+                                    │  recency decay  │
+                                    │  importance wt  │
+                                    │  access freq    │
+                                    └────────────────┘
 ```
 
-### Security
+**Extraction** — Gemini Flash 2.0 identifies and classifies memories from raw conversation. Fast, cheap, accurate.
 
-- **SQL injection**: Parameterized queries (psycopg2) on all paths — storage, recall, API layer
-- **Tenant isolation**: PostgreSQL RLS + verified via cross-tenant penetration test
-- **Credentials**: Environment variables only, zero hardcoded secrets
-- **Auth**: SHA-256 hashed API keys with Redis-cached lookups (30s TTL)
-- **Rate limiting**: Redis-backed, survives restarts, per-tenant
-- **CORS**: Configurable origin allowlist (not `*`)
-- **Input validation**: Pydantic models with length limits on all fields
-- **Error sanitization**: No DB internals in error responses
-- **Swagger**: Restricted to localhost via nginx
-- **Admin endpoints**: Localhost IP allowlist + admin key
+**Storage** — Postgres with pgvector. Memories are stored with embeddings, metadata, timestamps, type classifications, and relationship edges. One database. No graph DB tax.
 
-### Performance
+**Recall** — Composite scoring blends semantic similarity, recency, importance weight, and access frequency. Context budget management ensures you only load what fits.
 
-- **Embedding cache**: 5-minute TTL, 500-entry LRU (37% faster repeat queries)
-- **Response cache**: 1-minute TTL for identical recall queries
-- **Tenant auth cache**: 30-second Redis-backed (eliminates DB lookup per request)
-- **Connection pool**: psycopg2 ThreadedConnectionPool (min 2, max 10)
-- **Concurrency**: Load tested with 10 parallel health, 5 parallel recall, 3 parallel extract
+## How It's Different
 
-## Plans
+| Feature | 0Latency | Mem0 | Zep | Letta |
+|---|:---:|:---:|:---:|:---:|
+| Structured memory types | ✅ 6 types | ❌ Flat | ⚠️ Limited | ⚠️ Limited |
+| Temporal dynamics (decay + reinforcement) | ✅ | ❌ | ❌ | ❌ |
+| Context budget management (L0/L1/L2) | ✅ | ❌ | ❌ | ❌ |
+| Proactive recall | ✅ | ❌ | ⚠️ | ❌ |
+| Graph memory | ✅ Postgres CTEs | ❌ | ❌ | ❌ |
+| Negative recall | ✅ | ❌ | ❌ | ❌ |
+| Contradiction detection | ✅ | ❌ | ⚠️ | ❌ |
+| No extra infra (Neo4j, Redis, etc.) | ✅ Postgres only | ⚠️ | ⚠️ | ❌ |
+| Session handoff / compaction survival | ✅ | ❌ | ⚠️ | ✅ |
+| Self-hosted option | ✅ | ✅ | ✅ | ✅ |
 
-| | Free | Pro | Enterprise |
-|---|---|---|---|
-| Memories | 1,000 | 50,000 | 500,000 |
-| Rate limit | 20/min | 100/min | 500/min |
-| Price | $0 | $19/mo | Custom |
+## API Reference
 
-## Running Tests
+Full documentation: [0latency.ai/docs](https://0latency.ai/docs)
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/v1/extract` | `POST` | Extract memories from a conversation |
+| `/v1/recall` | `POST` | Retrieve relevant memories for a query |
+| `/v1/memories` | `GET` | List memories for an agent (filterable) |
+| `/v1/memories/{id}` | `GET` | Get a specific memory with history |
+| `/v1/memories/{id}` | `PATCH` | Update a memory manually |
+| `/v1/memories/{id}` | `DELETE` | Delete a memory |
+| `/v1/health` | `GET` | Service health check |
+
+### Example: Extract
 
 ```bash
-python3 tests/test_api_full.py
-# 58 tests: health, auth, CRUD, recall, SQL injection, tenant isolation,
-# key lifecycle, validation, dashboard — all automated
+curl -X POST https://api.0latency.ai/v1/extract \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "my-agent",
+    "messages": [
+      {"role": "user", "content": "My birthday is March 15th"}
+    ]
+  }'
 ```
 
-## Docs
+### Example: Recall
 
-- [Quickstart](docs/QUICKSTART.md)
-- [API Reference](docs/API_REFERENCE.md)
-- [Dashboard](https://your-server/dashboard)
+```bash
+curl -X POST https://api.0latency.ai/v1/recall \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "my-agent",
+    "query": "When is the users birthday?",
+    "max_tokens": 500
+  }'
+```
+
+## SDKs
+
+### Python
+
+```bash
+pip install 0latency
+```
+
+```python
+from zero_latency import Memory
+mem = Memory("your-api-key")
+```
+
+### TypeScript / JavaScript
+
+```bash
+npm install @0latency/sdk
+```
+
+```typescript
+import { Memory } from '@0latency/sdk';
+const mem = new Memory('your-api-key');
+```
+
+## Pricing
+
+| Plan | Price | Memories | Features |
+|---|---|---|---|
+| **Free** | $0/mo | 50 memories | 1 agent, core API, community support |
+| **Pro** | $9/mo | 10,000 memories | Unlimited agents, webhooks, priority support |
+| **API** | $19–49/mo | 100K–1M memories | Volume pricing, SLA, batch operations, dedicated support |
+
+> **Pro tip:** The Pro plan is available as an [OpenClaw](https://openclaw.com) skill — plug memory into your agent in one line.
+
+## Links
+
+- 🌐 **Website:** [0latency.ai](https://0latency.ai)
+- 📖 **Docs:** [0latency.ai/docs](https://0latency.ai/docs)
+- 💬 **Discord:** [discord.gg/0latency](https://discord.gg/0latency)
+- 🐦 **Twitter:** [@0latency_ai](https://twitter.com/0latency_ai)
+- 🐙 **GitHub:** [github.com/0latency-ai](https://github.com/0latency-ai)
+
+## Contributing
+
+We welcome contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+Apache 2.0 — see [LICENSE](LICENSE) for details.
 
 ---
 
-*Built from a compaction failure. Hardened through four gap analyses. Shipping this week.*
+<p align="center">
+  <strong>Built for agents that need to remember.</strong><br>
+  <a href="https://0latency.ai">Get started →</a>
+</p>

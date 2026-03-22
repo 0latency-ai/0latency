@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pricing — 0Latency</title>
+    <meta name="description" content="Simple, transparent pricing for AI agent memory. Start free, scale without limits.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0a0a0f;
+            color: #e4e4e7;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+        }
+
+        /* Nav */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.25rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #fff;
+            text-decoration: none;
+        }
+        
+        .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+        .nav-links a {
+            color: #a0a0a0;
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: #fff; }
+        .nav-links .btn-nav {
+            background: #f97316;
+            color: #fff;
+            padding: 0.5rem 1.25rem;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        .nav-links .btn-nav:hover { background: #ea580c; }
+
+        /* Hero */
+        .hero {
+            text-align: center;
+            padding: 4rem 2rem 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 1rem;
+            line-height: 1.1;
+        }
+        .hero h1 span { color: #f97316; }
+        .hero p {
+            font-size: 1.2rem;
+            color: #71717a;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Pricing Grid — 4 columns */
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.25rem;
+            max-width: 1200px;
+            margin: 3rem auto;
+            padding: 0 2rem;
+            align-items: start;
+        }
+
+        .plan {
+            background: #12121a;
+            border: 1px solid #1e1e2e;
+            border-radius: 16px;
+            padding: 2.25rem 1.75rem;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .plan:hover {
+            transform: translateY(-4px);
+        }
+        .plan.featured {
+            border: 2px solid #f97316;
+            position: relative;
+            background: linear-gradient(180deg, #1a1520 0%, #12121a 100%);
+            box-shadow: 0 0 30px rgba(249, 115, 22, 0.15);
+            transform: scale(1.03);
+        }
+        .plan.featured:hover {
+            transform: scale(1.03) translateY(-4px);
+        }
+        .plan.featured::before {
+            content: 'MOST POPULAR';
+            position: absolute;
+            top: -13px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #f97316, #fb923c);
+            color: #fff;
+            padding: 0.3rem 1.25rem;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            white-space: nowrap;
+        }
+
+        .plan-name {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 0.4rem;
+        }
+        .plan-desc {
+            color: #71717a;
+            font-size: 0.85rem;
+            margin-bottom: 1.25rem;
+            min-height: 2rem;
+        }
+
+        .plan-price {
+            margin-bottom: 1.25rem;
+        }
+        .plan-price .amount {
+            font-size: 2.75rem;
+            font-weight: 800;
+            color: #fff;
+        }
+        .plan-price .period {
+            color: #71717a;
+            font-size: 0.95rem;
+        }
+
+        .plan-features {
+            list-style: none;
+            flex: 1;
+            margin-bottom: 1.75rem;
+        }
+        .plan-features li {
+            padding: 0.4rem 0;
+            color: #c0c0c0;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+        .plan-features li::before {
+            content: '✓';
+            color: #f97316;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .plan-btn {
+            display: block;
+            text-align: center;
+            padding: 0.8rem 1.25rem;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            text-decoration: none;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+        }
+        .plan-btn.primary {
+            background: #f97316;
+            color: #fff;
+        }
+        .plan-btn.primary:hover {
+            background: #fb923c;
+            transform: translateY(-1px);
+        }
+        .plan-btn.secondary {
+            background: transparent;
+            border: 1px solid #1e1e2e;
+            color: #e4e4e7;
+        }
+        .plan-btn.secondary:hover {
+            border-color: #f97316;
+            color: #fff;
+        }
+
+        /* Checkout status */
+        .checkout-banner {
+            display: none;
+            max-width: 600px;
+            margin: 1rem auto;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: 600;
+        }
+        .checkout-banner.success {
+            display: block;
+            background: #064e3b;
+            color: #6ee7b7;
+            border: 1px solid #10b981;
+        }
+        .checkout-banner.cancelled {
+            display: block;
+            background: #451a03;
+            color: #fbbf24;
+            border: 1px solid #f59e0b;
+        }
+
+        /* Comparison Banner */
+        .compare-banner {
+            max-width: 800px;
+            margin: 2rem auto 0;
+            padding: 1.5rem 2rem;
+            text-align: center;
+            border: 1px solid #1e1e2e;
+            border-radius: 12px;
+            background: #12121a;
+        }
+        .compare-banner p {
+            font-size: 1.1rem;
+            color: #e4e4e7;
+            font-weight: 600;
+        }
+        .compare-banner p span.highlight {
+            color: #f97316;
+        }
+        .compare-banner .subtext {
+            font-size: 0.85rem;
+            color: #71717a;
+            font-weight: 400;
+            margin-top: 0.4rem;
+        }
+
+        /* FAQ */
+        .faq {
+            max-width: 700px;
+            margin: 4rem auto;
+            padding: 0 2rem;
+        }
+        .faq h2 {
+            font-size: 2rem;
+            color: #fff;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .faq-item {
+            border-bottom: 1px solid #1e1e2e;
+            padding: 1.25rem 0;
+        }
+        .faq-item h3 {
+            color: #fff;
+            font-size: 1.05rem;
+            margin-bottom: 0.5rem;
+        }
+        .faq-item p {
+            color: #71717a;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: #555;
+            font-size: 0.85rem;
+        }
+        footer a { color: #f97316; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 1024px) {
+            .pricing-grid { grid-template-columns: repeat(2, 1fr); max-width: 700px; }
+        }
+        @media (max-width: 640px) {
+            .pricing-grid { grid-template-columns: 1fr; max-width: 400px; }
+            .hero h1 { font-size: 2rem; }
+            .plan.featured { transform: scale(1); }
+            .plan.featured:hover { transform: translateY(-4px); }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="/" class="logo" style="text-decoration:none;color:#e4e4e7;"><span style="color:#f97316;">0</span>Latency</a>
+    <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="https://api.0latency.ai/docs">Docs</a>
+        <a href="/support.html">Support</a>
+        <a href="/login.html" class="btn-nav">Sign In</a>
+    </div>
+</nav>
+
+<div class="checkout-banner" id="checkout-banner"></div>
+
+<section class="hero">
+    <h1>Simple, <span>transparent</span> pricing</h1>
+    <p>Start free. Scale without limits. No contracts, cancel anytime.</p>
+</section>
+
+<div class="pricing-grid">
+    <!-- Free -->
+    <div class="plan">
+        <div class="plan-name">Free</div>
+        <div class="plan-desc">Get started with agent memory</div>
+        <div class="plan-price">
+            <span class="amount">$0</span>
+            <span class="period">/month</span>
+        </div>
+        <ul class="plan-features">
+            <li>100 memories</li>
+            <li>1 agent</li>
+            <li>Community support</li>
+            <li>7-day memory retention</li>
+        </ul>
+        <a href="/login.html" class="plan-btn secondary">Get Started Free</a>
+    </div>
+
+    <!-- Pro -->
+    <div class="plan">
+        <div class="plan-name">Pro</div>
+        <div class="plan-desc">For production AI applications</div>
+        <div class="plan-price">
+            <span class="amount">$19</span>
+            <span class="period">/month</span>
+        </div>
+        <ul class="plan-features">
+            <li>50,000 memories</li>
+            <li>5 agents</li>
+            <li>Full API access</li>
+            <li>90-day memory retention</li>
+            <li>Email support</li>
+        </ul>
+        <button onclick="startCheckout('pro')" class="plan-btn secondary" id="pro-btn">Get Started</button>
+    </div>
+
+    <!-- Scale (Featured) -->
+    <div class="plan featured">
+        <div class="plan-name">Scale</div>
+        <div class="plan-desc">Unlimited everything, zero limits</div>
+        <div class="plan-price">
+            <span class="amount">$99</span>
+            <span class="period">/month</span>
+        </div>
+        <ul class="plan-features">
+            <li>Unlimited memories</li>
+            <li>Unlimited agents</li>
+            <li>Graph relationships</li>
+            <li>Unlimited retention</li>
+            <li>Priority support</li>
+            <li>Custom webhooks</li>
+        </ul>
+        <button onclick="startCheckout('scale')" class="plan-btn primary" id="scale-btn">Get Started</button>
+    </div>
+
+    <!-- Enterprise -->
+    <div class="plan">
+        <div class="plan-name">Enterprise</div>
+        <div class="plan-desc">Custom deployments &amp; SLAs</div>
+        <div class="plan-price">
+            <span class="amount">Custom</span>
+        </div>
+        <ul class="plan-features">
+            <li>Everything in Scale</li>
+            <li>Dedicated infrastructure</li>
+            <li>Custom SLAs</li>
+            <li>SSO / SAML</li>
+            <li>Dedicated support engineer</li>
+        </ul>
+        <a href="mailto:justin@0latency.ai?subject=Enterprise%20Inquiry" class="plan-btn secondary">Contact Us</a>
+    </div>
+</div>
+
+<div class="compare-banner">
+    <p>Everything Mem0 charges $249 for. <span class="highlight">We give you at $99.</span></p>
+    <p class="subtext">Unlimited memories, unlimited agents, graph relationships — no surprise bills.</p>
+</div>
+
+<section class="faq">
+    <h2>FAQ</h2>
+    <div class="faq-item">
+        <h3>What counts as a "memory"?</h3>
+        <p>Each extracted fact, preference, or relationship from a conversation turn is one memory. A single conversation turn typically produces 1–5 memories.</p>
+    </div>
+    <div class="faq-item">
+        <h3>Can I switch plans anytime?</h3>
+        <p>Yes. Upgrade instantly, downgrade at end of billing period. No contracts, cancel anytime.</p>
+    </div>
+    <div class="faq-item">
+        <h3>What happens if I hit my memory limit?</h3>
+        <p>Extract calls will return a 429 error. Recall continues to work. Upgrade to a higher plan for more capacity.</p>
+    </div>
+    <div class="faq-item">
+        <h3>What's the difference between Pro and Scale?</h3>
+        <p>Pro gives you 50K memories with 5 agents — great for most production apps. Scale removes all limits: unlimited memories, unlimited agents, graph relationships, and custom webhooks.</p>
+    </div>
+    <div class="faq-item">
+        <h3>Do you offer annual billing?</h3>
+        <p>Not yet — but it's coming soon with a discount. Subscribe monthly for now.</p>
+    </div>
+</section>
+
+<footer>
+    &copy; 2025 0Latency. <a href="/support.html">Support</a> · <a href="https://api.0latency.ai/docs">API Docs</a>
+</footer>
+
+<script>
+    // Check for checkout status
+    const params = new URLSearchParams(window.location.search);
+    const banner = document.getElementById('checkout-banner');
+    if (params.get('checkout') === 'success') {
+        banner.className = 'checkout-banner success';
+        banner.textContent = '🎉 Subscription activated! Welcome aboard.';
+    } else if (params.get('checkout') === 'cancelled') {
+        banner.className = 'checkout-banner cancelled';
+        banner.textContent = 'Checkout cancelled. No charges were made.';
+    }
+
+    function getToken() {
+        const match = document.cookie.match(/zl_token=([^;]+)/);
+        if (match) return match[1];
+        return localStorage.getItem('zl_token');
+    }
+
+    async function startCheckout(plan) {
+        const token = getToken();
+        if (!token) {
+            window.location.href = '/login.html?redirect=/pricing.html';
+            return;
+        }
+
+        const btnId = plan === 'scale' ? 'scale-btn' : 'pro-btn';
+        const btn = document.getElementById(btnId);
+        const originalText = btn.textContent;
+        btn.textContent = 'Loading...';
+        btn.disabled = true;
+
+        try {
+            const resp = await fetch('https://api.0latency.ai/billing/create-checkout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ plan: plan }),
+            });
+
+            if (resp.status === 401) {
+                window.location.href = '/login.html?redirect=/pricing.html';
+                return;
+            }
+
+            const data = await resp.json();
+            if (data.checkout_url) {
+                window.location.href = data.checkout_url;
+            } else {
+                throw new Error(data.detail || 'Failed to create checkout');
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    }
+</script>
+
+</body>
+</html>
