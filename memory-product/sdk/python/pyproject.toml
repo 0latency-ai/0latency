@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "zerolatency"
+version = "0.1.0"
+description = "Python SDK for the 0Latency memory API — persistent memory for AI agents."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "0Latency", email = "dev@0latency.ai" }]
+keywords = ["ai", "memory", "agents", "llm", "rag"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+dependencies = ["httpx>=0.24"]
+
+[project.urls]
+Homepage = "https://0latency.ai"
+Documentation = "https://docs.0latency.ai"
+Repository = "https://github.com/0latency/zerolatency-python"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/zerolatency"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "respx>=0.20", "ruff"]
