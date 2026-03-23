@@ -59,13 +59,13 @@ app = FastAPI(
     description="Structured memory extraction, storage, and recall for AI agents.",
 )
 
-_CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "https://164.90.156.169,https://0latency.ai,https://www.0latency.ai,https://api.0latency.ai").split(",")
+_CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "https://164.90.156.169,https://0latency.ai,https://www.0latency.ai,https://api.0latency.ai,http://localhost:3000").split(",")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["X-API-Key", "X-Admin-Key", "Content-Type", "Authorization"],
+    allow_methods=["*"],
+    allow_headers=["*"],
     allow_credentials=True,
 )
 

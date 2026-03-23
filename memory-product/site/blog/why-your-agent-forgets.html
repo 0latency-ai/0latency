@@ -54,11 +54,12 @@
   </script>
 
   <style>
+        html { scroll-behavior: smooth; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #0a0a0f;
-      color: #e4e4e7;
+      background: #fafafa;
+      color: #111827;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
       line-height: 1.7;
       -webkit-font-smoothing: antialiased;
@@ -68,7 +69,11 @@
     a:hover { text-decoration: underline; }
 
     .nav {
-      border-bottom: 1px solid #1e1e2e;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: #ffffff;
+      border-bottom: 1px solid #e5e7eb;
       padding: 1.25rem 2rem;
       display: flex;
       align-items: center;
@@ -76,10 +81,10 @@
       max-width: 1100px;
       margin: 0 auto;
     }
-    .nav-logo { font-weight: 700; font-size: 1.1rem; color: #e4e4e7; letter-spacing: -0.02em; }
+    .nav-logo { font-weight: 700; font-size: 1.1rem; color: #111827; letter-spacing: -0.02em; }
     .nav-logo span { color: #f97316; }
-    .nav-links a { margin-left: 1.5rem; font-size: 0.9rem; color: #a1a1aa; }
-    .nav-links a:hover { color: #e4e4e7; text-decoration: none; }
+    .nav-links a { margin-left: 1.5rem; font-size: 0.9rem; color: #6b7280; }
+    .nav-links a:hover { color: #111827; text-decoration: none; }
 
     .hero {
       max-width: 740px;
@@ -101,19 +106,19 @@
       font-size: 2.4rem;
       line-height: 1.2;
       font-weight: 800;
-      color: #fafafa;
+      color: #111827;
       letter-spacing: -0.03em;
       margin-bottom: 1.25rem;
     }
     .hero .subtitle {
       font-size: 1.15rem;
-      color: #a1a1aa;
+      color: #6b7280;
       line-height: 1.6;
       margin-bottom: 1rem;
     }
     .hero .meta {
       font-size: 0.85rem;
-      color: #71717a;
+      color: #6b7280;
       margin-bottom: 0;
     }
 
@@ -125,29 +130,29 @@
     article h2 {
       font-size: 1.5rem;
       font-weight: 700;
-      color: #fafafa;
+      color: #111827;
       margin: 2.5rem 0 1rem;
       letter-spacing: -0.02em;
     }
     article h3 {
       font-size: 1.15rem;
       font-weight: 600;
-      color: #d4d4d8;
+      color: #374151;
       margin: 2rem 0 0.75rem;
     }
     article p {
       margin-bottom: 1.25rem;
-      color: #d4d4d8;
+      color: #374151;
     }
-    article strong { color: #e4e4e7; }
+    article strong { color: #111827; }
     article ul, article ol {
       margin: 0 0 1.25rem 1.5rem;
-      color: #d4d4d8;
+      color: #374151;
     }
     article li { margin-bottom: 0.4rem; }
 
     .stat-box {
-      background: linear-gradient(135deg, rgba(249, 115, 22, 0.08), rgba(249, 115, 22, 0.03));
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.04), rgba(0, 0, 0, 0.03));
       border: 1px solid rgba(249, 115, 22, 0.15);
       border-radius: 12px;
       padding: 1.75rem;
@@ -161,7 +166,7 @@
     }
     .stat-box .label {
       font-size: 0.95rem;
-      color: #a1a1aa;
+      color: #6b7280;
       margin-top: 0.4rem;
     }
     .stat-row {
@@ -173,8 +178,8 @@
     .stat-row .stat-box { text-align: center; }
 
     pre {
-      background: #12121a;
-      border: 1px solid #1e1e2e;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
       border-radius: 10px;
       padding: 1.25rem 1.5rem;
       overflow-x: auto;
@@ -187,30 +192,30 @@
       font-size: 0.85em;
     }
     p code {
-      background: #1e1e2e;
+      background: #f3f4f6;
       padding: 0.15rem 0.4rem;
       border-radius: 4px;
-      color: #c4b5fd;
+      color: #7c3aed;
     }
-    pre code { background: none; padding: 0; color: #d4d4d8; }
+    pre code { background: none; padding: 0; color: #374151; }
 
     .comment { color: #6b7280; }
     .keyword { color: #f97316; }
     .string { color: #34d399; }
     .prop { color: #93c5fd; }
-    .num { color: #fbbf24; }
+    .num { color: #d97706; }
 
     .callout {
-      background: rgba(249, 115, 22, 0.06);
+      background: rgba(249, 115, 22, 0.04);
       border-left: 3px solid #f97316;
       padding: 1.25rem 1.5rem;
       margin: 2rem 0;
       border-radius: 0 8px 8px 0;
     }
-    .callout p { margin-bottom: 0; color: #c4b5fd; }
+    .callout p { margin-bottom: 0; color: #7c3aed; }
 
     .cta-section {
-      background: linear-gradient(135deg, rgba(249, 115, 22, 0.12), rgba(249, 115, 22, 0.06));
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.08), rgba(249, 115, 22, 0.04));
       border: 1px solid rgba(249, 115, 22, 0.2);
       border-radius: 16px;
       padding: 2.5rem;
@@ -218,25 +223,25 @@
       margin: 3rem 0;
     }
     .cta-section h2 { margin-top: 0; }
-    .cta-section p { color: #a1a1aa; max-width: 500px; margin: 0 auto 1.5rem; }
+    .cta-section p { color: #6b7280; max-width: 500px; margin: 0 auto 1.5rem; }
     .cta-btn {
       display: inline-block;
       background: #f97316;
-      color: #0a0a0f;
+      color: #ffffff;
       font-weight: 700;
       padding: 0.85rem 2rem;
       border-radius: 8px;
       font-size: 1rem;
       transition: background 0.2s;
     }
-    .cta-btn:hover { background: #fb923c; text-decoration: none; color: #0a0a0f; }
+    .cta-btn:hover { background: #fb923c; text-decoration: none; color: #ffffff; }
 
     .footer {
-      border-top: 1px solid #1e1e2e;
+      border-top: 1px solid #e5e7eb;
       padding: 2rem;
       text-align: center;
       font-size: 0.85rem;
-      color: #52525b;
+      color: #9ca3af;
       max-width: 740px;
       margin: 0 auto;
     }
@@ -247,16 +252,93 @@
       article { padding: 1.5rem 1.25rem 3rem; }
       .stat-row { grid-template-columns: 1fr; }
     }
-  </style>
+  
+        /* Scroll-triggered fade-in */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    
+        /* Hamburger menu */
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text, #111827);
+            padding: 0.25rem;
+            line-height: 1;
+        }
+        @media (max-width: 768px) {
+            .hamburger { display: block; }
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: #ffffff;
+                border-bottom: 1px solid #e5e7eb;
+                flex-direction: column;
+                padding: 1rem 2rem;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                z-index: 99;
+            }
+            .nav-links.open {
+                display: flex;
+            }
+            .nav-links a {
+                margin-left: 0 !important;
+                padding: 0.6rem 0;
+                border-bottom: 1px solid #f3f4f6;
+            }
+            .nav-links a:last-child { border-bottom: none; }
+        }
+    
+        /* Code block improvements */
+        pre {
+            position: relative;
+            overflow-x: auto;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: #e5e7eb;
+            border: none;
+            border-radius: 4px;
+            padding: 0.25rem 0.6rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.2s;
+            opacity: 0;
+        }
+        pre:hover .copy-btn { opacity: 1; }
+        .copy-btn:hover {
+            background: #f97316;
+            color: #ffffff;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
 
-<nav class="nav">
-  <a href="https://0latency.ai" class="nav-logo"><span>0</span>Latency</a>
-  <div class="nav-links">
-    <a href="https://0latency.ai/docs">Docs</a>
-    <a href="https://0latency.ai/blog">Blog</a>
-    <a href="https://0latency.ai">Get Started</a>
+<nav class="nav" style="background:#ffffff;border-bottom:1px solid #e5e7eb;">
+  <a href="/" class="nav-logo" style="display:flex;align-items:center;text-decoration:none;"><img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="40" style="border-radius:4px;"></a>
+  <button class="hamburger" aria-label="Menu">☰</button>
+        <div class="nav-links">
+    <a href="https://api.0latency.ai/docs">Docs</a>
+    <a href="/blog/why-your-agent-forgets.html">Blog</a>
+    <a href="/pricing.html">Pricing</a>
+    <a href="/" style="color:#f97316;">Get Started</a>
   </div>
 </nav>
 
@@ -283,7 +365,7 @@
 
   <p>We ran a comprehensive gap analysis across Thomas's memory system. We extracted every memory the system had stored and tested whether the agent could actually recall and use them when needed.</p>
 
-  <div class="stat-row">
+  <div class="stat-row fade-in">
     <div class="stat-box">
       <div class="number">329</div>
       <div class="label">Memories extracted</div>
@@ -416,7 +498,7 @@
 
   <h2>The Results</h2>
 
-  <div class="stat-row">
+  <div class="stat-row fade-in">
     <div class="stat-box">
       <div class="number">95%+</div>
       <div class="label">Effective recall (was 65%)</div>
@@ -445,7 +527,7 @@
 
   <p>Your agent is forgetting right now. The question is whether you know how much.</p>
 
-  <div class="cta-section">
+  <div class="cta-section fade-in">
     <h2>Stop building memory from scratch</h2>
     <p>0Latency is a memory layer for AI agents. Install, add, recall. Sub-100ms. No configuration. We handle memory so you can build your agent.</p>
     <a href="https://0latency.ai" class="cta-btn">Try 0Latency Free →</a>
@@ -453,9 +535,82 @@
 
 </article>
 
-<footer class="footer">
-  <p>&copy; 2026 0Latency. The memory layer for AI agents.</p>
-</footer>
+<footer style="background:#f1f5f9;border-top:1px solid #e5e7eb;padding:0;margin-top:2rem;">
+        <div style="max-width:1100px;margin:0 auto;padding:3rem 2rem 1.5rem;display:grid;grid-template-columns:2fr 1fr 1fr;gap:3rem;">
+            <div>
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+                    <img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="32" style="border-radius:4px;">
+                </div>
+                <p style="color:#6b7280;font-size:0.9rem;line-height:1.6;max-width:300px;">Persistent memory layer for AI agents. Sub-100ms recall, zero configuration. Your agent remembers everything.</p>
+            </div>
+            <div>
+                <h4 style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Product</h4>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    <a href="/pricing.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Pricing</a>
+                    <a href="https://api.0latency.ai/docs" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Docs</a>
+                    <a href="/integrations/" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Integrations</a>
+                    <a href="/blog/why-your-agent-forgets.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Blog</a>
+                    <a href="/support.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Support</a>
+                </div>
+            </div>
+            <div>
+                <h4 style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Resources</h4>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    <a href="https://github.com/jghiglia2380/0Latency" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">GitHub</a>
+                    <a href="https://api.0latency.ai/health" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Status</a>
+                    <a href="/privacy.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Privacy</a>
+                    <a href="/terms.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Terms</a>
+                </div>
+            </div>
+        </div>
+        <div style="max-width:1100px;margin:0 auto;padding:1.5rem 2rem;border-top:1px solid #e5e7eb;text-align:center;">
+            <p style="color:#9ca3af;font-size:0.8rem;">© 2026 0Latency. All rights reserved.</p>
+        </div>
+        <style>
+            footer a:hover { color: #f97316 !important; }
+            @media (max-width: 768px) {
+                footer > div:first-child { grid-template-columns: 1fr !important; gap: 2rem !important; }
+            }
+        </style>
+    </footer>
 
+
+    <!-- Copy button for code blocks -->
+    <script>
+    document.querySelectorAll('pre').forEach(pre => {
+        const btn = document.createElement('button');
+        btn.className = 'copy-btn';
+        btn.textContent = 'Copy';
+        btn.addEventListener('click', () => {
+            const code = pre.querySelector('code') ? pre.querySelector('code').textContent : pre.textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        });
+        pre.style.position = 'relative';
+        pre.appendChild(btn);
+    });
+    </script>
+    <!-- Scroll-triggered fade-in -->
+    <script>
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+    </script>
+    <!-- Hamburger menu toggle -->
+    <script>
+    document.querySelectorAll('.hamburger').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const nav = btn.parentElement.querySelector('.nav-links');
+            if (nav) nav.classList.toggle('open');
+        });
+    });
+    </script>
 </body>
 </html>

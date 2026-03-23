@@ -6,21 +6,22 @@
     <title>Sign In — 0Latency</title>
     <link rel="icon" href="/logos/favicon.svg" type="image/svg+xml">
     <style>
+        html { scroll-behavior: smooth; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
         :root {
-            --bg: #0a0a0f;
-            --bg-card: #111118;
-            --bg-input: #1a1a24;
-            --border: #2a2a3a;
+            --bg: #fafafa;
+            --bg-card: #ffffff;
+            --bg-input: #f9fafb;
+            --border: #e5e7eb;
             --border-focus: #f97316;
             --accent: #f97316;
             --accent-hover: #fb923c;
-            --accent-glow: rgba(249, 115, 22, 0.15);
-            --text: #e4e4e7;
-            --text-muted: #71717a;
-            --text-dim: #52525b;
-            --error: #ef4444;
+            --accent-glow: rgba(249, 115, 22, 0.1);
+            --text: #111827;
+            --text-muted: #6b7280;
+            --text-dim: #6b7280;
+            --error: #dc2626;
             --success: #22c55e;
         }
 
@@ -66,6 +67,7 @@
             border: 1px solid var(--border);
             border-radius: 16px;
             padding: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }
 
         /* OAuth buttons */
@@ -109,7 +111,7 @@
 
         .btn-google:hover {
             border-color: var(--text-muted);
-            background: #1e1e2a;
+            background: #f3f4f6;
         }
 
         .btn-oauth svg {
@@ -174,7 +176,7 @@
             width: 100%;
             padding: 0.75rem;
             background: var(--accent);
-            color: #fff;
+            color: #111827;
             font-size: 0.9375rem;
             font-weight: 600;
             border: none;
@@ -237,7 +239,7 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.5);
             backdrop-filter: blur(8px);
             z-index: 100;
             align-items: center;
@@ -345,7 +347,7 @@
             width: 100%;
             padding: 0.75rem;
             background: var(--accent);
-            color: #fff;
+            color: #111827;
             font-size: 0.9375rem;
             font-weight: 600;
             border: none;
@@ -380,7 +382,7 @@
             width: 16px;
             height: 16px;
             border: 2px solid rgba(255,255,255,0.3);
-            border-top-color: #fff;
+            border-top-color: #111827;
             border-radius: 50%;
             animation: spin 0.6s linear infinite;
         }
@@ -388,7 +390,45 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+    
+        /* Scroll-triggered fade-in */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    
+        /* Code block improvements */
+        pre {
+            position: relative;
+            overflow-x: auto;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: #e5e7eb;
+            border: none;
+            border-radius: 4px;
+            padding: 0.25rem 0.6rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.2s;
+            opacity: 0;
+        }
+        pre:hover .copy-btn { opacity: 1; }
+        .copy-btn:hover {
+            background: #f97316;
+            color: #ffffff;
+        }
     </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
@@ -581,7 +621,7 @@
 
         function goToDashboard() {
             // Redirect to dashboard — could be /dashboard or the site dashboard
-            window.location.href = 'https://0latency.ai/index.html';
+            window.location.href = '/dashboard.html';
         }
 
         function showError(msg) {
@@ -600,6 +640,18 @@
             document.getElementById('errorMsg').style.display = 'none';
             document.getElementById('successMsg').style.display = 'none';
         }
+    </script>
+
+    <!-- Scroll-triggered fade-in -->
+    <script>
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
     </script>
 </body>
 </html>

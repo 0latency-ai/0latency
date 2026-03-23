@@ -1,37 +1,59 @@
-# Session Handoff (auto-generated)
-_Last updated: 2026-03-22 23:01 UTC_
+# HANDOFF.md — Live State for Session Continuity
+**Last updated:** 2026-03-23 02:22 UTC
+
+## Active Right Now
+- Sub-agent building: TypeScript SDK, CORS headers, rate limiting, DB backups, API monitoring
+- Claude Code (Justin's machine): working on one-pager consolidation
+- Justin: at Waterbar (bartending shift), available via Telegram on phone
+- Channel scanner: cron'd for 9AM + 6PM Pacific (11 YouTube channels)
+- Master TODO: /root/.openclaw/workspace/memory-product/TODO.md
+
+## What We're Building: 0Latency (0latency.ai)
+Memory layer API for AI agents. "It just works. Zero latency. No configuration."
+- API: 3 lines — Memory(api_key), .add(), .recall()
+- Pricing: Free / Pro $19 / Scale $99 / Enterprise
+- Main competitor: Mem0 ($249 for what we give at $99)
+- Pitch: "We built what Mem0 should have built, at half the price."
 
 ## Current State
-Wall-E poll completed with 18 extractions from a very productive day. 0Latency product is rapidly taking shape — site deployed, auth built, API healthy. Waiting on Justin for Stripe keys and LLC decision.
+- **Site live** at 0latency.ai — LIGHT THEME
+- **API live** at api.0latency.ai — healthy, 624 memories
+- **Stripe billing** — fully wired (pk_live + sk_live + whsec in .bashrc)
+- **GitHub OAuth** — working
+- **Google OAuth** — NOT done (blocked on Justin: needs Web credential in GCP)
+- **Python SDK** — built, tested, PyPI-ready. Needs Justin to create PyPI account.
+- **TypeScript SDK** — being built right now by sub-agent
+- **Dashboard** — built at site/dashboard.html
+- **Channel scanner** — built, cron'd, 11 channels, all IDs resolved
+- **Logo** — placeholder. Moheb designing real one.
 
-## Conversation Phase
-Build/Deploy — 0Latency product launch prep
+## Blocked on Justin (when back at desk, ~20 min total)
+1. PyPI account + token → ~/.pypirc
+2. Google OAuth web credential → .bashrc
+3. www CNAME in Cloudflare
+4. Cloudflare email routing (hello@0latency.ai)
+5. Create @0latency on Twitter/X
+6. Create 0Latency Discord server
 
-## 🔴 Blockers (Revenue-Critical)
-- **Stripe account incomplete** — Justin creating new account (sole prop, brand "0Latency"). Need `sk_live`, `pk_live` + webhook secret stored on server. No payments possible until done.
-- **LLC / payment entity** — Startup Smartup LLC dissolved/bankrupt. New entity needed before revenue flows. Waiting on Justin.
-- **Phase B: 5 tasks remain** — Multi-tenant Postgres isolation, real API key gen/auth, API deployed w/ HTTPS, auto-generated docs + quickstart, Phase A skill polished for ClawHub.
-- **Stress test failure** — Product breaks at 50+ concurrent users (57% success at 50, dead at 100). Tier 1 scaling ($24/mo) approved but deferred pending Seb's input.
+## Key Decisions
+- Light theme is default
+- One-pager direction (fold pricing + FAQ into homepage)
+- Orange #f97316 accent, no config knobs philosophy
+- Ras Mic's Shadcn stack for future Steve redesign
+- Logo: Moheb (Egyptian artist, Project Explore)
+- Brand: 0Latency (no space), 0LATENCY on statements
 
-## 🟡 Strategic Open Threads
-- **Google OAuth** — Redirect URI needs "Web application" type credential (current is Desktop). Login flow broken for Google.
-- **www.0latency.ai CNAME** — Nginx configured, Cloudflare record not added yet.
-- **Logo not finalized** — Justin reviewing 4 geometric SVG concepts. Current vector too noisy at small sizes.
-- **Obsidian integration page** — Pending Justin's approval. Marketing angle: "Obsidian is your second brain. 0Latency is your agent's."
-- **Open-source strategy** — Gemini recommended open-source; Thomas pushed back (too early). No final decision.
-- **Sebastian involvement deferred** — Justin wants to present finished Phase B first.
+## Architecture
+- Server: 164.90.156.169 (DigitalOcean)
+- Site source: /root/.openclaw/workspace/memory-product/site/
+- Deployed: /var/www/0latency/
+- API: port 8420, uvicorn, behind nginx
+- GitHub: github.com/jghiglia2380/0Latency (master)
+- Stripe: prod_UCIoPEsjrxIGI5 (Pro), prod_UCJ7s3gpULhV9O (Scale)
 
-## ✅ Recently Completed
-- Auth system (GitHub OAuth + Google OAuth + email/password + auto-onboarding)
-- Site fully deployed (landing, login, support/FAQ, blog, 4 integration pages, SEO, sitemap, robots.txt, llms.txt)
-- API healthy (624 memories, Redis connected, all auth routes live)
-- 8 feature gaps vs mem0 closed (graph memory, webhooks, versioning, etc. — 147 tests passing)
-- Orange branding applied across all 13 site files
-- "It Just Works" philosophy codified + deployed across codebase
-- Gmail OAuth fixed (jghiglia@gmail.com connected, 387K messages)
-
-## Key Context
-- **Product:** 0Latency — agent memory API (competitor to mem0)
-- **Target:** Greg's audience + developers
-- **Justin's work schedule this week:** Waterbar shifts Sun-Thu (see 2026-03-22.md for times)
-- **Communication rule:** NEVER ask Justin to paste API keys into Telegram. Always provide SSH/terminal instructions.
+## Critical Rules
+- Sub-agents for >3 tool calls. Main thread stays responsive.
+- NEVER "to be honest" / "let me be real"
+- NEVER announce capabilities before using them
+- NEVER paste API keys in Telegram — SSH instructions only
+- NEVER suggest Justin stop working
