@@ -1,0 +1,41 @@
+{
+  "name": "@0latency/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for 0Latency — persistent memory layer for AI agents",
+  "author": "Justin Ghiglia",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "0latency-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "0latency",
+    "ai-memory",
+    "agent-memory",
+    "claude",
+    "cursor"
+  ]
+}
