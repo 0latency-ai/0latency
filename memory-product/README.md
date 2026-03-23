@@ -121,9 +121,25 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000
 - 🐙 **GitHub:** [github.com/jghiglia2380/0Latency](https://github.com/jghiglia2380/0Latency)
 - 🐦 **Twitter:** [@0latencyai](https://twitter.com/0latencyai)
 
+## Build With Us
+
+We're building 0Latency in the open, and we take care of the people who help make it better.
+
+| Contribution | Reward |
+|---|---|
+| **Report a confirmed bug** | Lifetime Pro access ($29/mo value) |
+| **Submit a PR that gets merged** | Lifetime Scale access ($89/mo value) |
+| **Build something with 0Latency and share it** (blog, tutorial, OSS project) | Lifetime Scale access ($89/mo value) |
+
+The free tier is generous enough to build real projects — no credit card needed. Start building, and if you find ways to improve 0Latency, we'll take care of you forever.
+
+→ [Report a bug](https://github.com/jghiglia2380/0Latency/issues/new?template=bug_report.md)
+→ [View open issues](https://github.com/jghiglia2380/0Latency/issues)
+→ [Read the contribution guidelines](CONTRIBUTING.md)
+
 ## Contributing
 
-PRs welcome. Please open an issue first to discuss significant changes.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to report bugs, submit PRs, and claim your contributor rewards.
 
 ## License
 
