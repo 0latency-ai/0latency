@@ -54,10 +54,9 @@ Things like:
 - Anything environment-specific
 
 ### Gmail (jghiglia@gmail.com)
-- **Status: BROKEN** — refresh token expired/revoked as of March 20, 2026
-- **OAuth credentials exist** in /root/.bashrc (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN)
-- **Needs:** Justin to re-authorize OAuth flow to generate fresh refresh token
-- **Impact:** Can't read personal Gmail, can't access forwarded emails (e.g., Waterbar schedule from David Hanna)
+- **Status: WORKING** — re-authorized March 22, 2026. Refresh token valid.
+- **OAuth credentials:** /root/credentials/gmail_oauth_client.json + /root/credentials/gmail_token.json
+- **Connected:** 387K messages, can read/search/send/modify
 
 ### Denis (Curriculum/Content)
 - Confirmed Kentucky curriculum built (60 chapters, 120 hours, 1.0 credit)

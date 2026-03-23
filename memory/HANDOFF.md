@@ -1,59 +1,41 @@
-# HANDOFF.md — Live State for Session Continuity
-**Last updated:** 2026-03-23 02:22 UTC
-
-## Active Right Now
-- Sub-agent building: TypeScript SDK, CORS headers, rate limiting, DB backups, API monitoring
-- Claude Code (Justin's machine): working on one-pager consolidation
-- Justin: at Waterbar (bartending shift), available via Telegram on phone
-- Channel scanner: cron'd for 9AM + 6PM Pacific (11 YouTube channels)
-- Master TODO: /root/.openclaw/workspace/memory-product/TODO.md
-
-## What We're Building: 0Latency (0latency.ai)
-Memory layer API for AI agents. "It just works. Zero latency. No configuration."
-- API: 3 lines — Memory(api_key), .add(), .recall()
-- Pricing: Free / Pro $19 / Scale $99 / Enterprise
-- Main competitor: Mem0 ($249 for what we give at $99)
-- Pitch: "We built what Mem0 should have built, at half the price."
+# Session Handoff (auto-generated)
+_Last updated: 2026-03-23 03:02 UTC_
 
 ## Current State
-- **Site live** at 0latency.ai — LIGHT THEME
-- **API live** at api.0latency.ai — healthy, 624 memories
-- **Stripe billing** — fully wired (pk_live + sk_live + whsec in .bashrc)
-- **GitHub OAuth** — working
-- **Google OAuth** — NOT done (blocked on Justin: needs Web credential in GCP)
-- **Python SDK** — built, tested, PyPI-ready. Needs Justin to create PyPI account.
-- **TypeScript SDK** — being built right now by sub-agent
-- **Dashboard** — built at site/dashboard.html
-- **Channel scanner** — built, cron'd, 11 channels, all IDs resolved
-- **Logo** — placeholder. Moheb designing real one.
+Wall-E poll surfaced a strategic alignment concern: 4+ days of 0Latency building with zero PFL Academy pipeline work. Oklahoma bid is 19 days out with no prep. Texas bids 8+ days stale. Justin needs to explicitly prioritize.
 
-## Blocked on Justin (when back at desk, ~20 min total)
-1. PyPI account + token → ~/.pypirc
-2. Google OAuth web credential → .bashrc
-3. www CNAME in Cloudflare
-4. Cloudflare email routing (hello@0latency.ai)
-5. Create @0latency on Twitter/X
-6. Create 0Latency Discord server
+## ⚠️ Strategic Tension — "Italy Question"
+0Latency has impressive engineering velocity but speculative revenue 6+ months out. PFL Academy has paying customers and imminent bid deadlines. Current time allocation favors 0Latency heavily. This needs explicit prioritization from Justin.
 
-## Key Decisions
-- Light theme is default
-- One-pager direction (fold pricing + FAQ into homepage)
-- Orange #f97316 accent, no config knobs philosophy
-- Ras Mic's Shadcn stack for future Steve redesign
-- Logo: Moheb (Egyptian artist, Project Explore)
-- Brand: 0Latency (no space), 0LATENCY on statements
+## 🔴 Blockers (Revenue-Critical)
+- **Oklahoma bid — 19 days left, ZERO prep** — 6th consecutive Wall-E flag. #1 organizational alignment issue.
+- **Texas bids (Region 13 + Region 11) — 8+ days stale** — Content ready (Denis confirmed). Bottleneck is outreach, not product.
+- **Stripe account incomplete** — Justin creating new account (sole prop, brand "0Latency"). Need `sk_live`, `pk_live` + webhook secret. No payments possible until done.
+- **LLC / payment entity** — Startup Smartup dissolved. New entity: sole prop under Justin Ghiglia DBA 0Latency.
+- **Phase B: 5 tasks remain** — Multi-tenant Postgres isolation, real API key gen/auth, API deployed w/ HTTPS, auto-generated docs + quickstart, Phase A skill polished for ClawHub.
+- **Stress test failure** — Breaks at 50+ concurrent users. Tier 1 scaling approved but deferred pending Seb.
 
-## Architecture
-- Server: 164.90.156.169 (DigitalOcean)
-- Site source: /root/.openclaw/workspace/memory-product/site/
-- Deployed: /var/www/0latency/
-- API: port 8420, uvicorn, behind nginx
-- GitHub: github.com/jghiglia2380/0Latency (master)
-- Stripe: prod_UCIoPEsjrxIGI5 (Pro), prod_UCJ7s3gpULhV9O (Scale)
+## 🟡 Strategic Open Threads
+- **Google OAuth** — Needs "Web application" type credential (current is Desktop).
+- **www.0latency.ai CNAME** — Nginx configured, Cloudflare record not added.
+- **Logo not finalized** — Justin reviewing 4 geometric SVG concepts.
+- **Obsidian integration page** — Pending Justin's approval.
+- **Open-source strategy** — No final decision yet.
+- **Sebastian involvement deferred** — Justin wants finished Phase B first.
 
-## Critical Rules
-- Sub-agents for >3 tool calls. Main thread stays responsive.
-- NEVER "to be honest" / "let me be real"
-- NEVER announce capabilities before using them
-- NEVER paste API keys in Telegram — SSH instructions only
-- NEVER suggest Justin stop working
+## ✅ Recently Completed
+- Auth system (GitHub + Google + email/password + auto-onboarding)
+- Site fully deployed at 0latency.ai (all pages 200)
+- API healthy (624 memories, Redis connected)
+- 8 feature gaps vs mem0 closed (147 tests passing)
+- Orange branding applied
+- "It Just Works" philosophy codified + deployed
+- Gmail OAuth fixed (was broken, re-authorized March 22)
+
+## Doc Corrections Applied This Cycle
+- TOOLS.md: Gmail status updated from BROKEN → WORKING
+- USER.md: Startup Smartup marked dissolved, 0Latency added as active business
+
+## Key Context
+- **Justin's Waterbar shifts this week:** Mon 4PM, Tue 3:30PM, Wed 3:30PM, Thu 3PM (Pacific). Off Fri/Sat.
+- **Communication rule:** NEVER ask Justin to paste API keys into Telegram.

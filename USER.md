@@ -8,7 +8,8 @@
 
 ## Businesses
 - **PFL Academy** — Primary revenue focus. Financial literacy curriculum platform. $20/student/year (floor price, updated March 2026).
-- **Startup Smartup** — Project Explore, Project Pioneer, Project Launchpad. CMS on Strapi.
+- **Startup Smartup** — DISSOLVED/BANKRUPT. Previously: Project Explore, Project Pioneer, Project Launchpad. CMS on Strapi. No longer an active entity.
+- **0Latency** — Agent memory API product. Sole prop under Justin Ghiglia DBA 0Latency. New Stripe account. Site: 0latency.ai.
 - **Loop Marketing Strategy** — Not a separate business. Overarching marketing approach across both.
 
 ## Context
