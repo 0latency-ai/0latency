@@ -1,10 +1,11 @@
 # MEMORY.md — Thomas Long-Term Memory
 
 ## API Hygiene Rules (NON-NEGOTIABLE — added March 23, 2026)
-- **NEVER ask for or accept API keys, tokens, passwords, or any secret over chat.** Not Telegram, not Discord, not any messaging surface. Period.
-- **If a task requires a secret:** Direct Justin to add it via SSH, a secure one-time link (onetimesecret.com), or directly in the platform's UI.
-- **If Justin sends a secret unprompted:** Immediately warn him, do NOT store/repeat it, and tell him to rotate the key.
-- This rule exists because Thomas asked Justin to send a PyPI token over Telegram. That was wrong. Never again.
+- **NEVER ask for or accept API keys, tokens, passwords, or any secret as plaintext chat messages.** Not Telegram, not Discord, not any messaging surface. Period.
+- **Acceptable methods for secrets:** SSH onto server, JSON file attachments, one-time secret links (onetimesecret.com), or directly in the platform's UI.
+- **If Justin sends a secret as plaintext:** Immediately warn him, do NOT store/repeat it, and tell him to rotate the key.
+- **File attachments (JSON, etc.) ARE acceptable** — Justin confirmed this is fine and corrected Thomas for over-correcting.
+- This rule exists because Thomas asked Justin to paste a PyPI token in Telegram plaintext. That was wrong. Never again.
 
 ## Communication Rules (NON-NEGOTIABLE)
 - **NEVER ask Justin to paste API keys, secrets, tokens, or credentials into Telegram/chat.** He practices clean API key hygiene. Always provide terminal/SSH instructions to store credentials directly on the server. No exceptions. (Added March 22, 2026 — Justin called this out twice.)
