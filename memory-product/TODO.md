@@ -13,16 +13,16 @@
 ### Thomas Can Do Now
 - [ ] Publish SDK to PyPI (once Justin creates account + token)
 - [ ] One-pager consolidation (fold pricing + FAQ into homepage, strip nav)
-- [ ] TypeScript SDK (Mem0 has one, we need one)
-- [ ] Wire 0Latency into channel scanner (dogfood demo)
+- [x] TypeScript SDK (Mem0 has one, we need one)
+- [x] Wire 0Latency into channel scanner (dogfood demo)
 - [ ] Build /examples folder with 3+ real-world integration examples ✅ DONE
-- [ ] Add CORS headers to API (frontend JS needs this)
+- [x] Add CORS headers to API (frontend JS needs this)
 - [ ] Add rate limiting enforcement on API (free tier abuse prevention)
 - [ ] Add email verification on signup flow
 - [ ] Add API error tracking (Sentry or simple log alerting)
-- [ ] Automated database backups (pg_dump cron)
-- [ ] API monitoring/alerting (beyond heartbeat script)
-- [ ] OpenAPI spec downloadable from site
+- [x] Automated database backups (pg_dump cron)
+- [x] API monitoring/alerting (beyond heartbeat script)
+- [x] OpenAPI spec downloadable from site
 - [ ] Create 0Latency Discord server (even if empty — credibility signal)
 
 ### Claude Code Can Do
@@ -37,9 +37,9 @@
 
 ### Can Do This Week
 - [ ] Load test the API (find the breaking point)
-- [ ] Blog post #2: "How We Built a Memory Layer That Costs $0.93/User/Month"
-- [ ] Blog post #3: "Mem0 vs 0Latency: An Honest Comparison"
-- [ ] Startup program (3 months free Scale for companies <$5M — match Mem0)
+- [x] Blog post #2: "How We Built a Memory Layer That Costs $0.93/User/Month"
+- [x] Blog post #3: "Mem0 vs 0Latency: An Honest Comparison"
+- [x] Startup program (3 months free Scale for companies <$5M — match Mem0)
 - [ ] API versioning headers
 - [ ] Status page (simple uptime monitor)
 - [ ] API changelog page
