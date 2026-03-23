@@ -1,6 +1,6 @@
-# Zero Latency Memory SDK — Python
+# zerolatency
 
-Structured memory extraction, storage, and recall for AI agents.
+Python SDK for the [0Latency](https://0latency.ai) memory API — persistent memory for AI agents.
 
 ## Install
 
@@ -8,64 +8,90 @@ Structured memory extraction, storage, and recall for AI agents.
 pip install zerolatency
 ```
 
-## Quick Start
+## Quick start
 
 ```python
-from zerolatency import ZeroLatencyClient
+from zerolatency import Memory
 
-client = ZeroLatencyClient(api_key="zl_live_your_key_here")
+memory = Memory("your-api-key")
 
-# Extract memories from conversation
-result = client.extract(
-    agent_id="my-agent",
-    human_message="My name is Justin and I prefer direct communication",
-    agent_message="Got it, Justin. I'll keep things concise."
-)
-print(f"Stored {result['memories_stored']} memories")
+# Store a memory
+memory.add("User said they prefer dark mode and work in Python")
 
-# Recall relevant context
-context = client.recall(
-    agent_id="my-agent",
-    conversation_context="How should I communicate with the user?"
-)
-print(context["context_block"])
+# Recall relevant memories
+context = memory.recall("What are the user's preferences?")
+print(context)
+```
 
-# Search memories
-results = client.search(agent_id="my-agent", query="communication style")
+## Usage
 
-# Knowledge graph
-graph = client.get_entity_graph(agent_id="my-agent", entity="Justin")
+### Store memories
 
-# Batch operations
-results = client.batch_extract([
-    {"agent_id": "my-agent", "human_message": "msg1", "agent_message": "resp1"},
-    {"agent_id": "my-agent", "human_message": "msg2", "agent_message": "resp2"},
-])
-
-# Custom criteria for recall re-ranking
-client.create_criteria(
-    agent_id="my-agent",
-    name="urgency",
-    weight=0.8,
-    description="How urgent is this memory"
-)
-
-# Organization-level shared memory
-client.store_org_memory(
-    headline="Company uses Python 3.11+",
-    context="All new projects must use Python 3.11 or newer",
-    importance=0.9
+```python
+memory.add(
+    "User prefers concise answers",
+    agent_id="agent-123",
+    metadata={"source": "onboarding"},
 )
 ```
 
-## Features
+### Recall memories
 
-- **Extract** — Automatic memory extraction from conversation turns
-- **Recall** — Composite-scored retrieval with temporal decay and reinforcement
-- **Graph Memory** — Entity relationships and multi-hop traversal
-- **Memory Versioning** — Full changelog per memory
-- **Batch Operations** — Bulk extract, search, and delete
-- **Custom Criteria** — Developer-defined scoring attributes for re-ranking
-- **Organization Memory** — Shared memory across team agents
-- **Custom Schemas** — Developer-defined extraction templates
-- **Webhooks** — Real-time notifications on memory events
+```python
+results = memory.recall("communication style", agent_id="agent-123", limit=5)
+for m in results["memories"]:
+    print(m["content"])
+```
+
+### Extract memories from a conversation
+
+```python
+conversation = [
+    {"role": "user", "content": "I'm a backend engineer who uses FastAPI."},
+    {"role": "assistant", "content": "Great! I'll keep that in mind."},
+]
+
+job = memory.extract(conversation, agent_id="agent-123")
+status = memory.extract_status(job["job_id"])
+```
+
+### Health check
+
+```python
+print(memory.health())
+```
+
+### Context manager
+
+```python
+with Memory("your-api-key") as memory:
+    memory.add("something to remember")
+```
+
+## Error handling
+
+```python
+from zerolatency import Memory, AuthenticationError, RateLimitError, ZeroLatencyError
+
+try:
+    memory = Memory("bad-key")
+    memory.add("test")
+except AuthenticationError:
+    print("Check your API key")
+except RateLimitError:
+    print("Slow down — retry after a backoff")
+except ZeroLatencyError as e:
+    print(f"API error {e.status_code}: {e.message}")
+```
+
+## Configuration
+
+| Parameter  | Default                      | Description              |
+|------------|------------------------------|--------------------------|
+| `api_key`  | *required*                   | Your 0Latency API key    |
+| `base_url` | `https://api.0latency.ai`   | API base URL override    |
+| `timeout`  | `30.0`                       | Request timeout (seconds)|
+
+## License
+
+MIT

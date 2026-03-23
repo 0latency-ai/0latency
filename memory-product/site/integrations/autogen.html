@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory for AutoGen Agents — 0Latency</title>
+    <meta name="description" content="Persistent long-term memory for Microsoft AutoGen agents. GroupChat history that survives across sessions. Agents remember past collaborations, decisions, and outcomes.">
+    <meta name="keywords" content="AutoGen memory, AutoGen agent memory, persistent memory AutoGen, AutoGen long-term memory, Microsoft AutoGen memory, AutoGen GroupChat memory">
+    <meta name="author" content="Justin Ghiglia">
+    <meta name="robots" content="index, follow">
+
+    <link rel="canonical" href="https://0latency.ai/integrations/autogen.html">
+
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://0latency.ai/integrations/autogen.html">
+    <meta property="og:title" content="Memory for AutoGen Agents — 0Latency">
+    <meta property="og:description" content="Persistent long-term memory for Microsoft AutoGen agents. GroupChat history that survives across sessions.">
+    <meta property="og:image" content="https://0latency.ai/og-image.png">
+    <meta property="og:site_name" content="0Latency">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Memory for AutoGen Agents — 0Latency">
+    <meta name="twitter:description" content="Persistent long-term memory for Microsoft AutoGen agents. GroupChat history that survives across sessions.">
+    <meta name="twitter:image" content="https://0latency.ai/og-image.png">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": "Memory for AutoGen Agents — 0Latency",
+      "description": "How to add persistent memory to Microsoft AutoGen agents and GroupChat sessions using the 0Latency Python SDK and REST API.",
+      "url": "https://0latency.ai/integrations/autogen.html",
+      "author": { "@type": "Person", "name": "Justin Ghiglia" },
+      "publisher": { "@type": "Organization", "name": "0Latency", "url": "https://0latency.ai/" },
+      "datePublished": "2026-03-22",
+      "proficiencyLevel": "Beginner",
+      "dependencies": "Python 3.9+, pyautogen, zero-latency-sdk",
+      "about": {
+        "@type": "SoftwareApplication",
+        "name": "0Latency",
+        "applicationCategory": "DeveloperApplication",
+        "url": "https://0latency.ai/"
+      }
+    }
+    </script>
+
+    <style>
+        html { scroll-behavior: smooth; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #fafafa;
+            --surface: #ffffff;
+            --border: #e5e7eb;
+            --text: #111827;
+            --text-dim: #6b7280;
+            --accent: #f97316;
+            --accent-glow: rgba(249, 115, 22, 0.1);
+            --green: #059669;
+            --orange: #fb923c;
+        }
+        body {
+            font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image:
+                linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: -1;
+        }
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: #ffffff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 3rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .logo { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px; }
+        .logo span { color: var(--accent); }
+        .logo a { color: var(--text); text-decoration: none; }
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            margin-left: 2rem;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--text); }
+        .nav-links .btn-primary {
+            background: var(--accent);
+            color: #111827;
+            padding: 0.5rem 1.2rem;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .nav-links .btn-primary:hover { opacity: 0.9; }
+        article { max-width: 760px; margin: 0 auto; padding: 4rem 2rem 6rem; }
+        .breadcrumb { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 2rem; }
+        .breadcrumb a { color: var(--accent); text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 1rem;
+            line-height: 1.15;
+        }
+        h1 .gradient {
+            background: linear-gradient(135deg, var(--accent), #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .lead { font-size: 1.15rem; color: var(--text-dim); margin-bottom: 3rem; }
+        h2 { font-size: 1.5rem; font-weight: 700; margin-top: 3rem; margin-bottom: 1rem; letter-spacing: -0.3px; }
+        h3 { font-size: 1.15rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.75rem; }
+        p { margin-bottom: 1rem; }
+        a { color: var(--accent); }
+        pre {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+            font-size: 0.88rem;
+            line-height: 1.6;
+        }
+        code {
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.88rem;
+        }
+        p code, li code {
+            background: rgba(249, 115, 22, 0.1);
+            color: var(--accent);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+        .callout {
+            background: var(--surface);
+            border-left: 3px solid var(--accent);
+            padding: 1.25rem 1.5rem;
+            border-radius: 0 8px 8px 0;
+            margin: 2rem 0;
+        }
+        .callout-green {
+            background: var(--surface);
+            border-left: 3px solid var(--green);
+            padding: 1.25rem 1.5rem;
+            border-radius: 0 8px 8px 0;
+            margin: 2rem 0;
+        }
+        ul, ol { margin: 1rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.5rem; }
+        .flow-diagram {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 2rem;
+            margin: 2rem 0;
+            text-align: center;
+            font-family: 'SF Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            line-height: 2;
+        }
+        .flow-diagram .arrow { color: var(--accent); }
+        .flow-diagram .node { color: var(--text); font-weight: 600; }
+        .cta {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 3rem;
+            text-align: center;
+            margin-top: 4rem;
+        }
+        .cta h2 { margin-top: 0; }
+        .cta p { color: var(--text-dim); }
+        .cta .btn {
+            display: inline-block;
+            background: var(--accent);
+            color: #111827;
+            padding: 0.8rem 2rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .cta .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--accent-glow); }
+        .integrations-nav {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+        }
+        .integrations-nav h3 { color: var(--text-dim); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .integrations-nav ul { list-style: none; margin-left: 0; display: flex; gap: 1.5rem; flex-wrap: wrap; }
+        .integrations-nav li { margin: 0; }
+        .integrations-nav a { text-decoration: none; font-weight: 500; }
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 2rem 3rem;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+        footer a { color: var(--accent); text-decoration: none; }
+        @media (max-width: 640px) {
+            nav { padding: 1rem 1.5rem; }
+            article { padding: 2rem 1.5rem 4rem; }
+            h1 { font-size: 1.8rem; }
+        }
+    
+        /* Scroll-triggered fade-in */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    
+        /* Hamburger menu */
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text, #111827);
+            padding: 0.25rem;
+            line-height: 1;
+        }
+        @media (max-width: 768px) {
+            .hamburger { display: block; }
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: #ffffff;
+                border-bottom: 1px solid #e5e7eb;
+                flex-direction: column;
+                padding: 1rem 2rem;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                z-index: 99;
+            }
+            .nav-links.open {
+                display: flex;
+            }
+            .nav-links a {
+                margin-left: 0 !important;
+                padding: 0.6rem 0;
+                border-bottom: 1px solid #f3f4f6;
+            }
+            .nav-links a:last-child { border-bottom: none; }
+        }
+    
+        /* Code block improvements */
+        pre {
+            position: relative;
+            overflow-x: auto;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: #e5e7eb;
+            border: none;
+            border-radius: 4px;
+            padding: 0.25rem 0.6rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.2s;
+            opacity: 0;
+        }
+        pre:hover .copy-btn { opacity: 1; }
+        .copy-btn:hover {
+            background: #f97316;
+            color: #ffffff;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+        <header>
+    <nav role="navigation" aria-label="Main navigation">
+        <a href="/" class="logo" style="text-decoration:none;display:flex;align-items:center;"><img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="50" style="border-radius:4px;"></a>
+        <button class="hamburger" aria-label="Menu">☰</button>
+            <div class="nav-links">
+            <a href="https://github.com/jghiglia2380/0Latency">GitHub</a>
+            <a href="https://api.0latency.ai/docs">API Docs</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/pricing.html">Pricing</a>
+            <a href="/login.html" class="btn-primary">Sign In</a>
+        </div>
+    </nav>
+    </header>
+
+    <article>
+        <div class="breadcrumb">
+            <a href="https://0latency.ai/">Home</a> → <a href="https://0latency.ai/integrations/">Integrations</a> → AutoGen
+        </div>
+
+        <h1><span class="gradient">Memory for AutoGen Agents</span></h1>
+        <p class="lead">Microsoft AutoGen makes multi-agent conversation easy. But when the session ends, the conversation history vanishes. 0Latency gives your AutoGen agents persistent memory — they remember past collaborations, decisions, and outcomes across sessions.</p>
+
+        <h2>The Problem: Powerful Conversations, Zero Persistence</h2>
+
+        <p>AutoGen's strength is multi-agent collaboration. A GroupChat with a coder, a reviewer, and a planner can produce remarkable results. The agents debate, iterate, and converge on solutions. But here's the gap: <strong>all of that collaboration is ephemeral</strong>.</p>
+
+        <p>When the Python process exits, the conversation history — and everything the agents learned during it — is gone. The next session starts cold. The coder doesn't remember the architecture decisions from yesterday. The reviewer doesn't remember which code patterns were approved. The planner doesn't remember what was tried and failed.</p>
+
+        <p>AutoGen does provide a <code>Teachability</code> capability that stores facts in a local vector database. But it's limited:</p>
+
+        <ul>
+            <li><strong>Single-agent only.</strong> Teachability attaches to one agent. In a GroupChat with five agents, you'd need to configure and maintain five separate teachability instances — each with its own isolated memory.</li>
+            <li><strong>No temporal awareness.</strong> A fact learned a year ago has the same weight as one learned today. No decay, no reinforcement, no notion of currency.</li>
+            <li><strong>No contradiction handling.</strong> If decisions change over time, the old and new versions coexist without any conflict resolution. The agent might recall outdated information and use it confidently.</li>
+            <li><strong>Local storage.</strong> Memories live on the filesystem. Deploy to a different machine, spin up a container — your memories stay behind.</li>
+        </ul>
+
+        <p>For production deployments — especially multi-agent systems that run frequently — you need memory that's persistent, shared, intelligent, and portable. That's what 0Latency provides.</p>
+
+        <h2>The Solution: Hook, Extract, Recall</h2>
+
+        <p>The integration pattern for AutoGen has three components:</p>
+
+        <ol>
+            <li><strong>Recall at session init</strong> — before the GroupChat starts, pull in relevant memories and inject them into agent system messages.</li>
+            <li><strong>Extract after conversation</strong> — when the chat completes (or at checkpoints), extract learnings from the conversation history.</li>
+            <li><strong>Optionally, hook into message callbacks</strong> — for long-running conversations, extract incrementally as messages flow.</li>
+        </ol>
+
+        <div class="flow-diagram">
+            <span class="node">Session Start</span> <span class="arrow">→</span> <span class="node">recall()</span> <span class="arrow">→</span> Inject into system messages <span class="arrow">→</span> <span class="node">GroupChat runs</span> <span class="arrow">→</span> <span class="node">extract()</span> <span class="arrow">→</span> <span class="node">Memories stored</span>
+        </div>
+
+        <h3>Full Example: AutoGen GroupChat with Persistent Memory</h3>
+
+        <pre><code>pip install zero-latency-sdk pyautogen</code></pre>
+
+        <pre><code>import autogen
+from zero_latency import Memory
+
+# Initialize — that's all the setup you need
+mem = Memory("your-api-key")
+
+# Recall context from previous sessions — sub-100ms
+past_context = mem.recall("software architecture decisions and coding standards")
+
+# LLM config
+llm_config = {"model": "gpt-4o", "api_key": "your-key"}
+
+# Create agents with memory-enriched system messages
+coder = autogen.AssistantAgent(
+    name="Coder",
+    system_message=f"""You are a senior software engineer. Write clean, 
+tested code. Follow established patterns.
+
+Context from previous sessions:
+{past_context.text}""",
+    llm_config=llm_config,
+)
+
+reviewer = autogen.AssistantAgent(
+    name="Reviewer",
+    system_message=f"""You review code for correctness, security, and 
+maintainability. Reference past decisions when relevant.
+
+Context from previous sessions:
+{past_context.text}""",
+    llm_config=llm_config,
+)
+
+planner = autogen.AssistantAgent(
+    name="Planner",
+    system_message=f"""You break down tasks into actionable steps. 
+Consider past approaches and what worked.
+
+Context from previous sessions:
+{past_context.text}""",
+    llm_config=llm_config,
+)
+
+user_proxy = autogen.UserProxyAgent(
+    name="User",
+    human_input_mode="TERMINATE",
+    max_consecutive_auto_reply=10,
+    code_execution_config={"work_dir": "workspace"},
+)
+
+# Set up GroupChat
+groupchat = autogen.GroupChat(
+    agents=[user_proxy, coder, reviewer, planner],
+    messages=[],
+    max_round=20,
+)
+manager = autogen.GroupChatManager(
+    groupchat=groupchat, 
+    llm_config=llm_config
+)
+
+# Run the conversation
+user_proxy.initiate_chat(
+    manager,
+    message="Build a REST API for user authentication with JWT tokens."
+)
+
+# After conversation: extract learnings
+conversation_text = "\n".join(
+    f"{msg['name']}: {msg['content']}" 
+    for msg in groupchat.messages 
+    if msg.get('content')
+)
+mem.add(conversation_text)
+
+print("Memories stored — extraction happens in the background.")</code></pre>
+
+        <p>The next time this script runs — whether tomorrow, next week, or on a different machine — <code>recall()</code> will return the decisions, patterns, and learnings from this conversation. The coder remembers which auth library was chosen. The reviewer remembers which edge cases were flagged. The planner remembers the task breakdown that worked.</p>
+
+        <h2>Advanced: Incremental Extraction with Callbacks</h2>
+
+        <p>For long-running GroupChat sessions, you may want to extract memories as the conversation progresses rather than waiting until the end. AutoGen's agent registration allows you to hook into the message flow:</p>
+
+        <pre><code># Message callback for incremental extraction
+message_buffer = []
+
+def on_message(sender, message, recipient, **kwargs):
+    """Accumulate messages and extract every 10 exchanges."""
+    if isinstance(message, str) and message.strip():
+        message_buffer.append(f"{sender.name}: {message}")
+    
+    if len(message_buffer) >= 10:
+        mem.add("\n".join(message_buffer))
+        message_buffer.clear()
+    
+    return False  # Don't skip the message
+
+# Register callback on all agents
+for agent in [coder, reviewer, planner]:
+    agent.register_hook(
+        hookable_method="process_last_received_message",
+        hook=lambda msg, **kw: (on_message(agent, msg, None), msg)[1]
+    )</code></pre>
+
+        <div class="callout">
+            <strong>When to use incremental vs. batch extraction:</strong> For conversations under 20 rounds, batch extraction at the end is simpler and sufficient. For long-running sessions (50+ rounds) or conversations that might be interrupted, incremental extraction ensures you don't lose in-progress learnings.
+        </div>
+
+        <h2>REST API Alternative</h2>
+
+        <p>If you prefer not to add a Python dependency, 0Latency's REST API works directly. The entire API is two endpoints:</p>
+
+        <pre><code># Extract memories from conversation
+curl -X POST https://api.0latency.ai/v1/extract \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "dev-team-chat",
+    "content": "Coder: I recommend using FastAPI with Pydantic models...\nReviewer: Agreed, but add input validation on all endpoints..."
+  }'
+
+# Recall relevant memories
+curl -X POST https://api.0latency.ai/v1/recall \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "dev-team-chat",
+    "query": "API framework and architecture decisions",
+    "max_tokens": 2000
+  }'</code></pre>
+
+        <p>This makes 0Latency accessible from any language or framework that can make HTTP requests — not just Python, not just AutoGen.</p>
+
+        <h2>What Your Agents Gain</h2>
+
+        <ul>
+            <li><strong>Decision memory.</strong> "We chose FastAPI over Flask because of async support" — stored, timestamped, and recalled when relevant. No re-litigating settled architecture decisions.</li>
+            <li><strong>Pattern recognition.</strong> Over multiple sessions, the reviewer learns which code patterns are approved and which trigger rewrites. Reviews get faster and more consistent.</li>
+            <li><strong>Error avoidance.</strong> If a particular approach was tried and failed in Session 3, the planner in Session 7 knows not to go down that path again. <a href="https://0latency.ai/blog/why-your-agent-forgets.html">Negative recall</a> surfaces what to avoid, not just what to do.</li>
+            <li><strong>Onboarding new agents.</strong> Add a new agent to your GroupChat and it immediately benefits from the team's accumulated knowledge. No cold start — the organizational memory is there from the first message.</li>
+            <li><strong>Continuity across deployments.</strong> Memory lives in 0Latency's API, not on your local filesystem. Redeploy, scale out, move to a different cloud — your agents' memories follow them.</li>
+        </ul>
+
+        <div class="callout-green">
+            <strong>Real-world impact:</strong> Teams using persistent memory report that their AutoGen agents reach useful output quality 3-4x faster on repeated tasks compared to cold-start sessions. The first run is the same — every subsequent run is faster and better.
+        </div>
+
+        <h2>Pricing</h2>
+
+        <p>Free tier: 1,000 memories, 10,000 recall queries/month. For a development team running a few GroupChat sessions per day, this covers normal usage. Pro ($29/month) removes all limits — built for production multi-agent systems with high-frequency execution.</p>
+
+        <div class="cta fade-in">
+            <h2>Give your AutoGen agents a memory</h2>
+            <p>Agents that remember past collaborations, avoid repeated mistakes, and build on previous work. Two API calls.</p>
+            <a href="https://api.0latency.ai/docs" class="btn">Try 0Latency Free →</a>
+        </div>
+
+        <div class="integrations-nav">
+            <h3>Other Integrations</h3>
+            <ul>
+                <li><a href="openclaw.html">🦞 OpenClaw</a></li>
+                <li><a href="langchain.html">🦜 LangChain</a></li>
+                <li><a href="crewai.html">🚀 CrewAI</a></li>
+                <li><a href="https://api.0latency.ai/docs">📖 REST API</a></li>
+            </ul>
+        </div>
+    </article>
+
+    <footer style="background:#f1f5f9;border-top:1px solid #e5e7eb;padding:0;margin-top:2rem;">
+        <div style="max-width:1100px;margin:0 auto;padding:3rem 2rem 1.5rem;display:grid;grid-template-columns:2fr 1fr 1fr;gap:3rem;">
+            <div>
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+                    <img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="32" style="border-radius:4px;">
+                </div>
+                <p style="color:#6b7280;font-size:0.9rem;line-height:1.6;max-width:300px;">Persistent memory layer for AI agents. Sub-100ms recall, zero configuration. Your agent remembers everything.</p>
+            </div>
+            <div>
+                <h4 style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Product</h4>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    <a href="/pricing.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Pricing</a>
+                    <a href="https://api.0latency.ai/docs" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Docs</a>
+                    <a href="/integrations/" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Integrations</a>
+                    <a href="/blog/why-your-agent-forgets.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Blog</a>
+                    <a href="/support.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Support</a>
+                </div>
+            </div>
+            <div>
+                <h4 style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Resources</h4>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    <a href="https://github.com/jghiglia2380/0Latency" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">GitHub</a>
+                    <a href="https://api.0latency.ai/health" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Status</a>
+                    <a href="/privacy.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Privacy</a>
+                    <a href="/terms.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Terms</a>
+                </div>
+            </div>
+        </div>
+        <div style="max-width:1100px;margin:0 auto;padding:1.5rem 2rem;border-top:1px solid #e5e7eb;text-align:center;">
+            <p style="color:#9ca3af;font-size:0.8rem;">© 2026 0Latency. All rights reserved.</p>
+        </div>
+        <style>
+            footer a:hover { color: #f97316 !important; }
+            @media (max-width: 768px) {
+                footer > div:first-child { grid-template-columns: 1fr !important; gap: 2rem !important; }
+            }
+        </style>
+    </footer>
+
+    <!-- Copy button for code blocks -->
+    <script>
+    document.querySelectorAll('pre').forEach(pre => {
+        const btn = document.createElement('button');
+        btn.className = 'copy-btn';
+        btn.textContent = 'Copy';
+        btn.addEventListener('click', () => {
+            const code = pre.querySelector('code') ? pre.querySelector('code').textContent : pre.textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        });
+        pre.style.position = 'relative';
+        pre.appendChild(btn);
+    });
+    </script>
+    <!-- Scroll-triggered fade-in -->
+    <script>
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+    </script>
+    <!-- Hamburger menu toggle -->
+    <script>
+    document.querySelectorAll('.hamburger').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const nav = btn.parentElement.querySelector('.nav-links');
+            if (nav) nav.classList.toggle('open');
+        });
+    });
+    </script>
+</body>
+</html>

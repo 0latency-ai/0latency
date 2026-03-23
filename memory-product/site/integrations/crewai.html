@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory for CrewAI Agents — 0Latency</title>
+    <meta name="description" content="Persistent long-term memory for CrewAI agents. Crews that learn from every run, share organizational memory, and never start from scratch. Python SDK integration in minutes.">
+    <meta name="keywords" content="CrewAI memory, CrewAI agent memory, persistent memory CrewAI, CrewAI long-term memory, CrewAI crew memory, CrewAI organizational memory">
+    <meta name="author" content="Justin Ghiglia">
+    <meta name="robots" content="index, follow">
+
+    <link rel="canonical" href="https://0latency.ai/integrations/crewai.html">
+
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://0latency.ai/integrations/crewai.html">
+    <meta property="og:title" content="Memory for CrewAI Agents — 0Latency">
+    <meta property="og:description" content="Persistent long-term memory for CrewAI agents. Crews that learn from every run, share organizational memory, and never start from scratch.">
+    <meta property="og:image" content="https://0latency.ai/og-image.png">
+    <meta property="og:site_name" content="0Latency">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Memory for CrewAI Agents — 0Latency">
+    <meta name="twitter:description" content="Persistent long-term memory for CrewAI agents. Crews that learn from every run and share organizational memory.">
+    <meta name="twitter:image" content="https://0latency.ai/og-image.png">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": "Memory for CrewAI Agents — 0Latency",
+      "description": "How to add persistent memory to CrewAI agents using the 0Latency Python SDK. Crews that learn from every run and share organizational memory.",
+      "url": "https://0latency.ai/integrations/crewai.html",
+      "author": { "@type": "Person", "name": "Justin Ghiglia" },
+      "publisher": { "@type": "Organization", "name": "0Latency", "url": "https://0latency.ai/" },
+      "datePublished": "2026-03-22",
+      "proficiencyLevel": "Beginner",
+      "dependencies": "Python 3.9+, crewai, zero-latency-sdk",
+      "about": {
+        "@type": "SoftwareApplication",
+        "name": "0Latency",
+        "applicationCategory": "DeveloperApplication",
+        "url": "https://0latency.ai/"
+      }
+    }
+    </script>
+
+    <style>
+        html { scroll-behavior: smooth; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #fafafa;
+            --surface: #ffffff;
+            --border: #e5e7eb;
+            --text: #111827;
+            --text-dim: #6b7280;
+            --accent: #f97316;
+            --accent-glow: rgba(249, 115, 22, 0.1);
+            --green: #059669;
+            --orange: #fb923c;
+        }
+        body {
+            font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image:
+                linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: -1;
+        }
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: #ffffff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 3rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .logo { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px; }
+        .logo span { color: var(--accent); }
+        .logo a { color: var(--text); text-decoration: none; }
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            margin-left: 2rem;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--text); }
+        .nav-links .btn-primary {
+            background: var(--accent);
+            color: #111827;
+            padding: 0.5rem 1.2rem;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .nav-links .btn-primary:hover { opacity: 0.9; }
+        article { max-width: 760px; margin: 0 auto; padding: 4rem 2rem 6rem; }
+        .breadcrumb { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 2rem; }
+        .breadcrumb a { color: var(--accent); text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 1rem;
+            line-height: 1.15;
+        }
+        h1 .gradient {
+            background: linear-gradient(135deg, var(--accent), #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .lead { font-size: 1.15rem; color: var(--text-dim); margin-bottom: 3rem; }
+        h2 { font-size: 1.5rem; font-weight: 700; margin-top: 3rem; margin-bottom: 1rem; letter-spacing: -0.3px; }
+        h3 { font-size: 1.15rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.75rem; }
+        p { margin-bottom: 1rem; }
+        a { color: var(--accent); }
+        pre {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+            font-size: 0.88rem;
+            line-height: 1.6;
+        }
+        code {
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.88rem;
+        }
+        p code, li code {
+            background: rgba(249, 115, 22, 0.1);
+            color: var(--accent);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+        .callout {
+            background: var(--surface);
+            border-left: 3px solid var(--accent);
+            padding: 1.25rem 1.5rem;
+            border-radius: 0 8px 8px 0;
+            margin: 2rem 0;
+        }
+        .callout-green {
+            background: var(--surface);
+            border-left: 3px solid var(--green);
+            padding: 1.25rem 1.5rem;
+            border-radius: 0 8px 8px 0;
+            margin: 2rem 0;
+        }
+        ul, ol { margin: 1rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.5rem; }
+        .scenario {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+        .scenario h4 {
+            font-size: 0.95rem;
+            margin-bottom: 0.75rem;
+            color: var(--accent);
+        }
+        .scenario p { margin-bottom: 0.5rem; color: var(--text-dim); font-size: 0.95rem; }
+        .scenario strong { color: var(--text); }
+        .cta {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 3rem;
+            text-align: center;
+            margin-top: 4rem;
+        }
+        .cta h2 { margin-top: 0; }
+        .cta p { color: var(--text-dim); }
+        .cta .btn {
+            display: inline-block;
+            background: var(--accent);
+            color: #111827;
+            padding: 0.8rem 2rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .cta .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--accent-glow); }
+        .integrations-nav {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+        }
+        .integrations-nav h3 { color: var(--text-dim); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .integrations-nav ul { list-style: none; margin-left: 0; display: flex; gap: 1.5rem; flex-wrap: wrap; }
+        .integrations-nav li { margin: 0; }
+        .integrations-nav a { text-decoration: none; font-weight: 500; }
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 2rem 3rem;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+        footer a { color: var(--accent); text-decoration: none; }
+        @media (max-width: 640px) {
+            nav { padding: 1rem 1.5rem; }
+            article { padding: 2rem 1.5rem 4rem; }
+            h1 { font-size: 1.8rem; }
+        }
+    
+        /* Scroll-triggered fade-in */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    
+        /* Hamburger menu */
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text, #111827);
+            padding: 0.25rem;
+            line-height: 1;
+        }
+        @media (max-width: 768px) {
+            .hamburger { display: block; }
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: #ffffff;
+                border-bottom: 1px solid #e5e7eb;
+                flex-direction: column;
+                padding: 1rem 2rem;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                z-index: 99;
+            }
+            .nav-links.open {
+                display: flex;
+            }
+            .nav-links a {
+                margin-left: 0 !important;
+                padding: 0.6rem 0;
+                border-bottom: 1px solid #f3f4f6;
+            }
+            .nav-links a:last-child { border-bottom: none; }
+        }
+    
+        /* Code block improvements */
+        pre {
+            position: relative;
+            overflow-x: auto;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: #e5e7eb;
+            border: none;
+            border-radius: 4px;
+            padding: 0.25rem 0.6rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.2s;
+            opacity: 0;
+        }
+        pre:hover .copy-btn { opacity: 1; }
+        .copy-btn:hover {
+            background: #f97316;
+            color: #ffffff;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+        <header>
+    <nav role="navigation" aria-label="Main navigation">
+        <a href="/" class="logo" style="text-decoration:none;display:flex;align-items:center;"><img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="50" style="border-radius:4px;"></a>
+        <button class="hamburger" aria-label="Menu">☰</button>
+            <div class="nav-links">
+            <a href="https://github.com/jghiglia2380/0Latency">GitHub</a>
+            <a href="https://api.0latency.ai/docs">API Docs</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/pricing.html">Pricing</a>
+            <a href="/login.html" class="btn-primary">Sign In</a>
+        </div>
+    </nav>
+    </header>
+
+    <article>
+        <div class="breadcrumb">
+            <a href="https://0latency.ai/">Home</a> → <a href="https://0latency.ai/integrations/">Integrations</a> → CrewAI
+        </div>
+
+        <h1><span class="gradient">Memory for CrewAI Agents</span></h1>
+        <p class="lead">CrewAI lets you orchestrate multi-agent teams — but every crew execution starts from zero. Past runs, past learnings, past mistakes: all gone. 0Latency gives your crews persistent, shared memory that compounds over time.</p>
+
+        <h2>The Problem: Crews That Never Learn</h2>
+
+        <p>CrewAI is built around the idea that multiple specialized agents working together produce better results than a single generalist. A researcher, a writer, a reviewer — each with their own role, tools, and goals. The framework handles orchestration. But it doesn't handle <em>memory</em>.</p>
+
+        <p>Every time you call <code>crew.kickoff()</code>, it's a clean slate. The researcher doesn't remember what sources were unreliable last time. The writer doesn't remember the client's style preferences. The reviewer doesn't remember which quality issues kept recurring. Each run is independent, and so each run repeats the same mistakes.</p>
+
+        <p>This matters most in iterative workflows:</p>
+
+        <ul>
+            <li><strong>Content generation crews</strong> that produce weekly reports — but can't learn from editorial feedback on previous reports.</li>
+            <li><strong>Research crews</strong> that re-discover the same dead ends because nobody wrote down "this API is deprecated" or "that data source is unreliable."</li>
+            <li><strong>Code review crews</strong> that flag the same false positives every run because they don't remember the codebase's conventions.</li>
+            <li><strong>Sales outreach crews</strong> that can't learn from which approaches worked and which got ignored.</li>
+        </ul>
+
+        <p>CrewAI does offer a <code>memory</code> parameter and some built-in memory types (short-term, long-term, entity memory). But these are basic — flat storage with keyword search, no temporal dynamics, no contradiction handling, no way to share structured learnings across different crew members intelligently.</p>
+
+        <h2>The Solution: Wrap Your Crew with 0Latency</h2>
+
+        <p>0Latency integrates with CrewAI at the crew level. Before a run, relevant memories are recalled and injected into agent backstories. After a run, learnings are extracted from the output and stored. The integration takes about 10 lines of Python.</p>
+
+        <pre><code>pip install zero-latency-sdk crewai</code></pre>
+
+        <pre><code>from crewai import Agent, Task, Crew
+from zero_latency import Memory
+
+# Initialize — that's all the setup you need
+mem = Memory("your-api-key")
+
+# Recall relevant context — sub-100ms
+crew_memories = mem.recall("weekly market analysis report")
+
+# Create agents with memory-enriched backstories
+researcher = Agent(
+    role="Senior Market Researcher",
+    goal="Find the most impactful market developments this week",
+    backstory=f"""You are an experienced market researcher.
+    
+Learnings from previous runs:
+{crew_memories.text}""",
+    verbose=True
+)
+
+writer = Agent(
+    role="Report Writer",
+    goal="Produce a clear, actionable market analysis report",
+    backstory=f"""You write concise market reports for executives.
+    
+Context from previous reports:
+{crew_memories.text}""",
+    verbose=True
+)
+
+# Define tasks
+research_task = Task(
+    description="Research key market developments from the past week",
+    expected_output="Bullet-point summary of 5-7 key developments with sources",
+    agent=researcher
+)
+
+write_task = Task(
+    description="Write a 500-word market analysis report based on the research",
+    expected_output="Formatted market analysis report",
+    agent=writer
+)
+
+# Build and run crew
+crew = Crew(
+    agents=[researcher, writer],
+    tasks=[research_task, write_task],
+    verbose=True
+)
+
+result = crew.kickoff()
+
+# Store learnings — returns instantly, processes in background
+mem.add(f"""Crew run completed. 
+Research findings: {research_task.output}
+Final report: {result}
+""")
+
+print(result)</code></pre>
+
+        <p>That's it. The next time this crew runs, <code>recall()</code> will surface learnings from this run — what sources were useful, what the client's preferences were, what quality issues were flagged. The crew gets smarter with every execution.</p>
+
+        <h2>The Multi-Agent Advantage: Shared Organizational Memory</h2>
+
+        <p>Here's where 0Latency really shines with CrewAI: <strong>organizational memory</strong>. When you set an <code>org_id</code>, memories are shared across all agents in that organization. This means:</p>
+
+        <div class="scenario">
+            <h4>Scenario: Cross-Crew Learning</h4>
+            <p>Your <strong>research crew</strong> discovers that a particular API endpoint returns inconsistent data on weekends. It extracts this as a memory.</p>
+            <p>Two days later, your <strong>data pipeline crew</strong> runs. Before execution, <code>recall()</code> surfaces the reliability warning. The pipeline crew <strong>routes around the bad endpoint automatically</strong> — without anyone manually passing that context.</p>
+        </div>
+
+        <div class="scenario">
+            <h4>Scenario: Institutional Knowledge</h4>
+            <p>Your <strong>customer support crew</strong> learns over 50 runs that "billing question" tickets are almost always about subscription renewals, not charges. This pattern is extracted and stored.</p>
+            <p>When a new <strong>ticket triage crew</strong> is created, it inherits this organizational knowledge from day one. <strong>No training period. No repeated mistakes.</strong></p>
+        </div>
+
+        <p>This is what "organizational memory" actually means — not a shared database that agents can query, but a living knowledge base that proactively surfaces the right context at the right time.</p>
+
+        <h2>What Changes When Crews Remember</h2>
+
+        <ul>
+            <li><strong>Compound learning.</strong> Each run builds on the last. Run 1 might be mediocre. Run 10 is excellent — because the crew has accumulated learnings about what works, what doesn't, and what the user expects.</li>
+            <li><strong>Fewer repeated mistakes.</strong> If a crew makes an error and gets corrected, that correction is stored and recalled for future runs. The same mistake shouldn't happen twice.</li>
+            <li><strong>Faster execution.</strong> Crews don't waste time re-discovering things they already know. The researcher doesn't need to re-evaluate sources that were already ranked. The writer doesn't need to re-learn the client's tone preference.</li>
+            <li><strong>Temporal awareness.</strong> 0Latency's memory decay means stale learnings naturally fade while frequently-reinforced ones stay sharp. A preference that hasn't been relevant in months won't clutter the context.</li>
+            <li><strong>Contradiction handling.</strong> When a user changes a preference ("actually, make the reports shorter"), 0Latency flags the contradiction and updates the current state. Crews always work with the latest information.</li>
+        </ul>
+
+        <div class="callout-green">
+            <strong>Pro tip:</strong> Use different <code>agent_id</code> values for different crew types (e.g., <code>"research-crew"</code>, <code>"content-crew"</code>) but the same <code>org_id</code>. This way, each crew builds its own specialized memory while still sharing organizational knowledge.
+        </div>
+
+        <h2>Advanced: Per-Agent Memory</h2>
+
+        <p>For more granular control, you can give each agent within a crew its own memory context:</p>
+
+        <pre><code># Recall agent-specific memories — sub-100ms each
+researcher_mem = mem.recall("market research sources and methodology")
+
+writer_mem = mem.recall("report writing style and format preferences")
+
+# Inject into individual backstories
+researcher = Agent(
+    role="Senior Market Researcher",
+    backstory=f"...\n\nYour learnings:\n{researcher_mem.text}",
+    ...
+)
+
+writer = Agent(
+    role="Report Writer",
+    backstory=f"...\n\nYour learnings:\n{writer_mem.text}",
+    ...
+)</code></pre>
+
+        <p>Tags let you segment memories by agent role, task type, or any other dimension. The researcher sees research-specific learnings; the writer sees writing-specific ones. Both still benefit from shared organizational memory.</p>
+
+        <h2>Pricing</h2>
+
+        <p>Free tier: 1,000 memories, 10,000 recall queries/month. For a crew that runs a few times per day, this is plenty. Pro ($29/month) unlocks unlimited — suitable for production deployments with multiple crews and high-frequency execution.</p>
+
+        <div class="cta fade-in">
+            <h2>Give your crews a memory</h2>
+            <p>Agents that learn from every run. Organizational knowledge that compounds over time. No more starting from scratch.</p>
+            <a href="https://api.0latency.ai/docs" class="btn">Try 0Latency Free →</a>
+        </div>
+
+        <div class="integrations-nav">
+            <h3>Other Integrations</h3>
+            <ul>
+                <li><a href="openclaw.html">🦞 OpenClaw</a></li>
+                <li><a href="langchain.html">🦜 LangChain</a></li>
+                <li><a href="autogen.html">🤖 AutoGen</a></li>
+                <li><a href="https://api.0latency.ai/docs">📖 REST API</a></li>
+            </ul>
+        </div>
+    </article>
+
+    <footer style="background:#f1f5f9;border-top:1px solid #e5e7eb;padding:0;margin-top:2rem;">
+        <div style="max-width:1100px;margin:0 auto;padding:3rem 2rem 1.5rem;display:grid;grid-template-columns:2fr 1fr 1fr;gap:3rem;">
+            <div>
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+                    <img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="32" style="border-radius:4px;">
+                </div>
+                <p style="color:#6b7280;font-size:0.9rem;line-height:1.6;max-width:300px;">Persistent memory layer for AI agents. Sub-100ms recall, zero configuration. Your agent remembers everything.</p>
+            </div>
+            <div>
+                <h4 style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Product</h4>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    <a href="/pricing.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Pricing</a>
+                    <a href="https://api.0latency.ai/docs" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Docs</a>
+                    <a href="/integrations/" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Integrations</a>
+                    <a href="/blog/why-your-agent-forgets.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Blog</a>
+                    <a href="/support.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Support</a>
+                </div>
+            </div>
+            <div>
+                <h4 style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Resources</h4>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    <a href="https://github.com/jghiglia2380/0Latency" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">GitHub</a>
+                    <a href="https://api.0latency.ai/health" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Status</a>
+                    <a href="/privacy.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Privacy</a>
+                    <a href="/terms.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Terms</a>
+                </div>
+            </div>
+        </div>
+        <div style="max-width:1100px;margin:0 auto;padding:1.5rem 2rem;border-top:1px solid #e5e7eb;text-align:center;">
+            <p style="color:#9ca3af;font-size:0.8rem;">© 2026 0Latency. All rights reserved.</p>
+        </div>
+        <style>
+            footer a:hover { color: #f97316 !important; }
+            @media (max-width: 768px) {
+                footer > div:first-child { grid-template-columns: 1fr !important; gap: 2rem !important; }
+            }
+        </style>
+    </footer>
+
+    <!-- Copy button for code blocks -->
+    <script>
+    document.querySelectorAll('pre').forEach(pre => {
+        const btn = document.createElement('button');
+        btn.className = 'copy-btn';
+        btn.textContent = 'Copy';
+        btn.addEventListener('click', () => {
+            const code = pre.querySelector('code') ? pre.querySelector('code').textContent : pre.textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        });
+        pre.style.position = 'relative';
+        pre.appendChild(btn);
+    });
+    </script>
+    <!-- Scroll-triggered fade-in -->
+    <script>
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+    </script>
+    <!-- Hamburger menu toggle -->
+    <script>
+    document.querySelectorAll('.hamburger').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const nav = btn.parentElement.querySelector('.nav-links');
+            if (nav) nav.classList.toggle('open');
+        });
+    });
+    </script>
+</body>
+</html>

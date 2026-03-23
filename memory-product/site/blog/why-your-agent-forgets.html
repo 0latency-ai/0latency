@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>We Lost 36% of Our Agent's Most Important Work. Here's How We Fixed It. | 0Latency</title>
+  <meta name="description" content="After months running a production AI agent, we discovered 36% of critical memories were lost during context compaction. Here's what we measured, why existing solutions fail, and the memory architecture that took recall from 65% to 95%.">
+  <meta name="keywords" content="AI agent memory, context window, LLM memory, agent continuity, RAG alternative, AI agent infrastructure, memory layer, context compaction">
+  <meta name="author" content="0Latency">
+  <link rel="canonical" href="https://0latency.ai/blog/why-your-agent-forgets">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="We Lost 36% of Our Agent's Most Important Work. Here's How We Fixed It.">
+  <meta property="og:description" content="Real data from months of running a production AI agent. 329 memories extracted, 36% lost to compaction. The memory architecture that fixed it.">
+  <meta property="og:url" content="https://0latency.ai/blog/why-your-agent-forgets">
+  <meta property="og:site_name" content="0Latency">
+  <meta property="og:image" content="https://0latency.ai/og-blog-agent-forgets.png">
+  <meta property="article:published_time" content="2026-03-22T00:00:00Z">
+  <meta property="article:author" content="0Latency">
+  <meta property="article:tag" content="AI agents">
+  <meta property="article:tag" content="memory">
+  <meta property="article:tag" content="LLM infrastructure">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="We Lost 36% of Our Agent's Most Important Work.">
+  <meta name="twitter:description" content="Real production data: 329 memories, 36% lost. Here's the memory architecture that fixed it.">
+  <meta name="twitter:image" content="https://0latency.ai/og-blog-agent-forgets.png">
+
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": "We Lost 36% of Our Agent's Most Important Work. Here's How We Fixed It.",
+    "description": "After months running a production AI agent, we discovered 36% of critical memories were lost during context compaction. Here's the memory architecture that took recall from 65% to 95%.",
+    "author": {
+      "@type": "Organization",
+      "name": "0Latency",
+      "url": "https://0latency.ai"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "0Latency",
+      "url": "https://0latency.ai"
+    },
+    "datePublished": "2026-03-22",
+    "dateModified": "2026-03-22",
+    "mainEntityOfPage": "https://0latency.ai/blog/why-your-agent-forgets",
+    "keywords": ["AI agent memory", "context window", "LLM memory", "agent continuity", "memory layer"],
+    "wordCount": 1850
+  }
+  </script>
+
+  <style>
+        html { scroll-behavior: smooth; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #fafafa;
+      color: #111827;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: #f97316; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: #ffffff;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 1.25rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .nav-logo { font-weight: 700; font-size: 1.1rem; color: #111827; letter-spacing: -0.02em; }
+    .nav-logo span { color: #f97316; }
+    .nav-links a { margin-left: 1.5rem; font-size: 0.9rem; color: #6b7280; }
+    .nav-links a:hover { color: #111827; text-decoration: none; }
+
+    .hero {
+      max-width: 740px;
+      margin: 0 auto;
+      padding: 4rem 2rem 2rem;
+    }
+    .hero .tag {
+      display: inline-block;
+      background: rgba(249, 115, 22, 0.1);
+      color: #f97316;
+      padding: 0.3rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      margin-bottom: 1.5rem;
+      border: 1px solid rgba(249, 115, 22, 0.2);
+    }
+    .hero h1 {
+      font-size: 2.4rem;
+      line-height: 1.2;
+      font-weight: 800;
+      color: #111827;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.25rem;
+    }
+    .hero .subtitle {
+      font-size: 1.15rem;
+      color: #6b7280;
+      line-height: 1.6;
+      margin-bottom: 1rem;
+    }
+    .hero .meta {
+      font-size: 0.85rem;
+      color: #6b7280;
+      margin-bottom: 0;
+    }
+
+    article {
+      max-width: 740px;
+      margin: 0 auto;
+      padding: 2rem 2rem 5rem;
+    }
+    article h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #111827;
+      margin: 2.5rem 0 1rem;
+      letter-spacing: -0.02em;
+    }
+    article h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #374151;
+      margin: 2rem 0 0.75rem;
+    }
+    article p {
+      margin-bottom: 1.25rem;
+      color: #374151;
+    }
+    article strong { color: #111827; }
+    article ul, article ol {
+      margin: 0 0 1.25rem 1.5rem;
+      color: #374151;
+    }
+    article li { margin-bottom: 0.4rem; }
+
+    .stat-box {
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.04), rgba(0, 0, 0, 0.03));
+      border: 1px solid rgba(249, 115, 22, 0.15);
+      border-radius: 12px;
+      padding: 1.75rem;
+      margin: 2rem 0;
+    }
+    .stat-box .number {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: #f97316;
+      line-height: 1;
+    }
+    .stat-box .label {
+      font-size: 0.95rem;
+      color: #6b7280;
+      margin-top: 0.4rem;
+    }
+    .stat-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1rem;
+      margin: 2rem 0;
+    }
+    .stat-row .stat-box { text-align: center; }
+
+    pre {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      margin: 1.5rem 0;
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+    code {
+      font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+      font-size: 0.85em;
+    }
+    p code {
+      background: #f3f4f6;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      color: #7c3aed;
+    }
+    pre code { background: none; padding: 0; color: #374151; }
+
+    .comment { color: #6b7280; }
+    .keyword { color: #f97316; }
+    .string { color: #34d399; }
+    .prop { color: #93c5fd; }
+    .num { color: #d97706; }
+
+    .callout {
+      background: rgba(249, 115, 22, 0.04);
+      border-left: 3px solid #f97316;
+      padding: 1.25rem 1.5rem;
+      margin: 2rem 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .callout p { margin-bottom: 0; color: #7c3aed; }
+
+    .cta-section {
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.08), rgba(249, 115, 22, 0.04));
+      border: 1px solid rgba(249, 115, 22, 0.2);
+      border-radius: 16px;
+      padding: 2.5rem;
+      text-align: center;
+      margin: 3rem 0;
+    }
+    .cta-section h2 { margin-top: 0; }
+    .cta-section p { color: #6b7280; max-width: 500px; margin: 0 auto 1.5rem; }
+    .cta-btn {
+      display: inline-block;
+      background: #f97316;
+      color: #ffffff;
+      font-weight: 700;
+      padding: 0.85rem 2rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: background 0.2s;
+    }
+    .cta-btn:hover { background: #fb923c; text-decoration: none; color: #ffffff; }
+
+    .footer {
+      border-top: 1px solid #e5e7eb;
+      padding: 2rem;
+      text-align: center;
+      font-size: 0.85rem;
+      color: #9ca3af;
+      max-width: 740px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 1.75rem; }
+      .hero { padding: 2.5rem 1.25rem 1.5rem; }
+      article { padding: 1.5rem 1.25rem 3rem; }
+      .stat-row { grid-template-columns: 1fr; }
+    }
+  
+        /* Scroll-triggered fade-in */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    
+        /* Hamburger menu */
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text, #111827);
+            padding: 0.25rem;
+            line-height: 1;
+        }
+        @media (max-width: 768px) {
+            .hamburger { display: block; }
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: #ffffff;
+                border-bottom: 1px solid #e5e7eb;
+                flex-direction: column;
+                padding: 1rem 2rem;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                z-index: 99;
+            }
+            .nav-links.open {
+                display: flex;
+            }
+            .nav-links a {
+                margin-left: 0 !important;
+                padding: 0.6rem 0;
+                border-bottom: 1px solid #f3f4f6;
+            }
+            .nav-links a:last-child { border-bottom: none; }
+        }
+    
+        /* Code block improvements */
+        pre {
+            position: relative;
+            overflow-x: auto;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: #e5e7eb;
+            border: none;
+            border-radius: 4px;
+            padding: 0.25rem 0.6rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.2s;
+            opacity: 0;
+        }
+        pre:hover .copy-btn { opacity: 1; }
+        .copy-btn:hover {
+            background: #f97316;
+            color: #ffffff;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav" style="background:#ffffff;border-bottom:1px solid #e5e7eb;">
+  <a href="/" class="nav-logo" style="display:flex;align-items:center;text-decoration:none;"><img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="40" style="border-radius:4px;"></a>
+  <button class="hamburger" aria-label="Menu">☰</button>
+        <div class="nav-links">
+    <a href="https://api.0latency.ai/docs">Docs</a>
+    <a href="/blog/why-your-agent-forgets.html">Blog</a>
+    <a href="/pricing.html">Pricing</a>
+    <a href="/" style="color:#f97316;">Get Started</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <span class="tag">Engineering</span>
+  <h1>We Lost 36% of Our Agent's Most Important Work. Here's How We Fixed It.</h1>
+  <p class="subtitle">After months running a production AI agent, we discovered that context compaction was silently destroying the memories that mattered most. Here's what we measured, why the standard solutions failed, and the memory architecture that took effective recall from 65% to 95%.</p>
+  <p class="meta">0Latency · March 22, 2026 · 9 min read</p>
+</header>
+
+<article>
+
+  <h2>Every Agent Forgets</h2>
+
+  <p>If you've built anything with persistent AI agents, you've hit this wall. Your agent works great for an hour. Two hours. Maybe a full session. Then the context window fills up. The provider compacts the conversation. The session ends. The agent wakes up tomorrow and has no idea what happened yesterday.</p>
+
+  <p>This isn't a minor annoyance. <strong>It's the single biggest barrier to useful long-term agents.</strong></p>
+
+  <p>We know because we ran into it ourselves. We operate a production AI agent — Thomas — that manages daily operations across multiple businesses. Not a demo. Not a prototype. A real agent handling real work: email triage, task management, strategic decisions, multi-week projects with dozens of moving parts.</p>
+
+  <p>After months of operation, we decided to measure exactly how much was being lost. The results were worse than we expected.</p>
+
+  <h2>What We Actually Measured</h2>
+
+  <p>We ran a comprehensive gap analysis across Thomas's memory system. We extracted every memory the system had stored and tested whether the agent could actually recall and use them when needed.</p>
+
+  <div class="stat-row fade-in">
+    <div class="stat-box">
+      <div class="number">329</div>
+      <div class="label">Memories extracted</div>
+    </div>
+    <div class="stat-box">
+      <div class="number">36%</div>
+      <div class="label">Critical memories lost</div>
+    </div>
+    <div class="stat-box">
+      <div class="number">65%</div>
+      <div class="label">Effective recall rate</div>
+    </div>
+  </div>
+
+  <p>329 memories had been extracted and stored. That part worked. But when we tested actual recall — could the agent surface the right memory at the right time? — it failed on more than a third of the critical ones.</p>
+
+  <p>The failure modes were specific and repeatable:</p>
+
+  <ul>
+    <li><strong>Session handoffs destroyed.</strong> Context from before a compaction event was either lost entirely or reduced to fragments too vague to be useful.</li>
+    <li><strong>Decisions degraded into tasks.</strong> "We decided to pursue strategy X because of factors A, B, and C" became "Look into strategy X." The <em>reasoning</em> — the most valuable part — was gone.</li>
+    <li><strong>Ordered sequences fragmented.</strong> A prioritized list of 8 action items became 3 disconnected mentions with no ordering or dependencies.</li>
+    <li><strong>Temporal relationships collapsed.</strong> The agent couldn't distinguish what happened last week from what happened two months ago. Everything was "recent."</li>
+  </ul>
+
+  <div class="callout">
+    <p>The worst part: the agent didn't know it had forgotten. It would confidently operate on partial information, make decisions missing key context, and never flag that something was wrong.</p>
+  </div>
+
+  <h2>Why the Standard Solutions Don't Work</h2>
+
+  <h3>Flat files (Markdown memory)</h3>
+  <p>The naive approach: write everything to a file, load it into context on startup. This is where most agent frameworks start. It works for about a week.</p>
+  <p>The files grow unbounded. A month of operation produces megabytes of notes. You can't load all of it — context windows have limits. So you start truncating, which means you're choosing what to forget. You just moved the problem from "the model forgets" to "your code forgets."</p>
+
+  <h3>Vector databases</h3>
+  <p>Better, but fundamentally misaligned. Vector search does <strong>similarity</strong>, not <strong>relevance</strong>. When your agent needs to recall "what was the pricing decision we made last Tuesday," the most <em>similar</em> embedding might be a pricing discussion from three months ago. The most <em>relevant</em> one is the recent decision — but similarity search has no concept of recency, importance, or the current task context.</p>
+
+  <h3>Full chat replay</h3>
+  <p>Some systems replay the entire conversation history into each new context. This is expensive (you're paying for the same tokens repeatedly), noisy (most of a conversation is irrelevant to the current task), and doesn't scale. Past ~50K tokens of history, the model starts ignoring earlier content anyway.</p>
+
+  <h3>RAG over documents</h3>
+  <p>Retrieval-Augmented Generation was built for a different problem: helping models answer questions about static document collections. Agent memory isn't a document collection. It's a living, evolving graph of decisions, contexts, relationships, and temporal sequences. RAG can find a fact. It can't reconstruct the state of a project.</p>
+
+  <h2>What Actually Works</h2>
+
+  <p>After six months of iteration, here's the architecture that took us from 65% to 95%+ effective recall. Each piece solves a specific failure mode.</p>
+
+  <h3>1. Automatic extraction — zero latency, zero configuration</h3>
+
+  <p>The first version required the agent to decide what was worth remembering. This is a terrible idea. Agents are busy doing their actual work. They skip memory writes when under load, they misjudge what's important in the moment, and they can't predict what will matter later.</p>
+
+  <p>The fix: extract memories from every interaction automatically. The agent calls <code>.add()</code> and gets an instant acknowledgment — extraction happens asynchronously in the background. No waiting, no configuration, no performance tuning. The agent never blocks:</p>
+
+<pre><code><span class="comment">// What automatic extraction produces from a conversation turn</span>
+{
+  <span class="prop">"type"</span>: <span class="string">"decision"</span>,
+  <span class="prop">"content"</span>: <span class="string">"Pricing set at $20/student/year as floor price"</span>,
+  <span class="prop">"context"</span>: <span class="string">"Discussed during Q1 pricing review with school pipeline analysis"</span>,
+  <span class="prop">"confidence"</span>: <span class="num">0.95</span>,
+  <span class="prop">"relationships"</span>: [<span class="string">"pricing-strategy"</span>, <span class="string">"pfl-academy"</span>, <span class="string">"q1-review"</span>],
+  <span class="prop">"timestamp"</span>: <span class="string">"2026-03-15T14:32:00Z"</span>,
+  <span class="prop">"source_session"</span>: <span class="string">"sess_a8f2c1"</span>
+}</code></pre>
+
+  <p>No prompt injection. No special commands. No configuration. The agent just works, and memories accumulate. Extraction accepts instantly and processes in the background — partial results beat blocking.</p>
+
+  <h3>2. Structured storage with types and relationships</h3>
+
+  <p>Flat text kills recall. When everything is a string, the system has no way to distinguish a critical decision from a casual observation.</p>
+
+  <p>Memories are stored with explicit types — <code>decision</code>, <code>fact</code>, <code>preference</code>, <code>task</code>, <code>event</code>, <code>relationship</code> — along with confidence scores and relationship edges. This means queries can be precise:</p>
+
+<pre><code><span class="comment">// "What pricing decisions have we made?"</span>
+<span class="keyword">const</span> memories = <span class="keyword">await</span> recall({
+  <span class="prop">type</span>: <span class="string">"decision"</span>,
+  <span class="prop">relationships</span>: [<span class="string">"pricing"</span>],
+  <span class="prop">minConfidence</span>: <span class="num">0.8</span>,
+  <span class="prop">order</span>: <span class="string">"temporal_desc"</span>,
+  <span class="prop">limit</span>: <span class="num">10</span>
+});
+
+<span class="comment">// Returns: structured decisions, most recent first,</span>
+<span class="comment">// with full context and confidence scores</span></code></pre>
+
+  <p>This isn't similarity search hoping to land near the right answer. It's a direct query for exactly what you need.</p>
+
+  <h3>3. Temporal dynamics — reinforce what matters, decay what doesn't</h3>
+
+  <p>Not all memories are equal, and their importance changes over time. A task that was urgent last week might be completed and irrelevant today. A decision made two months ago might be more important now than when it was made.</p>
+
+  <p>Every memory has a <strong>salience score</strong> that evolves:</p>
+
+  <ul>
+    <li><strong>Reinforcement:</strong> When a memory is recalled and used, its salience increases. Frequently accessed memories stay prominent.</li>
+    <li><strong>Decay:</strong> Unused memories gradually decrease in salience. Not deleted — just deprioritized. They're still findable, but they don't compete for limited context budget.</li>
+    <li><strong>Boost on reference:</strong> When a new memory references an older one, both get a salience boost. Connected memories survive together.</li>
+  </ul>
+
+  <p>This mirrors how human memory works. You don't remember every meal you've eaten, but you remember the one where you closed a big deal.</p>
+
+  <h3>4. Context budget management — L0/L1/L2 tiered loading</h3>
+
+  <p>Context windows are finite. Even with 200K tokens, you can't load everything. The system manages a strict budget with three tiers:</p>
+
+  <ul>
+    <li><strong>L0 — Always loaded</strong> (~2K tokens): Identity, current goals, active blockers. The "who am I and what am I doing" layer. Loaded on every single context window.</li>
+    <li><strong>L1 — Session context</strong> (~8K tokens): Recent decisions, active project states, pending tasks. Loaded at session start, refreshed on compaction survival.</li>
+    <li><strong>L2 — On-demand recall</strong> (variable): Queried when needed. The deep archive. Pulled in by specific recall queries triggered by conversation context.</li>
+  </ul>
+
+  <p>This is the key insight: <strong>you don't need all memories all the time.</strong> You need the right memories at the right moment, loaded within a budget the model can actually use effectively. And recall is always synchronous, always fast — sub-100ms, no configuration needed. That's the "zero latency" promise: it's not a setting you tune, it's how the system works by default.</p>
+
+  <h3>5. Negative recall — knowing what you don't know</h3>
+
+  <p>This was the non-obvious breakthrough. The system doesn't just track what it remembers — it tracks what it <em>should</em> remember but can't find. When a recall query returns low-confidence results or hits a gap, it flags it:</p>
+
+<pre><code><span class="comment">// Recall result with gap detection</span>
+{
+  <span class="prop">"results"</span>: [...],
+  <span class="prop">"gaps"</span>: [{
+    <span class="prop">"query"</span>: <span class="string">"Q4 renewal terms for Dale Public Schools"</span>,
+    <span class="prop">"expected_type"</span>: <span class="string">"decision"</span>,
+    <span class="prop">"confidence"</span>: <span class="num">0.3</span>,
+    <span class="prop">"suggestion"</span>: <span class="string">"Low confidence match. Verify with source before acting."</span>
+  }]
+}</code></pre>
+
+  <p>Instead of confidently acting on partial information, the agent can say: "I have a note about this but I'm not confident in it — let me verify." That single capability eliminated the most dangerous failure mode: invisible forgetting.</p>
+
+  <h2>The Results</h2>
+
+  <div class="stat-row fade-in">
+    <div class="stat-box">
+      <div class="number">95%+</div>
+      <div class="label">Effective recall (was 65%)</div>
+    </div>
+    <div class="stat-box">
+      <div class="number">90%</div>
+      <div class="label">Faster cold-start orientation</div>
+    </div>
+    <div class="stat-box">
+      <div class="number">0</div>
+      <div class="label">Silent compaction losses</div>
+    </div>
+  </div>
+
+  <p><strong>Compaction survival:</strong> When the context window compacts, the memory layer persists. The agent wakes up post-compaction, loads L0 and L1, and is oriented within seconds instead of fumbling through stale file reads.</p>
+
+  <p><strong>Cold start performance:</strong> New sessions used to require 3-5 minutes of the agent reading files and trying to piece together what it was doing. Now it loads a pre-computed context package and is operational in under 15 seconds. That's the 90% reduction.</p>
+
+  <p><strong>Decision continuity:</strong> The biggest qualitative improvement. Decisions now persist with their full reasoning chain. When the agent revisits a topic weeks later, it doesn't just know <em>what</em> was decided — it knows <em>why</em>, <em>what alternatives were considered</em>, and <em>what constraints drove the choice</em>.</p>
+
+  <h2>The Uncomfortable Truth</h2>
+
+  <p>Every team building persistent agents is solving this problem from scratch. They're writing custom memory layers, hacking markdown files, bolting on vector databases, and losing data they don't even know they're losing.</p>
+
+  <p>We did the same thing. It took months. The gap analysis showed us exactly how much we were losing, and the fix required rethinking memory from the ground up — not as a storage problem, but as a <strong>cognitive architecture</strong> problem.</p>
+
+  <p>Your agent is forgetting right now. The question is whether you know how much.</p>
+
+  <div class="cta-section fade-in">
+    <h2>Stop building memory from scratch</h2>
+    <p>0Latency is a memory layer for AI agents. Install, add, recall. Sub-100ms. No configuration. We handle memory so you can build your agent.</p>
+    <a href="https://0latency.ai" class="cta-btn">Try 0Latency Free →</a>
+  </div>
+
+</article>
+
+<footer style="background:#f1f5f9;border-top:1px solid #e5e7eb;padding:0;margin-top:2rem;">
+        <div style="max-width:1100px;margin:0 auto;padding:3rem 2rem 1.5rem;display:grid;grid-template-columns:2fr 1fr 1fr;gap:3rem;">
+            <div>
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+                    <img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="32" style="border-radius:4px;">
+                </div>
+                <p style="color:#6b7280;font-size:0.9rem;line-height:1.6;max-width:300px;">Persistent memory layer for AI agents. Sub-100ms recall, zero configuration. Your agent remembers everything.</p>
+            </div>
+            <div>
+                <h4 style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Product</h4>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    <a href="/pricing.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Pricing</a>
+                    <a href="https://api.0latency.ai/docs" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Docs</a>
+                    <a href="/integrations/" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Integrations</a>
+                    <a href="/blog/why-your-agent-forgets.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Blog</a>
+                    <a href="/support.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Support</a>
+                </div>
+            </div>
+            <div>
+                <h4 style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Resources</h4>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    <a href="https://github.com/jghiglia2380/0Latency" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">GitHub</a>
+                    <a href="https://api.0latency.ai/health" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Status</a>
+                    <a href="/privacy.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Privacy</a>
+                    <a href="/terms.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Terms</a>
+                </div>
+            </div>
+        </div>
+        <div style="max-width:1100px;margin:0 auto;padding:1.5rem 2rem;border-top:1px solid #e5e7eb;text-align:center;">
+            <p style="color:#9ca3af;font-size:0.8rem;">© 2026 0Latency. All rights reserved.</p>
+        </div>
+        <style>
+            footer a:hover { color: #f97316 !important; }
+            @media (max-width: 768px) {
+                footer > div:first-child { grid-template-columns: 1fr !important; gap: 2rem !important; }
+            }
+        </style>
+    </footer>
+
+
+    <!-- Copy button for code blocks -->
+    <script>
+    document.querySelectorAll('pre').forEach(pre => {
+        const btn = document.createElement('button');
+        btn.className = 'copy-btn';
+        btn.textContent = 'Copy';
+        btn.addEventListener('click', () => {
+            const code = pre.querySelector('code') ? pre.querySelector('code').textContent : pre.textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        });
+        pre.style.position = 'relative';
+        pre.appendChild(btn);
+    });
+    </script>
+    <!-- Scroll-triggered fade-in -->
+    <script>
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+    </script>
+    <!-- Hamburger menu toggle -->
+    <script>
+    document.querySelectorAll('.hamburger').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const nav = btn.parentElement.querySelector('.nav-links');
+            if (nav) nav.classList.toggle('open');
+        });
+    });
+    </script>
+</body>
+</html>

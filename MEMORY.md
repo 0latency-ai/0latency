@@ -1,6 +1,7 @@
 # MEMORY.md — Thomas Long-Term Memory
 
 ## Communication Rules (NON-NEGOTIABLE)
+- **NEVER ask Justin to paste API keys, secrets, tokens, or credentials into Telegram/chat.** He practices clean API key hygiene. Always provide terminal/SSH instructions to store credentials directly on the server. No exceptions. (Added March 22, 2026 — Justin called this out twice.)
 - **NEVER say** "I want to be straight with you," "to be honest," "I'll be honest," "let me be real," or any variant. Justin despises this framing — it implies you might otherwise be dishonest. Just say the thing. No preamble.
 - **NEVER announce your capabilities before using them.** Don't say "Let me use the Graph API" or "I have access to email." Just do the thing. Justin set up all integrations weeks ago — narrating them wastes his time and signals you don't know your own tools.
 - **NEVER say you can't do something without testing first.** Default assumption: you CAN. Try it. If it actually fails after trying, then report the failure. (Added March 18, 2026 — Justin called this out directly.)
@@ -44,6 +45,12 @@ Any file over 5KB received via Telegram MUST be:
 4. Checkpoint between chunks (write partial results to `/root/logs/` dated file)
 5. Final summary only goes into the conversation — raw content stays on disk
 This prevents context blowout from large file drops.
+
+## Main Thread Responsiveness Rule (NON-NEGOTIABLE — added March 22, 2026)
+- **If a task requires more than 3 sequential tool calls and doesn't need real-time user input, SPAWN A SUB-AGENT.** Stay in the main thread. Tell Justin what you kicked off. Relay results when they land.
+- The main session is a CONVERSATION THREAD, not a build pipeline. Never go silent for >2 minutes during active chat.
+- Background work examples that MUST be delegated: site deployments, API restarts, file conversions, bulk edits, research tasks.
+- This rule exists because on March 22, 2026, Justin was left waiting 10+ minutes during active conversation while Thomas chained 15+ tool calls for deployment work. That's unacceptable.
 
 ## Spawn Discipline Rules (NON-NEGOTIABLE — added March 13, 2026)
 1. **Spawn budget rule:** Before spawning any sub-agent, estimate token cost vs doing it directly. If the task is under ~15 minutes of direct work, just do it. Don't delegate for the sake of delegating.
@@ -316,6 +323,18 @@ Source: `/home/ubuntu/pfl-academy/product-docs/writing_rules.md` (full doc). Cop
 - **Code:** `/root/.openclaw/workspace/memory-product/src/` (extraction.py, storage.py, recall.py)
 - **Next:** Phase 4 — wire Echo to memory service, Justin tests it
 
+## 0Latency Product Philosophy (Codified March 22, 2026)
+- **"It just works. Zero latency. No configuration."** — Steve Jobs philosophy applied to agent memory
+- API is 3 lines: `Memory(api_key)`, `.add()`, `.recall()` — no config knobs
+- Three architectural rules: (1) Recall always sync/fast sub-100ms, (2) Extraction accepts instantly processes in background, (3) Partial results beat blocking
+- Nobody configures latency tolerance. We decide how memory works. Developer's job is to build their agent.
+- Async extraction is an architectural principle, not a feature toggle
+- New endpoints: POST /memories/extract (202 Accepted + job_id), GET /memories/extract/{job_id}
+- Brand name: **0Latency** (no space), statement descriptor: **0LATENCY**
+- Justin dissolved Startup Smartup LLC (bankrupt). New Stripe account as sole proprietor under his name.
+- Stripe email: jghiglia+0latency@gmail.com
+- **Obsidian opportunity:** "Obsidian is your second brain. 0Latency is your agent's." — complementary, not competitive. Integration page planned.
+
 ## CABE 2026 Conference Research (March 18, 2026)
 - Compiled district contact list for dual language outreach: `/root/.openclaw/workspace/research/cabe_2026_district_contacts.md`
 - 9 co-sponsor districts identified (SFUSD, Oakland USD, Oak Grove, Palmdale, Salinas City ESD, Salinas Union HSD, Los Banos USD, John Swett USD, Santa Clara COE)
@@ -379,3 +398,6 @@ Source: `/home/ubuntu/pfl-academy/product-docs/writing_rules.md` (full doc). Cop
 - **After every run:** Update master registry with new results.
 - **Credits remaining:** ~4,721 (as of March 12, 2026)
 - **This is real money.** No duplicate verifications. No exceptions.
+
+## Key People — Moheb
+- **Moheb** — Egyptian artist/designer. Does ALL artwork for Project Explore (Startup Smartup). Character art, episode illustrations. Justin trusts his creative work. Potential for 0Latency logo design.

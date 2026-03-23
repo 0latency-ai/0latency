@@ -156,7 +156,13 @@ The extraction layer processes each conversation exchange and outputs:
 - Outputs are typed (fact, decision, task, correction, preference, relationship)
 - Each output has confidence score, source reference, and timestamp
 
-**Open question:** Should extraction run synchronously (blocking, guarantees nothing is missed) or async (non-blocking, slight risk of loss on crash)? Recommendation: async with a write-ahead log.
+**Architectural principle — async extraction is non-negotiable:**
+Extraction always runs asynchronously. The caller gets an instant acknowledgment (202 Accepted) and processing happens in the background. This is not a configuration option — it's a core architectural decision based on three rules:
+1. **Recall is always sync, always fast.** Sub-100ms. Every time.
+2. **Extraction accepts instantly, processes in background.** The caller never waits.
+3. **Partial results beat blocking.** If extraction is still processing, recall returns what's ready.
+
+This mirrors the "zero latency" product promise: zero latency is what the system does by default, not a setting you tune.
 
 ### Layer 2: Storage
 

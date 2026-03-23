@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory for OpenClaw Agents — 0Latency</title>
+    <meta name="description" content="Persistent memory for OpenClaw agents. Replace MEMORY.md with structured, automatic memory extraction and proactive recall. Install as a skill — zero config, 95%+ recall after compaction.">
+    <meta name="keywords" content="OpenClaw memory, OpenClaw agent memory, persistent memory OpenClaw, OpenClaw skill memory, OpenClaw MEMORY.md, agent memory persistence">
+    <meta name="author" content="Justin Ghiglia">
+    <meta name="robots" content="index, follow">
+
+    <link rel="canonical" href="https://0latency.ai/integrations/openclaw.html">
+
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://0latency.ai/integrations/openclaw.html">
+    <meta property="og:title" content="Memory for OpenClaw Agents — 0Latency">
+    <meta property="og:description" content="Replace MEMORY.md with structured, automatic memory. 95%+ recall after compaction. Install as a skill — zero config.">
+    <meta property="og:image" content="https://0latency.ai/og-image.png">
+    <meta property="og:site_name" content="0Latency">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Memory for OpenClaw Agents — 0Latency">
+    <meta name="twitter:description" content="Replace MEMORY.md with structured, automatic memory. 95%+ recall after compaction. Install as a skill — zero config.">
+    <meta name="twitter:image" content="https://0latency.ai/og-image.png">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": "Memory for OpenClaw Agents — 0Latency",
+      "description": "How to add persistent, structured memory to OpenClaw agents using the 0Latency skill. Replaces MEMORY.md with automatic extraction and proactive recall.",
+      "url": "https://0latency.ai/integrations/openclaw.html",
+      "author": { "@type": "Person", "name": "Justin Ghiglia" },
+      "publisher": { "@type": "Organization", "name": "0Latency", "url": "https://0latency.ai/" },
+      "datePublished": "2026-03-22",
+      "about": {
+        "@type": "SoftwareApplication",
+        "name": "0Latency",
+        "applicationCategory": "DeveloperApplication",
+        "url": "https://0latency.ai/"
+      }
+    }
+    </script>
+
+    <style>
+        html { scroll-behavior: smooth; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #fafafa;
+            --surface: #ffffff;
+            --border: #e5e7eb;
+            --text: #111827;
+            --text-dim: #6b7280;
+            --accent: #f97316;
+            --accent-glow: rgba(249, 115, 22, 0.1);
+            --green: #059669;
+            --orange: #fb923c;
+        }
+        body {
+            font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image:
+                linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: -1;
+        }
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: #ffffff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 3rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .logo { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px; }
+        .logo span { color: var(--accent); }
+        .logo a { color: var(--text); text-decoration: none; }
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            margin-left: 2rem;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--text); }
+        .nav-links .btn-primary {
+            background: var(--accent);
+            color: #111827;
+            padding: 0.5rem 1.2rem;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .nav-links .btn-primary:hover { opacity: 0.9; }
+        article { max-width: 760px; margin: 0 auto; padding: 4rem 2rem 6rem; }
+        .breadcrumb { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 2rem; }
+        .breadcrumb a { color: var(--accent); text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 1rem;
+            line-height: 1.15;
+        }
+        h1 .gradient {
+            background: linear-gradient(135deg, var(--accent), #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .lead { font-size: 1.15rem; color: var(--text-dim); margin-bottom: 3rem; }
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 3rem;
+            margin-bottom: 1rem;
+            letter-spacing: -0.3px;
+        }
+        h3 { font-size: 1.15rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.75rem; }
+        p { margin-bottom: 1rem; }
+        a { color: var(--accent); }
+        pre {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+            font-size: 0.88rem;
+            line-height: 1.6;
+        }
+        code {
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.88rem;
+        }
+        p code, li code {
+            background: rgba(249, 115, 22, 0.1);
+            color: var(--accent);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+        .callout {
+            background: var(--surface);
+            border-left: 3px solid var(--accent);
+            padding: 1.25rem 1.5rem;
+            border-radius: 0 8px 8px 0;
+            margin: 2rem 0;
+        }
+        .callout-stat {
+            background: var(--surface);
+            border-left: 3px solid var(--green);
+            padding: 1.25rem 1.5rem;
+            border-radius: 0 8px 8px 0;
+            margin: 2rem 0;
+        }
+        .callout-stat strong { color: var(--green); }
+        ul, ol { margin: 1rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.5rem; }
+        .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 2rem 0; }
+        .comparison-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+        .comparison-box h4 { font-size: 0.95rem; margin-bottom: 0.75rem; }
+        .comparison-box.before h4 { color: var(--orange); }
+        .comparison-box.after h4 { color: var(--green); }
+        .comparison-box pre { border: none; padding: 1rem; margin: 0; font-size: 0.82rem; }
+        .cta {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 3rem;
+            text-align: center;
+            margin-top: 4rem;
+        }
+        .cta h2 { margin-top: 0; }
+        .cta p { color: var(--text-dim); }
+        .cta .btn {
+            display: inline-block;
+            background: var(--accent);
+            color: #111827;
+            padding: 0.8rem 2rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .cta .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px var(--accent-glow); }
+        .integrations-nav {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+        }
+        .integrations-nav h3 { color: var(--text-dim); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .integrations-nav ul { list-style: none; margin-left: 0; display: flex; gap: 1.5rem; flex-wrap: wrap; }
+        .integrations-nav li { margin: 0; }
+        .integrations-nav a { text-decoration: none; font-weight: 500; }
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 2rem 3rem;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+        footer a { color: var(--accent); text-decoration: none; }
+        @media (max-width: 640px) {
+            nav { padding: 1rem 1.5rem; }
+            article { padding: 2rem 1.5rem 4rem; }
+            h1 { font-size: 1.8rem; }
+            .comparison { grid-template-columns: 1fr; }
+        }
+    
+        /* Scroll-triggered fade-in */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    
+        /* Hamburger menu */
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text, #111827);
+            padding: 0.25rem;
+            line-height: 1;
+        }
+        @media (max-width: 768px) {
+            .hamburger { display: block; }
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: #ffffff;
+                border-bottom: 1px solid #e5e7eb;
+                flex-direction: column;
+                padding: 1rem 2rem;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                z-index: 99;
+            }
+            .nav-links.open {
+                display: flex;
+            }
+            .nav-links a {
+                margin-left: 0 !important;
+                padding: 0.6rem 0;
+                border-bottom: 1px solid #f3f4f6;
+            }
+            .nav-links a:last-child { border-bottom: none; }
+        }
+    
+        /* Code block improvements */
+        pre {
+            position: relative;
+            overflow-x: auto;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: #e5e7eb;
+            border: none;
+            border-radius: 4px;
+            padding: 0.25rem 0.6rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.2s;
+            opacity: 0;
+        }
+        pre:hover .copy-btn { opacity: 1; }
+        .copy-btn:hover {
+            background: #f97316;
+            color: #ffffff;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+        <header>
+    <nav role="navigation" aria-label="Main navigation">
+        <a href="/" class="logo" style="text-decoration:none;display:flex;align-items:center;"><img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="50" style="border-radius:4px;"></a>
+        <button class="hamburger" aria-label="Menu">☰</button>
+            <div class="nav-links">
+            <a href="https://github.com/jghiglia2380/0Latency">GitHub</a>
+            <a href="https://api.0latency.ai/docs">API Docs</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/pricing.html">Pricing</a>
+            <a href="/login.html" class="btn-primary">Sign In</a>
+        </div>
+    </nav>
+    </header>
+
+    <article>
+        <div class="breadcrumb">
+            <a href="https://0latency.ai/">Home</a> → <a href="https://0latency.ai/integrations/">Integrations</a> → OpenClaw
+        </div>
+
+        <h1><span class="gradient">Memory for OpenClaw Agents</span></h1>
+        <p class="lead">OpenClaw agents are powerful — but they forget. MEMORY.md grows unbounded, compaction destroys context, and the agent has to remember to remember. 0Latency fixes all three with a single skill install. No configuration. Sub-100ms recall. It just works.</p>
+
+        <h2>The Problem: MEMORY.md Is a Leaky Bucket</h2>
+
+        <p>If you run an OpenClaw agent, you know the pattern. Your agent writes notes to <code>MEMORY.md</code> — decisions, user preferences, project context, lessons learned. Over time, the file grows. Eventually it hits the context window limit and gets compacted. When that happens, your agent loses information. Critical information.</p>
+
+        <p>We ran a <a href="https://0latency.ai/blog/why-your-agent-forgets.html">gap analysis</a> on real OpenClaw deployments and found three structural problems:</p>
+
+        <ul>
+            <li><strong>Unbounded growth.</strong> MEMORY.md is a flat file. There's no indexing, no prioritization, no structure. Everything is dumped in chronologically. A 200-line file about your deployment preferences sits next to a throwaway note about a one-time debug session.</li>
+            <li><strong>Compaction loss.</strong> When the context window fills up, the LLM compacts — and it's lossy. Our analysis found <strong>36% of meaningful facts were lost</strong> during a typical compaction cycle. The agent doesn't know what it doesn't know.</li>
+            <li><strong>Write-dependent.</strong> The agent has to <em>choose</em> to write to MEMORY.md. If it's in a rush, distracted by a complex task, or simply doesn't realize something is important, the memory never gets created. There's no automatic extraction.</li>
+        </ul>
+
+        <div class="callout-stat">
+            <strong>36% of facts lost</strong> during typical MEMORY.md compaction. After 0Latency: <strong>95%+ recall rate</strong> across sessions.
+        </div>
+
+        <h2>The Solution: Install a Skill, Get Structured Memory</h2>
+
+        <p>0Latency runs as an OpenClaw skill. One install command. No configuration files. No API keys to manage (the skill handles auth automatically). Once installed, three things happen without any changes to your workflow:</p>
+
+        <ol>
+            <li><strong>Automatic extraction.</strong> After every conversation turn, 0Latency's extraction daemon analyzes the exchange and pulls out facts, decisions, preferences, and context — whether or not the agent explicitly "writes" them.</li>
+            <li><strong>Structured storage.</strong> Memories are stored as typed, tagged, timestamped records — not flat text. Each memory has a priority score, temporal metadata, and relationship links to other memories. This enables intelligent recall, not just keyword matching.</li>
+            <li><strong>Proactive recall.</strong> At session start — and when context is relevant mid-conversation — 0Latency injects the right memories into the agent's context. Your agent starts every session knowing what it needs to know, not reading a 500-line flat file and hoping the important stuff is near the top.</li>
+        </ol>
+
+        <h2>How It Works</h2>
+
+        <h3>Step 1: Install the Skill</h3>
+
+        <pre><code># From your OpenClaw workspace
+openclaw skill install 0latency-memory
+
+# That's it. The skill auto-configures on first session.</code></pre>
+
+        <p>The skill creates a <code>.0latency/</code> directory in your workspace for local config and cache. Your API key is provisioned automatically on first run (free tier, no credit card).</p>
+
+        <h3>Step 2: There Is No Step 2</h3>
+
+        <p>Seriously. The skill hooks into OpenClaw's session lifecycle automatically. Here's what happens behind the scenes:</p>
+
+        <pre><code># On session start:
+# 1. 0Latency skill reads conversation context
+# 2. Calls recall() with current topic + agent identity
+# 3. Injects relevant memories into RECALL.md
+# 4. Agent reads RECALL.md as part of normal startup
+
+# After each exchange:
+# 1. Extraction daemon analyzes the conversation
+# 2. New facts, decisions, preferences extracted automatically
+# 3. Stored via 0Latency API with full metadata
+# 4. Knowledge graph updated (relationships, contradictions)
+
+# On compaction:
+# 1. Pre-compaction checkpoint triggers recall refresh
+# 2. Critical memories preserved in structured storage
+# 3. Post-compaction, agent reads RECALL.md — nothing is lost</code></pre>
+
+        <h3>Before &amp; After: What Your Agent Knows Post-Compaction</h3>
+
+        <div class="comparison">
+            <div class="comparison-box before">
+                <h4>❌ Before (MEMORY.md only)</h4>
+                <pre><code># After compaction, agent knows:
+- User prefers dark mode ✓
+- Project uses React ✓
+- [lost] Deploy target is AWS us-east-1
+- [lost] User said NEVER use yarn
+- [lost] Database migration strategy
+- [lost] Auth provider is Clerk
+- [lost] Preferred test framework: Vitest
+- 7 of 12 facts retained (58%)</code></pre>
+            </div>
+            <div class="comparison-box after">
+                <h4>✅ After (0Latency skill)</h4>
+                <pre><code># After compaction, RECALL.md contains:
+- User prefers dark mode ✓
+- Project uses React ✓
+- Deploy target: AWS us-east-1 ✓
+- Package manager: npm (NEVER yarn) ✓
+- DB migration: Prisma, manual review ✓
+- Auth: Clerk, session-based ✓
+- Testing: Vitest + React Testing Lib ✓
+- 12 of 12 facts retained (100%)</code></pre>
+            </div>
+        </div>
+
+        <p>The difference isn't subtle. With MEMORY.md alone, compaction is a coin flip — some facts survive, others don't, and the agent can't tell the difference. With 0Latency, every extracted fact lives in structured storage with its own priority score. Recall pulls the right facts at the right time, regardless of what the context window looks like.</p>
+
+        <h2>What You Get Beyond Basic Persistence</h2>
+
+        <p>Persistent storage is table stakes. Here's what structured memory actually enables:</p>
+
+        <ul>
+            <li><strong>Temporal dynamics.</strong> Memories decay over time if not reinforced. A preference stated once three months ago fades; a preference confirmed yesterday stays sharp. This prevents stale context from cluttering recall.</li>
+            <li><strong>Contradiction detection.</strong> If the user said "use PostgreSQL" last week and "switch to MySQL" today, 0Latency flags it. The agent knows the current state <em>and</em> that a change happened — context that flat text can't represent.</li>
+            <li><strong>Negative recall.</strong> "Don't use yarn." "Never deploy to prod on Fridays." Negative preferences are first-class citizens, surfaced proactively when the agent is about to violate them.</li>
+            <li><strong>Context budgets.</strong> Recall respects your context window. If you have 8K tokens of memory budget, 0Latency returns the highest-value memories that fit — not a random slice of a flat file.</li>
+            <li><strong>Knowledge graph.</strong> Memories are linked. "Project uses Clerk for auth" connects to "Clerk webhook URL is X" connects to "webhook secret is in .env.local." Multi-hop traversal means asking about auth surfaces the full picture.</li>
+        </ul>
+
+        <h2>Pricing</h2>
+
+        <p>The free tier includes 1,000 memories and 10,000 recall queries per month — enough for a personal OpenClaw setup running daily. If you're running multiple agents or high-frequency workflows, Pro is $29/month for unlimited memories and queries.</p>
+
+        <div class="callout">
+            <strong>Free tier is not a trial.</strong> It doesn't expire. There's no credit card required. If you're a solo developer with one agent, free might be all you ever need.
+        </div>
+
+        <div class="cta fade-in">
+            <h2>Give your OpenClaw agent a real memory</h2>
+            <p>One command. Zero config. Your agent remembers everything.</p>
+            <a href="https://api.0latency.ai/docs" class="btn">Try 0Latency Free →</a>
+        </div>
+
+        <div class="integrations-nav">
+            <h3>Other Integrations</h3>
+            <ul>
+                <li><a href="langchain.html">🦜 LangChain</a></li>
+                <li><a href="crewai.html">🚀 CrewAI</a></li>
+                <li><a href="autogen.html">🤖 AutoGen</a></li>
+                <li><a href="https://api.0latency.ai/docs">📖 REST API</a></li>
+            </ul>
+        </div>
+    </article>
+
+    <footer style="background:#f1f5f9;border-top:1px solid #e5e7eb;padding:0;margin-top:2rem;">
+        <div style="max-width:1100px;margin:0 auto;padding:3rem 2rem 1.5rem;display:grid;grid-template-columns:2fr 1fr 1fr;gap:3rem;">
+            <div>
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+                    <img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="32" style="border-radius:4px;">
+                </div>
+                <p style="color:#6b7280;font-size:0.9rem;line-height:1.6;max-width:300px;">Persistent memory layer for AI agents. Sub-100ms recall, zero configuration. Your agent remembers everything.</p>
+            </div>
+            <div>
+                <h4 style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Product</h4>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    <a href="/pricing.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Pricing</a>
+                    <a href="https://api.0latency.ai/docs" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Docs</a>
+                    <a href="/integrations/" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Integrations</a>
+                    <a href="/blog/why-your-agent-forgets.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Blog</a>
+                    <a href="/support.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Support</a>
+                </div>
+            </div>
+            <div>
+                <h4 style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Resources</h4>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    <a href="https://github.com/jghiglia2380/0Latency" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">GitHub</a>
+                    <a href="https://api.0latency.ai/health" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Status</a>
+                    <a href="/privacy.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Privacy</a>
+                    <a href="/terms.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Terms</a>
+                </div>
+            </div>
+        </div>
+        <div style="max-width:1100px;margin:0 auto;padding:1.5rem 2rem;border-top:1px solid #e5e7eb;text-align:center;">
+            <p style="color:#9ca3af;font-size:0.8rem;">© 2026 0Latency. All rights reserved.</p>
+        </div>
+        <style>
+            footer a:hover { color: #f97316 !important; }
+            @media (max-width: 768px) {
+                footer > div:first-child { grid-template-columns: 1fr !important; gap: 2rem !important; }
+            }
+        </style>
+    </footer>
+
+    <!-- Copy button for code blocks -->
+    <script>
+    document.querySelectorAll('pre').forEach(pre => {
+        const btn = document.createElement('button');
+        btn.className = 'copy-btn';
+        btn.textContent = 'Copy';
+        btn.addEventListener('click', () => {
+            const code = pre.querySelector('code') ? pre.querySelector('code').textContent : pre.textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        });
+        pre.style.position = 'relative';
+        pre.appendChild(btn);
+    });
+    </script>
+    <!-- Scroll-triggered fade-in -->
+    <script>
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+    </script>
+    <!-- Hamburger menu toggle -->
+    <script>
+    document.querySelectorAll('.hamburger').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const nav = btn.parentElement.querySelector('.nav-links');
+            if (nav) nav.classList.toggle('open');
+        });
+    });
+    </script>
+</body>
+</html>
