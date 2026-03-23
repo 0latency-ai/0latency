@@ -7,7 +7,7 @@ name = "zerolatency"
 version = "0.1.0"
 description = "Python SDK for the 0Latency memory API — persistent memory for AI agents."
 readme = "README.md"
-license = "MIT"
+license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [{ name = "0Latency", email = "dev@0latency.ai" }]
 keywords = ["ai", "memory", "agents", "llm", "rag"]
