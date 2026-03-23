@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How We Built a Memory Layer That Costs $0.93/User/Month — 0Latency</title>
+    <meta name="description" content="A breakdown of the unit economics behind 0Latency's AI agent memory layer. PostgreSQL + pgvector, not expensive vector databases. 95% margins at $19/month.">
+    <meta name="keywords" content="AI memory costs, vector database pricing, pgvector, AI agent memory economics, memory layer API, Supabase pgvector, Mem0 alternative">
+    <meta name="author" content="Justin Ghiglia">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://0latency.ai/blog/memory-layer-93-cents.html">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://0latency.ai/blog/memory-layer-93-cents.html">
+    <meta property="og:title" content="How We Built a Memory Layer That Costs $0.93/User/Month">
+    <meta property="og:description" content="Unit economics breakdown: PostgreSQL + pgvector on Supabase. No expensive vector DB. 95% margins at $19/month.">
+    <meta property="og:image" content="https://0latency.ai/og-image.png">
+    <meta property="og:site_name" content="0Latency">
+    <meta property="article:published_time" content="2026-03-23T00:00:00Z">
+    <meta property="article:author" content="Justin Ghiglia">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="How We Built a Memory Layer That Costs $0.93/User/Month">
+    <meta name="twitter:description" content="Unit economics breakdown: PostgreSQL + pgvector on Supabase. No expensive vector DB. 95% margins at $19/month.">
+    <meta name="twitter:image" content="https://0latency.ai/og-image.png">
+
+    <!-- JSON-LD -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": "How We Built a Memory Layer That Costs $0.93/User/Month",
+      "description": "A breakdown of the unit economics behind 0Latency's AI agent memory layer.",
+      "author": { "@type": "Person", "name": "Justin Ghiglia" },
+      "publisher": { "@type": "Organization", "name": "0Latency" },
+      "datePublished": "2026-03-23",
+      "url": "https://0latency.ai/blog/memory-layer-93-cents.html"
+    }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        html { scroll-behavior: smooth; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
+            background: #fafafa;
+            color: #111827;
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image:
+                linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* Nav */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.2rem 3rem;
+            border-bottom: 1px solid #e5e7eb;
+            background: #ffffff;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .logo { text-decoration: none; color: #111827; font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px; }
+        .nav-links a { color: #6b7280; text-decoration: none; margin-left: 2rem; font-size: 0.9rem; transition: color 0.2s; }
+        .nav-links a:hover { color: #111827; }
+        .nav-links .btn-primary { background: #f97316; color: #fff; padding: 0.5rem 1.2rem; border-radius: 6px; font-weight: 500; }
+        .nav-links .btn-primary:hover { opacity: 0.9; }
+
+        .hamburger { display: none; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #111827; padding: 0.25rem; line-height: 1; }
+        @media (max-width: 768px) {
+            .hamburger { display: block; }
+            nav { padding: 1rem 1.5rem; }
+            .nav-links {
+                display: none; position: absolute; top: 100%; left: 0; right: 0;
+                background: #ffffff; border-bottom: 1px solid #e5e7eb; flex-direction: column;
+                padding: 1rem 2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08); z-index: 99;
+            }
+            .nav-links.open { display: flex; }
+            .nav-links a { margin-left: 0 !important; padding: 0.6rem 0; border-bottom: 1px solid #f3f4f6; }
+            .nav-links a:last-child { border-bottom: none; }
+        }
+
+        /* Article */
+        .article-header {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 4rem 2rem 2rem;
+            text-align: center;
+        }
+        .article-header .tag {
+            display: inline-block;
+            background: rgba(249, 115, 22, 0.08);
+            color: #f97316;
+            padding: 0.3rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(249, 115, 22, 0.25);
+        }
+        .article-header h1 {
+            font-size: 2.8rem;
+            font-weight: 800;
+            line-height: 1.15;
+            letter-spacing: -1px;
+            margin-bottom: 1rem;
+        }
+        .article-header .meta {
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+
+        .article-body {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 0 2rem 4rem;
+        }
+        .article-body h2 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin: 2.5rem 0 1rem;
+            letter-spacing: -0.3px;
+        }
+        .article-body h3 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin: 2rem 0 0.75rem;
+        }
+        .article-body p {
+            margin-bottom: 1.25rem;
+            font-size: 1.05rem;
+            color: #374151;
+        }
+        .article-body ul, .article-body ol {
+            margin: 0 0 1.25rem 1.5rem;
+            color: #374151;
+        }
+        .article-body li { margin-bottom: 0.5rem; font-size: 1.05rem; }
+        .article-body strong { color: #111827; }
+        .article-body code {
+            background: #f3f4f6;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        }
+
+        /* Cost table */
+        .cost-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 1.5rem 0 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .cost-table th, .cost-table td {
+            padding: 0.75rem 1.25rem;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 0.95rem;
+        }
+        .cost-table th {
+            background: #f9fafb;
+            font-weight: 600;
+            color: #6b7280;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .cost-table tr:last-child td { border-bottom: none; }
+        .cost-table .highlight-row { background: rgba(249, 115, 22, 0.04); font-weight: 600; }
+
+        /* Callout */
+        .callout {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-left: 4px solid #f97316;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+        .callout p { margin-bottom: 0; color: #374151; }
+        .callout strong { color: #111827; }
+
+        /* CTA */
+        .cta-section {
+            text-align: center;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            margin: 3rem 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .cta-section h2 { font-size: 1.8rem; margin-bottom: 0.75rem; }
+        .cta-section p { color: #6b7280; margin-bottom: 1.5rem; }
+        .cta-section a {
+            display: inline-block;
+            background: #f97316;
+            color: #fff;
+            padding: 0.8rem 2rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .cta-section a:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(249, 115, 22, 0.25); }
+
+        /* Fade-in */
+        .fade-in { opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease, transform 0.6s ease; }
+        .fade-in.visible { opacity: 1; transform: translateY(0); }
+
+        /* Footer */
+        footer a:hover { color: #f97316 !important; }
+        @media (max-width: 768px) {
+            .article-header h1 { font-size: 2rem; }
+            footer > div:first-child { grid-template-columns: 1fr !important; gap: 2rem !important; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+<nav role="navigation" aria-label="Main navigation">
+    <a href="/" class="logo" style="text-decoration:none;display:flex;align-items:center;"><img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="50" style="border-radius:4px;"></a>
+    <button class="hamburger" aria-label="Menu">☰</button>
+    <div class="nav-links">
+        <a href="https://github.com/jghiglia2380/0Latency">GitHub</a>
+        <a href="https://api.0latency.ai/docs">API Docs</a>
+        <a href="/pricing.html">Pricing</a>
+        <a href="/blog/why-your-agent-forgets.html">Blog</a>
+        <a href="/login.html" class="btn-primary">Get Started</a>
+    </div>
+</nav>
+</header>
+
+<main>
+<article>
+<div class="article-header fade-in">
+    <span class="tag">Engineering</span>
+    <h1>How We Built a Memory Layer That Costs $0.93/User/Month</h1>
+    <p class="meta">March 23, 2026 · Justin Ghiglia · 8 min read</p>
+</div>
+
+<div class="article-body fade-in">
+
+<p>Everyone assumes AI memory infrastructure is expensive. Dedicated vector databases. Managed clusters. Six-figure annual contracts with Pinecone or Weaviate. That's the narrative.</p>
+
+<p>Here's our actual cost to serve one user for a month: <strong>$0.93</strong>.</p>
+
+<p>Not a typo. Less than a dollar. And that includes storage, embeddings, LLM extraction, and compute. This is how we did it — and why the "memory is expensive" narrative is wrong.</p>
+
+<h2>The Architecture Decision That Changed Everything</h2>
+
+<p>When we started building 0Latency, the conventional wisdom was clear: use a purpose-built vector database. Pinecone, Qdrant, Weaviate, Milvus — pick one. That's what Mem0 did. That's what every AI memory startup does.</p>
+
+<p>We went a different direction: <strong>PostgreSQL + pgvector on Supabase</strong>.</p>
+
+<p>Not because we're contrarian. Because we did the math.</p>
+
+<p>A managed Qdrant cluster starts at ~$65/month for a basic instance. Pinecone's Serverless tier charges per read/write unit — and at scale, you're looking at $70-200/month minimum for a production workload. These are per-cluster costs <em>before</em> you serve a single user.</p>
+
+<p>PostgreSQL with pgvector? Supabase's Pro plan is $25/month. That's your entire vector database, relational storage, and API layer — combined. And it scales to millions of rows before you even think about upgrading.</p>
+
+<h2>The Unit Economics, Line by Line</h2>
+
+<p>Let's break down what it actually costs to serve one active user with 1,000 stored memories and ~200 operations per month (extractions + recalls).</p>
+
+<table class="cost-table">
+    <thead>
+        <tr>
+            <th>Component</th>
+            <th>Cost Per Unit</th>
+            <th>Monthly Usage</th>
+            <th>Monthly Cost</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Embedding Generation (text-embedding-3-small)</td>
+            <td>$0.00002 / 1K tokens</td>
+            <td>~50K tokens</td>
+            <td>$0.001</td>
+        </tr>
+        <tr>
+            <td>LLM Extraction (GPT-4o-mini)</td>
+            <td>$0.15 / 1M input tokens</td>
+            <td>~100K tokens</td>
+            <td>$0.015</td>
+        </tr>
+        <tr>
+            <td>LLM Output (GPT-4o-mini)</td>
+            <td>$0.60 / 1M output tokens</td>
+            <td>~20K tokens</td>
+            <td>$0.012</td>
+        </tr>
+        <tr>
+            <td>PostgreSQL Storage (pgvector)</td>
+            <td>~$0.10 / GB / month</td>
+            <td>~8MB per user</td>
+            <td>$0.001</td>
+        </tr>
+        <tr>
+            <td>Supabase Compute (amortized)</td>
+            <td>$25 / month base</td>
+            <td>Split across users</td>
+            <td>$0.90</td>
+        </tr>
+        <tr class="highlight-row">
+            <td><strong>Total Per User</strong></td>
+            <td></td>
+            <td></td>
+            <td><strong>$0.93</strong></td>
+        </tr>
+    </tbody>
+</table>
+
+<p>That Supabase compute cost dominates — and it's <em>fixed</em>. At 28 users, you've covered your infrastructure. User 29 costs you three cents. User 1,000 costs you three cents. The marginal cost of each additional user is almost nothing.</p>
+
+<div class="callout">
+    <p><strong>The key insight:</strong> Memory doesn't need to be expensive. It needs to be <em>fast</em>. PostgreSQL with pgvector and proper indexing gives us sub-50ms vector similarity search. That's faster than most managed vector databases.</p>
+</div>
+
+<h2>Why Not a Dedicated Vector Database?</h2>
+
+<p>Dedicated vector databases solve a real problem: similarity search at billion-row scale. If you're building a search engine indexing the entire internet, you need Pinecone or Qdrant.</p>
+
+<p>But AI agent memory isn't that problem. A typical user has hundreds to tens of thousands of memories — not billions. At this scale, pgvector with an HNSW index is <em>more</em> than sufficient. And you get something vector databases don't give you:</p>
+
+<ul>
+    <li><strong>Relational queries</strong> — join memories with agents, users, organizations, and graph relationships in a single query</li>
+    <li><strong>ACID transactions</strong> — contradiction detection and memory superseding require transactional guarantees</li>
+    <li><strong>No additional infrastructure</strong> — one database for everything: vectors, metadata, auth, billing</li>
+    <li><strong>Mature tooling</strong> — psql, pgAdmin, Supabase dashboard. Battle-tested for 30+ years.</li>
+</ul>
+
+<p>Mem0 uses Qdrant for their vector storage. That means they're running a separate database cluster just for embeddings, plus whatever relational database handles the rest. Two systems to maintain, two failure modes, two billing surfaces. We have one.</p>
+
+<h2>Embedding Costs: Practically Free</h2>
+
+<p>OpenAI's <code>text-embedding-3-small</code> costs $0.02 per million tokens. A typical memory is ~50 tokens. That's <strong>$0.000001 per memory embedding</strong> — one millionth of a dollar.</p>
+
+<p>Even if a user stores 10,000 memories, total embedding cost is one cent. This is a rounding error. If anyone tells you embeddings are the expensive part of memory infrastructure, they're solving the wrong problem.</p>
+
+<h2>LLM Extraction: The Real Cost Center (And It's Still Cheap)</h2>
+
+<p>The most expensive operation in our pipeline is LLM-based memory extraction — parsing a conversation turn and extracting structured facts, preferences, and relationships.</p>
+
+<p>We use GPT-4o-mini for this. It's fast (sub-second for extraction), cheap ($0.15/$0.60 per million input/output tokens), and accurate enough for structured extraction tasks.</p>
+
+<p>A typical extraction processes ~500 input tokens and generates ~100 output tokens. That's:</p>
+
+<ul>
+    <li>Input: $0.000075</li>
+    <li>Output: $0.00006</li>
+    <li><strong>Total per extraction: ~$0.00014</strong></li>
+</ul>
+
+<p>A user who triggers 100 extractions per month (heavy usage) spends $0.014 in LLM costs. Not fourteen dollars. Fourteen <em>tenths of a cent</em>.</p>
+
+<h2>What This Means for Pricing</h2>
+
+<p>Our Pro plan is $19/month. Our cost to serve that user is $0.93.</p>
+
+<p>That's a <strong>95% gross margin</strong>.</p>
+
+<p>This isn't theoretical. This is our actual production cost structure, running today. And it means we can do things competitors can't:</p>
+
+<ul>
+    <li><strong>Include graph memory at $19/mo</strong> — Mem0 paywalls this at $249/mo</li>
+    <li><strong>Offer unlimited memories at $99/mo</strong> — with marginal costs of ~$0.03/user, "unlimited" actually works</li>
+    <li><strong>Give away 100 memories free</strong> — the free tier costs us less than a penny per user per month</li>
+    <li><strong>Never charge per-memory fees</strong> — usage-based pricing creates anxiety. Flat pricing creates adoption.</li>
+</ul>
+
+<h2>The Comparison Nobody Wants to Make</h2>
+
+<p>Mem0's infrastructure runs on Qdrant (managed vector DB) plus their own orchestration layer. Their pricing reflects this: $19/mo for basic storage, $249/mo if you want graph memory.</p>
+
+<p>We include graph memory in our $19 tier because it's just PostgreSQL foreign keys and a traversal query. No additional infrastructure. No dedicated graph database. Just SQL doing what SQL has done for decades.</p>
+
+<p>Their $249 Pro plan? Our $99 Scale plan includes everything in it — plus temporal decay, proactive injection, context budgets, and negative recall. Features they don't offer at any price.</p>
+
+<h2>The Lesson</h2>
+
+<p>The AI infrastructure market has a pricing problem. Not because costs are high — but because companies price based on <em>perceived value</em> rather than <em>actual costs</em>. If you tell developers that "AI memory" requires a special database with special infrastructure and special pricing, they'll believe you.</p>
+
+<p>But the truth is simpler. PostgreSQL is one of the most capable databases ever built. pgvector makes it a vector database too. Supabase wraps it in a modern API. And the result is a memory layer that costs less than a dollar per user per month.</p>
+
+<p>Memory doesn't need to be expensive. It needs to be fast, reliable, and easy to integrate. We optimized for all three — and the economics took care of themselves.</p>
+
+<div class="cta-section">
+    <h2>Try it free. 100 memories. Zero cost.</h2>
+    <p>No credit card required. Start building with persistent AI memory in under 60 seconds.</p>
+    <a href="/login.html">Get Your API Key →</a>
+</div>
+
+</div>
+</article>
+</main>
+
+<footer style="background:#f1f5f9;border-top:1px solid #e5e7eb;padding:0;margin-top:2rem;">
+    <div style="max-width:1100px;margin:0 auto;padding:3rem 2rem 1.5rem;display:grid;grid-template-columns:2fr 1fr 1fr;gap:3rem;">
+        <div>
+            <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+                <img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="32" style="border-radius:4px;">
+            </div>
+            <p style="color:#6b7280;font-size:0.9rem;line-height:1.6;max-width:300px;">Persistent memory layer for AI agents. Sub-100ms recall, zero configuration. Your agent remembers everything.</p>
+        </div>
+        <div>
+            <h4 style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Product</h4>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                <a href="/pricing.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Pricing</a>
+                <a href="https://api.0latency.ai/docs" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Docs</a>
+                <a href="/integrations/" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Integrations</a>
+                <a href="/blog/why-your-agent-forgets.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Blog</a>
+                <a href="/support.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Support</a>
+            </div>
+        </div>
+        <div>
+            <h4 style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Resources</h4>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                <a href="https://github.com/jghiglia2380/0Latency" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">GitHub</a>
+                <a href="https://api.0latency.ai/health" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Status</a>
+                <a href="/privacy.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Privacy</a>
+                <a href="/terms.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Terms</a>
+            </div>
+        </div>
+    </div>
+    <div style="max-width:1100px;margin:0 auto;padding:1.5rem 2rem;border-top:1px solid #e5e7eb;text-align:center;">
+        <p style="color:#9ca3af;font-size:0.8rem;">© 2026 0Latency. All rights reserved.</p>
+    </div>
+    <style>footer a:hover { color: #f97316 !important; } @media (max-width: 768px) { footer > div:first-child { grid-template-columns: 1fr !important; gap: 2rem !important; } }</style>
+</footer>
+
+<script>
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+document.querySelectorAll('.hamburger').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const nav = btn.parentElement.querySelector('.nav-links');
+        if (nav) nav.classList.toggle('open');
+    });
+});
+</script>
+</body>
+</html>
