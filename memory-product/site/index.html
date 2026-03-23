@@ -1521,8 +1521,8 @@ result <span class="op">=</span> mem.<span class="fn">recall</span>(<span class=
                 <tr>
                     <th>Feature</th>
                     <th>0Latency Free</th>
-                    <th>0Latency Pro <span style="color:#f97316;">$19/mo</span></th>
-                    <th>0Latency Scale <span style="color:#f97316;">$99/mo</span></th>
+                    <th>0Latency Pro <span style="color:#f97316;">$29/mo</span></th>
+                    <th>0Latency Scale <span style="color:#f97316;">$89/mo</span></th>
                     <th>Mem0 Starter <span style="color:#9ca3af;">$19/mo</span></th>
                     <th>Mem0 Pro <span style="color:#9ca3af;">$249/mo</span></th>
                     <th>Zep Flex+ <span style="color:#9ca3af;">$475/mo</span></th>
@@ -1531,8 +1531,8 @@ result <span class="op">=</span> mem.<span class="fn">recall</span>(<span class=
             <tbody>
                 <tr>
                     <td>Memories</td>
-                    <td>100</td>
-                    <td>50,000</td>
+                    <td>10,000</td>
+                    <td><span class="check">∞</span> Unlimited</td>
                     <td><span class="check">∞</span> Unlimited</td>
                     <td>50,000</td>
                     <td>Unlimited</td>
@@ -1540,8 +1540,8 @@ result <span class="op">=</span> mem.<span class="fn">recall</span>(<span class=
                 </tr>
                 <tr>
                     <td>Agents</td>
-                    <td>1</td>
-                    <td>5</td>
+                    <td>3</td>
+                    <td>10</td>
                     <td><span class="check">∞</span> Unlimited</td>
                     <td>—</td>
                     <td>—</td>
@@ -1585,8 +1585,8 @@ result <span class="op">=</span> mem.<span class="fn">recall</span>(<span class=
                 </tr>
                 <tr>
                     <td>Negative Recall</td>
-                    <td><span class="check">✓</span></td>
-                    <td><span class="check">✓</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="cross">✗</span></td>
                     <td><span class="check">✓</span> <span class="advantage">EXCLUSIVE</span></td>
                     <td><span class="cross">✗</span></td>
                     <td><span class="cross">✗</span></td>
@@ -1595,8 +1595,8 @@ result <span class="op">=</span> mem.<span class="fn">recall</span>(<span class=
                 <tr>
                     <td>Knowledge Graph</td>
                     <td><span class="cross">✗</span></td>
-                    <td><span class="check">✓</span></td>
-                    <td><span class="check">✓</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="check">✓</span>
                     <td><span class="cross">✗</span></td>
                     <td><span class="check">✓</span> <span style="color:#9ca3af;">$249 required</span></td>
                     <td><span class="check">✓</span></td>
@@ -1649,7 +1649,7 @@ result <span class="op">=</span> mem.<span class="fn">recall</span>(<span class=
             </tbody>
             </table>
         </div>
-        <p style="text-align:center;margin-top:2rem;color:#6b7280;font-size:0.95rem;">Our $99/mo Scale plan includes everything Mem0 charges $249/mo for — and features they don't have at any price.</p>
+        <p style="text-align:center;margin-top:2rem;color:#6b7280;font-size:0.95rem;">Our $89/mo Scale plan includes everything Mem0 charges $249/mo for — 64% less — and features they don't have at any price.</p>
     </section>
 
     <!-- Built for developers who ship -->
@@ -1703,6 +1703,52 @@ mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"wha
         </div>
     </section>
 
+    <!-- MCP Integration -->
+    <section class="devs-section fade-in" id="mcp" style="padding-top:4rem;">
+        <h2>Native MCP Support</h2>
+        <p class="subtitle">Give Claude, Cursor, and any MCP-compatible tool persistent memory — one config change.</p>
+        <div class="devs-grid">
+            <div class="dev-card">
+                <div class="dev-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                </div>
+                <h3>Model Context Protocol</h3>
+                <p>The emerging standard for AI tool integrations. Works with Claude Desktop, Claude Code, Cursor, and more.</p>
+                <div class="dev-snippet" style="text-align:left;font-size:0.75rem;line-height:1.6;">
+<span style="color:#6b7280;">// claude_desktop_config.json</span><br>
+{<br>
+&nbsp;&nbsp;<span style="color:#a6e3a1;">"mcpServers"</span>: {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#a6e3a1;">"0latency"</span>: {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#a6e3a1;">"command"</span>: <span style="color:#fab387;">"0latency-mcp"</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#a6e3a1;">"env"</span>: { <span style="color:#a6e3a1;">"ZERO_LATENCY_API_KEY"</span>: <span style="color:#fab387;">"zl_..."</span> }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;}<br>
+}
+                </div>
+            </div>
+            <div class="dev-card">
+                <div class="dev-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                </div>
+                <h3>6 Tools, Zero Config</h3>
+                <p>memory_add, memory_recall, memory_search, memory_list, memory_delete, and memory_graph — all exposed as native MCP tools.</p>
+            </div>
+            <div class="dev-card">
+                <div class="dev-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </div>
+                <h3>Install in 60 Seconds</h3>
+                <div class="dev-snippet" style="text-align:left;font-size:0.75rem;line-height:1.6;">
+<span style="color:#6b7280;">$</span> npm install -g @0latency/mcp-server<br>
+<span style="color:#6b7280;">$</span> export ZERO_LATENCY_API_KEY=zl_...<br>
+<span style="color:#6b7280;">$</span> 0latency-mcp<br>
+<span style="color:var(--green);">✓ 0Latency MCP server running</span>
+                </div>
+                <a href="https://github.com/0latency/mcp-server" target="_blank" style="display:inline-block;margin-top:1rem;color:var(--accent);font-size:0.85rem;text-decoration:none;font-weight:600;">View on GitHub →</a>
+            </div>
+        </div>
+    </section>
+
     <div class="checkout-banner" id="checkout-banner"></div>
 
     <!-- Pricing -->
@@ -1732,10 +1778,12 @@ mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"wha
                     <span class="period">/month</span>
                 </div>
                 <ul class="plan-features">
-                    <li>100 memories</li>
-                    <li>1 agent</li>
+                    <li>10,000 memories</li>
+                    <li>3 agents</li>
+                    <li>20 RPM rate limit</li>
+                    <li>Vector search + temporal decay</li>
+                    <li>Proactive context injection</li>
                     <li>Community support</li>
-                    <li>7-day memory retention</li>
                 </ul>
                 <a href="/login.html" class="plan-btn secondary">Get Started Free</a>
             </div>
@@ -1744,18 +1792,20 @@ mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"wha
                 <div class="plan-name">Pro</div>
                 <div class="plan-desc">For production AI applications</div>
                 <div class="plan-price" id="pro-price">
-                    <span class="amount" id="pro-amount">$19</span>
+                    <span class="amount" id="pro-amount">$29</span>
                     <span class="period" id="pro-period">/month</span>
                 </div>
                 <div id="pro-savings" style="display:none;margin-top:-0.75rem;margin-bottom:0.75rem;">
-                    <span style="font-size:0.8rem;color:#059669;font-weight:600;">$182/yr — save $46</span>
+                    <span style="font-size:0.8rem;color:#059669;font-weight:600;">$278/yr — save $70</span>
                 </div>
                 <ul class="plan-features">
-                    <li>50,000 memories</li>
-                    <li>5 agents</li>
-                    <li>Full API access</li>
-                    <li>90-day memory retention</li>
-                    <li>Email support</li>
+                    <li>Unlimited memories</li>
+                    <li>10 agents</li>
+                    <li>100 RPM rate limit</li>
+                    <li>Everything in Free</li>
+                    <li>Webhooks &amp; batch operations</li>
+                    <li>Memory versioning</li>
+                    <li>Custom schemas</li>
                 </ul>
                 <button onclick="startCheckout('pro')" class="plan-btn secondary" id="pro-btn">Get Started</button>
             </div>
@@ -1763,21 +1813,24 @@ mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"wha
             <div class="plan featured">
                 <span class="plan-badge">MOST POPULAR</span>
                 <div class="plan-name">Scale</div>
-                <div class="plan-desc">Unlimited everything, zero limits</div>
+                <div class="plan-desc">Graph memory &amp; advanced intelligence</div>
                 <div class="plan-price" id="scale-price">
-                    <span class="amount" id="scale-amount">$99</span>
+                    <span class="amount" id="scale-amount">$89</span>
                     <span class="period" id="scale-period">/month</span>
                 </div>
                 <div id="scale-savings" style="display:none;margin-top:-0.75rem;margin-bottom:0.75rem;">
-                    <span style="font-size:0.8rem;color:#059669;font-weight:600;">$950/yr — save $238</span>
+                    <span style="font-size:0.8rem;color:#059669;font-weight:600;">$854/yr — save $214</span>
                 </div>
                 <ul class="plan-features">
                     <li>Unlimited memories</li>
                     <li>Unlimited agents</li>
-                    <li>Graph relationships</li>
-                    <li>Unlimited retention</li>
+                    <li>500 RPM rate limit</li>
+                    <li>Everything in Pro</li>
+                    <li>Graph Memory</li>
+                    <li>Negative Recall</li>
+                    <li>Organization Memory</li>
+                    <li>Custom scoring criteria</li>
                     <li>Priority support</li>
-                    <li>Custom webhooks</li>
                 </ul>
                 <button onclick="startCheckout('scale')" class="plan-btn primary" id="scale-btn">Get Started</button>
             </div>
@@ -1793,14 +1846,15 @@ mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"wha
                     <li>Dedicated infrastructure</li>
                     <li>Custom SLAs</li>
                     <li>SSO / SAML</li>
+                    <li>Audit logs</li>
                     <li>Dedicated support engineer</li>
                 </ul>
                 <a href="mailto:justin@0latency.ai?subject=Enterprise%20Inquiry" class="plan-btn secondary">Contact Us</a>
             </div>
         </div>
         <div class="compare-banner-inline fade-in">
-            <p>Everything Mem0 charges $249 for. <span class="highlight">We give you at $99.</span></p>
-            <p class="subtext">Unlimited memories, unlimited agents, graph relationships — no surprise bills.</p>
+            <p>Graph Memory: <span class="highlight">$89/mo</span> vs Mem0's $249/mo</p>
+            <p class="subtext">64% less. Unlimited memories, unlimited agents, graph relationships, negative recall — no surprise bills.</p>
         </div>
     </section>
 
@@ -1848,7 +1902,7 @@ mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"wha
                 </div>
             </div>
             <div class="faq-answer">
-                <p>Pro gives you 50K memories with 5 agents — great for most production apps. Scale removes all limits: unlimited memories, unlimited agents, graph relationships, and custom webhooks.</p>
+                <p>Pro gives you unlimited memories with 10 agents, plus webhooks, versioning, and batch operations. Scale adds Graph Memory, Negative Recall, Organization Memory, custom scoring criteria, and priority support — all at $89/mo (64% less than Mem0's comparable tier).</p>
             </div>
         </div>
         <div class="faq-item">
@@ -1859,7 +1913,7 @@ mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"wha
                 </div>
             </div>
             <div class="faq-answer">
-                <p>Yes! Toggle the Annual switch on the pricing section above. You'll save 20% — Pro drops to $15/mo ($182/yr) and Scale to $79/mo ($950/yr).</p>
+                <p>Yes! Toggle the Annual switch on the pricing section above. You'll save 20% — Pro drops to $23.17/mo ($278/yr) and Scale to $71.17/mo ($854/yr).</p>
             </div>
         </div>
     </section>
@@ -2003,11 +2057,11 @@ mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"wha
             annualLabel.style.color = 'var(--text)';
             annualLabel.style.fontWeight = '600';
             
-            document.getElementById('pro-amount').textContent = '$15';
+            document.getElementById('pro-amount').textContent = '$23';
             document.getElementById('pro-period').textContent = '/mo billed annually';
             document.getElementById('pro-savings').style.display = 'block';
             
-            document.getElementById('scale-amount').textContent = '$79';
+            document.getElementById('scale-amount').textContent = '$71';
             document.getElementById('scale-period').textContent = '/mo billed annually';
             document.getElementById('scale-savings').style.display = 'block';
         } else {
@@ -2018,11 +2072,11 @@ mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"wha
             annualLabel.style.color = 'var(--text-dim)';
             annualLabel.style.fontWeight = '500';
             
-            document.getElementById('pro-amount').textContent = '$19';
+            document.getElementById('pro-amount').textContent = '$29';
             document.getElementById('pro-period').textContent = '/month';
             document.getElementById('pro-savings').style.display = 'none';
             
-            document.getElementById('scale-amount').textContent = '$99';
+            document.getElementById('scale-amount').textContent = '$89';
             document.getElementById('scale-period').textContent = '/month';
             document.getElementById('scale-savings').style.display = 'none';
         }

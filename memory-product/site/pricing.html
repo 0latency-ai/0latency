@@ -396,6 +396,18 @@
     <p>Start free. Scale without limits. No contracts, cancel anytime.</p>
 </section>
 
+<!-- Billing Toggle -->
+<div style="display:flex;align-items:center;justify-content:center;gap:1rem;margin-bottom:2.5rem;">
+    <span id="toggle-monthly-label" style="font-size:0.95rem;font-weight:600;color:#111827;">Monthly</span>
+    <label style="position:relative;display:inline-block;width:52px;height:28px;cursor:pointer;">
+        <input type="checkbox" id="billing-toggle" onchange="toggleBilling()" style="opacity:0;width:0;height:0;">
+        <span style="position:absolute;inset:0;background:#d1d5db;border-radius:28px;transition:background 0.3s;"></span>
+        <span id="toggle-knob" style="position:absolute;top:2px;left:2px;width:24px;height:24px;background:#fff;border-radius:50%;transition:transform 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></span>
+    </label>
+    <span id="toggle-annual-label" style="font-size:0.95rem;font-weight:500;color:#6b7280;">Annual</span>
+    <span style="background:rgba(34,197,94,0.1);color:#059669;font-size:0.75rem;font-weight:700;padding:0.2rem 0.7rem;border-radius:12px;border:1px solid rgba(34,197,94,0.2);">Save 20%</span>
+</div>
+
 <div class="pricing-grid fade-in">
     <!-- Free -->
     <div class="plan">
@@ -406,10 +418,12 @@
             <span class="period">/month</span>
         </div>
         <ul class="plan-features">
-            <li>100 memories</li>
-            <li>1 agent</li>
+            <li>10,000 memories</li>
+            <li>3 agents</li>
+            <li>20 RPM rate limit</li>
+            <li>Vector search + temporal decay</li>
+            <li>Proactive context injection</li>
             <li>Community support</li>
-            <li>7-day memory retention</li>
         </ul>
         <a href="/login.html" class="plan-btn secondary">Get Started Free</a>
     </div>
@@ -418,16 +432,21 @@
     <div class="plan">
         <div class="plan-name">Pro</div>
         <div class="plan-desc">For production AI applications</div>
-        <div class="plan-price">
-            <span class="amount">$19</span>
-            <span class="period">/month</span>
+        <div class="plan-price" id="pro-price">
+            <span class="amount" id="pro-amount">$29</span>
+            <span class="period" id="pro-period">/month</span>
+        </div>
+        <div id="pro-savings" style="display:none;margin-top:-0.75rem;margin-bottom:0.75rem;">
+            <span style="font-size:0.8rem;color:#059669;font-weight:600;">$278/yr — save $70</span>
         </div>
         <ul class="plan-features">
-            <li>50,000 memories</li>
-            <li>5 agents</li>
-            <li>Full API access</li>
-            <li>90-day memory retention</li>
-            <li>Email support</li>
+            <li>Unlimited memories</li>
+            <li>10 agents</li>
+            <li>100 RPM rate limit</li>
+            <li>Everything in Free</li>
+            <li>Webhooks &amp; batch operations</li>
+            <li>Memory versioning</li>
+            <li>Custom schemas</li>
         </ul>
         <button onclick="startCheckout('pro')" class="plan-btn secondary" id="pro-btn">Get Started</button>
     </div>
@@ -435,18 +454,24 @@
     <!-- Scale (Featured) -->
     <div class="plan featured">
         <div class="plan-name">Scale</div>
-        <div class="plan-desc">Unlimited everything, zero limits</div>
-        <div class="plan-price">
-            <span class="amount">$99</span>
-            <span class="period">/month</span>
+        <div class="plan-desc">Graph memory &amp; advanced intelligence</div>
+        <div class="plan-price" id="scale-price">
+            <span class="amount" id="scale-amount">$89</span>
+            <span class="period" id="scale-period">/month</span>
+        </div>
+        <div id="scale-savings" style="display:none;margin-top:-0.75rem;margin-bottom:0.75rem;">
+            <span style="font-size:0.8rem;color:#059669;font-weight:600;">$854/yr — save $214</span>
         </div>
         <ul class="plan-features">
             <li>Unlimited memories</li>
             <li>Unlimited agents</li>
-            <li>Graph relationships</li>
-            <li>Unlimited retention</li>
+            <li>500 RPM rate limit</li>
+            <li>Everything in Pro</li>
+            <li>Graph Memory</li>
+            <li>Negative Recall</li>
+            <li>Organization Memory</li>
+            <li>Custom scoring criteria</li>
             <li>Priority support</li>
-            <li>Custom webhooks</li>
         </ul>
         <button onclick="startCheckout('scale')" class="plan-btn primary" id="scale-btn">Get Started</button>
     </div>
@@ -463,6 +488,7 @@
             <li>Dedicated infrastructure</li>
             <li>Custom SLAs</li>
             <li>SSO / SAML</li>
+            <li>Audit logs</li>
             <li>Dedicated support engineer</li>
         </ul>
         <a href="mailto:justin@0latency.ai?subject=Enterprise%20Inquiry" class="plan-btn secondary">Contact Us</a>
@@ -470,8 +496,8 @@
 </div>
 
 <div class="compare-banner fade-in">
-    <p>Everything Mem0 charges $249 for. <span class="highlight">We give you at $99.</span></p>
-    <p class="subtext">Unlimited memories, unlimited agents, graph relationships — no surprise bills.</p>
+    <p>Graph Memory: <span class="highlight">$89/mo</span> vs Mem0's $249/mo</p>
+    <p class="subtext">64% less. Unlimited memories, unlimited agents, graph relationships, negative recall — no surprise bills.</p>
 </div>
 
 <!-- Startup Program -->
@@ -482,7 +508,7 @@
             <h2 style="font-size:1.4rem;font-weight:700;color:#111827;margin:0;">Startup Program</h2>
         </div>
         <p style="font-size:1.1rem;color:#111827;font-weight:600;margin-bottom:0.75rem;">Building something cool? We'll give you 3 months of Scale for free.</p>
-        <p style="color:#6b7280;font-size:0.95rem;line-height:1.6;margin-bottom:1.25rem;">Unlimited memories, unlimited agents, graph relationships, priority support — everything in our $99/mo plan, on us for 90 days. No strings attached.</p>
+        <p style="color:#6b7280;font-size:0.95rem;line-height:1.6;margin-bottom:1.25rem;">Unlimited memories, unlimited agents, graph memory, negative recall, priority support — everything in our $89/mo plan, on us for 90 days. No strings attached.</p>
         <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.5rem;">
             <p style="font-size:0.85rem;font-weight:600;color:#374151;margin-bottom:0.5rem;">Requirements:</p>
             <ul style="list-style:none;padding:0;margin:0;">
@@ -514,11 +540,11 @@
     </div>
     <div class="faq-item">
         <h3>What's the difference between Pro and Scale?</h3>
-        <p>Pro gives you 50K memories with 5 agents — great for most production apps. Scale removes all limits: unlimited memories, unlimited agents, graph relationships, and custom webhooks.</p>
+        <p>Pro gives you unlimited memories with 10 agents, plus webhooks, versioning, and batch operations. Scale adds Graph Memory, Negative Recall, Organization Memory, custom scoring criteria, and priority support — all at $89/mo (64% less than Mem0's comparable tier).</p>
     </div>
     <div class="faq-item">
         <h3>Do you offer annual billing?</h3>
-        <p>Not yet — but it's coming soon with a discount. Subscribe monthly for now.</p>
+        <p>Yes! Save 20% with annual billing. Pro drops to $23.17/mo ($278/yr) and Scale to $71.17/mo ($854/yr). Use the billing toggle above to see annual prices.</p>
     </div>
 </section>
 
@@ -571,6 +597,47 @@
     } else if (params.get('checkout') === 'cancelled') {
         banner.className = 'checkout-banner cancelled';
         banner.textContent = 'Checkout cancelled. No charges were made.';
+    }
+
+    // Billing toggle
+    let isAnnual = false;
+    function toggleBilling() {
+        isAnnual = document.getElementById('billing-toggle').checked;
+        const knob = document.getElementById('toggle-knob');
+        const monthlyLabel = document.getElementById('toggle-monthly-label');
+        const annualLabel = document.getElementById('toggle-annual-label');
+        
+        if (isAnnual) {
+            knob.style.transform = 'translateX(24px)';
+            knob.parentElement.querySelector('span:nth-child(2)').style.background = '#f97316';
+            monthlyLabel.style.color = '#6b7280';
+            monthlyLabel.style.fontWeight = '500';
+            annualLabel.style.color = '#111827';
+            annualLabel.style.fontWeight = '600';
+            
+            document.getElementById('pro-amount').textContent = '$23';
+            document.getElementById('pro-period').textContent = '/mo billed annually';
+            document.getElementById('pro-savings').style.display = 'block';
+            
+            document.getElementById('scale-amount').textContent = '$71';
+            document.getElementById('scale-period').textContent = '/mo billed annually';
+            document.getElementById('scale-savings').style.display = 'block';
+        } else {
+            knob.style.transform = 'translateX(0)';
+            knob.parentElement.querySelector('span:nth-child(2)').style.background = '#d1d5db';
+            monthlyLabel.style.color = '#111827';
+            monthlyLabel.style.fontWeight = '600';
+            annualLabel.style.color = '#6b7280';
+            annualLabel.style.fontWeight = '500';
+            
+            document.getElementById('pro-amount').textContent = '$29';
+            document.getElementById('pro-period').textContent = '/month';
+            document.getElementById('pro-savings').style.display = 'none';
+            
+            document.getElementById('scale-amount').textContent = '$89';
+            document.getElementById('scale-period').textContent = '/month';
+            document.getElementById('scale-savings').style.display = 'none';
+        }
     }
 
     function getToken() {
