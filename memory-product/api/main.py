@@ -120,6 +120,7 @@ def _get_redis():
 
 def _check_rate_limit(tenant_id: str, rate_limit_rpm: int):
     """Check if tenant has exceeded their rate limit. Redis-backed with in-memory fallback."""
+    from fastapi.responses import JSONResponse
     r = _get_redis()
     if r:
         try:
@@ -128,8 +129,18 @@ def _check_rate_limit(tenant_id: str, rate_limit_rpm: int):
             if count == 1:
                 r.expire(key, 60)
             if count > rate_limit_rpm:
-                ttl = r.ttl(key)
-                raise HTTPException(429, detail=f"Rate limit exceeded ({rate_limit_rpm}/min). Try again in {ttl}s.")
+                ttl = max(r.ttl(key), 1)
+                logger.warning(f"rate_limit_hit tenant={tenant_id} plan_rpm={rate_limit_rpm} count={count} retry_after={ttl}")
+                raise HTTPException(
+                    status_code=429,
+                    detail={
+                        "error": "rate_limit_exceeded",
+                        "message": f"Rate limit exceeded ({rate_limit_rpm} requests/min). Retry after {ttl}s.",
+                        "limit": rate_limit_rpm,
+                        "retry_after": ttl,
+                    },
+                    headers={"Retry-After": str(ttl)},
+                )
             return
         except HTTPException:
             raise
@@ -141,7 +152,17 @@ def _check_rate_limit(tenant_id: str, rate_limit_rpm: int):
     window = _rate_limits_fallback.setdefault(tenant_id, [])
     _rate_limits_fallback[tenant_id] = [t for t in window if now - t < 60]
     if len(_rate_limits_fallback[tenant_id]) >= rate_limit_rpm:
-        raise HTTPException(429, detail=f"Rate limit exceeded ({rate_limit_rpm}/min). Try again in 60 seconds.")
+        logger.warning(f"rate_limit_hit tenant={tenant_id} plan_rpm={rate_limit_rpm} (in-memory fallback)")
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "rate_limit_exceeded",
+                "message": f"Rate limit exceeded ({rate_limit_rpm} requests/min). Retry after 60s.",
+                "limit": rate_limit_rpm,
+                "retry_after": 60,
+            },
+            headers={"Retry-After": "60"},
+        )
     _rate_limits_fallback[tenant_id].append(now)
 
 _rate_limits_fallback: dict[str, list[float]] = {}

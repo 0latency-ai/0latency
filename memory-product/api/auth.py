@@ -1,6 +1,6 @@
 """
 Zero Latency Auth Module
-GitHub OAuth + Google OAuth + Email/Password + JWT
+GitHub OAuth + Google OAuth + Email/Password + JWT + Email Verification
 """
 import os
 import json
@@ -8,6 +8,7 @@ import secrets
 import hashlib
 import uuid
 import logging
+import time as _time
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -31,11 +32,11 @@ _gh_creds = _load_json("/root/credentials/github_oauth.json")
 GITHUB_CLIENT_ID = _gh_creds["client_id"]
 GITHUB_CLIENT_SECRET = _gh_creds["client_secret"]
 
-# Google OAuth
-_google_creds = _load_json("/root/credentials/gmail_oauth_client.json")
-_google_installed = _google_creds.get("installed", _google_creds.get("web", {}))
-GOOGLE_CLIENT_ID = _google_installed["client_id"]
-GOOGLE_CLIENT_SECRET = _google_installed["client_secret"]
+# Google OAuth (0Latency-specific credentials)
+_google_creds = _load_json("/root/.secrets/google_oauth_0latency.json")
+_google_web = _google_creds.get("web", {})
+GOOGLE_CLIENT_ID = _google_web["client_id"]
+GOOGLE_CLIENT_SECRET = _google_web["client_secret"]
 
 # JWT
 JWT_SECRET_PATH = "/root/credentials/jwt_secret.key"
@@ -83,6 +84,7 @@ CREATE TABLE IF NOT EXISTS memory_service.users (
     github_id VARCHAR(64) UNIQUE,
     google_id VARCHAR(128) UNIQUE,
     password_hash TEXT,
+    email_verified BOOLEAN NOT NULL DEFAULT false,
     plan VARCHAR(16) NOT NULL DEFAULT 'free',
     tenant_id UUID REFERENCES memory_service.tenants(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -92,12 +94,31 @@ CREATE TABLE IF NOT EXISTS memory_service.users (
 CREATE INDEX IF NOT EXISTS idx_users_email ON memory_service.users(email);
 CREATE INDEX IF NOT EXISTS idx_users_github_id ON memory_service.users(github_id);
 CREATE INDEX IF NOT EXISTS idx_users_google_id ON memory_service.users(google_id);
+
+CREATE TABLE IF NOT EXISTS memory_service.email_verification_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES memory_service.users(id) ON DELETE CASCADE,
+    token VARCHAR(128) NOT NULL UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_evt_token ON memory_service.email_verification_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_evt_user_id ON memory_service.email_verification_tokens(user_id);
 """
 
 def ensure_users_table():
     """Create users table if it doesn't exist."""
     try:
         _db_exec(_USERS_TABLE_SQL, fetch=False)
+        # Add email_verified column if missing (for existing installs)
+        try:
+            _db_exec("""
+                ALTER TABLE memory_service.users 
+                ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false
+            """, fetch=False)
+        except Exception:
+            pass
         logger.info("Users table ensured")
     except Exception as e:
         logger.error(f"Failed to create users table: {e}")
@@ -108,6 +129,46 @@ try:
     ensure_users_table()
 except Exception:
     logger.warning("Could not ensure users table on import — will retry on first request")
+
+
+# ─── Email Verification helpers ──────────────────────────────────────────────
+
+def _create_verification_token(user_id: str) -> str:
+    """Generate a verification token, store it, and return the token string."""
+    token = secrets.token_urlsafe(48)
+    expires = datetime.now(timezone.utc) + timedelta(hours=24)
+    _db_exec("""
+        INSERT INTO memory_service.email_verification_tokens (user_id, token, expires_at)
+        VALUES (%s::UUID, %s, %s)
+    """, (user_id, token, expires), fetch=False)
+    return token
+
+
+def _verify_token(token: str) -> Optional[str]:
+    """Verify a token and return user_id if valid, else None."""
+    rows = _db_exec("""
+        SELECT user_id, expires_at, used_at 
+        FROM memory_service.email_verification_tokens 
+        WHERE token = %s
+    """, (token,))
+    if not rows:
+        return None
+    user_id, expires_at, used_at = rows[0]
+    if used_at is not None:
+        return None  # already used
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) > expires_at:
+        return None  # expired
+    # Mark used
+    _db_exec("""
+        UPDATE memory_service.email_verification_tokens SET used_at = now() WHERE token = %s
+    """, (token,), fetch=False)
+    # Mark user as verified
+    _db_exec("""
+        UPDATE memory_service.users SET email_verified = true, updated_at = now() WHERE id = %s::UUID
+    """, (str(user_id),), fetch=False)
+    return str(user_id)
 
 
 # ─── JWT helpers ─────────────────────────────────────────────────────────────
@@ -154,49 +215,32 @@ async def require_jwt(
 
 # ─── User CRUD ───────────────────────────────────────────────────────────────
 
+def _user_from_row(r) -> dict:
+    return {
+        "id": str(r[0]), "email": r[1], "name": r[2], "avatar_url": r[3],
+        "github_id": r[4], "google_id": r[5], "password_hash": r[6],
+        "email_verified": bool(r[7]) if r[7] is not None else False,
+        "plan": r[8], "tenant_id": str(r[9]) if r[9] else None,
+    }
+
+_USER_SELECT = """SELECT id, email, name, avatar_url, github_id, google_id, 
+                         password_hash, email_verified, plan, tenant_id
+                  FROM memory_service.users"""
+
+
 def find_user_by_email(email: str) -> Optional[dict]:
-    rows = _db_exec("""
-        SELECT id, email, name, avatar_url, github_id, google_id, password_hash, plan, tenant_id
-        FROM memory_service.users WHERE email = %s
-    """, (email,))
-    if rows:
-        r = rows[0]
-        return {
-            "id": str(r[0]), "email": r[1], "name": r[2], "avatar_url": r[3],
-            "github_id": r[4], "google_id": r[5], "password_hash": r[6],
-            "plan": r[7], "tenant_id": str(r[8]) if r[8] else None,
-        }
-    return None
+    rows = _db_exec(f"{_USER_SELECT} WHERE email = %s", (email,))
+    return _user_from_row(rows[0]) if rows else None
 
 
 def find_user_by_github_id(github_id: str) -> Optional[dict]:
-    rows = _db_exec("""
-        SELECT id, email, name, avatar_url, github_id, google_id, password_hash, plan, tenant_id
-        FROM memory_service.users WHERE github_id = %s
-    """, (github_id,))
-    if rows:
-        r = rows[0]
-        return {
-            "id": str(r[0]), "email": r[1], "name": r[2], "avatar_url": r[3],
-            "github_id": r[4], "google_id": r[5], "password_hash": r[6],
-            "plan": r[7], "tenant_id": str(r[8]) if r[8] else None,
-        }
-    return None
+    rows = _db_exec(f"{_USER_SELECT} WHERE github_id = %s", (github_id,))
+    return _user_from_row(rows[0]) if rows else None
 
 
 def find_user_by_google_id(google_id: str) -> Optional[dict]:
-    rows = _db_exec("""
-        SELECT id, email, name, avatar_url, github_id, google_id, password_hash, plan, tenant_id
-        FROM memory_service.users WHERE google_id = %s
-    """, (google_id,))
-    if rows:
-        r = rows[0]
-        return {
-            "id": str(r[0]), "email": r[1], "name": r[2], "avatar_url": r[3],
-            "github_id": r[4], "google_id": r[5], "password_hash": r[6],
-            "plan": r[7], "tenant_id": str(r[8]) if r[8] else None,
-        }
-    return None
+    rows = _db_exec(f"{_USER_SELECT} WHERE google_id = %s", (google_id,))
+    return _user_from_row(rows[0]) if rows else None
 
 
 def create_user(email: str, name: str = None, avatar_url: str = None,
@@ -512,7 +556,7 @@ class AuthResponse(BaseModel):
 
 @router.post("/email/register", response_model=AuthResponse)
 async def email_register(req: EmailRegisterRequest):
-    """Register with email and password."""
+    """Register with email and password. Sends verification email (logged to console for now)."""
     existing = find_user_by_email(req.email)
     if existing:
         raise HTTPException(409, detail="Email already registered. Try logging in.")
@@ -524,6 +568,12 @@ async def email_register(req: EmailRegisterRequest):
         password_hash=password_hash,
     )
     
+    # Generate verification token and log the verification URL
+    verification_token = _create_verification_token(user["id"])
+    verification_url = f"{SITE_BASE}/verify.html?token={verification_token}"
+    logger.info(f"EMAIL_VERIFICATION user={user['email']} url={verification_url}")
+    # TODO: Wire up actual email sending via Cloudflare or SES
+    
     token = create_jwt(user)
     return AuthResponse(
         token=token,
@@ -533,10 +583,43 @@ async def email_register(req: EmailRegisterRequest):
             "name": user["name"],
             "plan": user["plan"],
             "tenant_id": user["tenant_id"],
+            "email_verified": False,
         },
         is_new=True,
         api_key=user.get("api_key"),
     )
+
+
+@router.get("/verify-email")
+async def verify_email(token: str = Query(..., min_length=10)):
+    """Verify email address using the token from the verification email."""
+    user_id = _verify_token(token)
+    if not user_id:
+        raise HTTPException(400, detail="Invalid or expired verification token.")
+    
+    logger.info(f"EMAIL_VERIFIED user_id={user_id}")
+    return RedirectResponse(f"{SITE_BASE}/login.html?verified=1")
+
+
+@router.post("/resend-verification")
+async def resend_verification(claims: dict = Depends(require_jwt)):
+    """Resend verification email for the current user."""
+    user_id = claims.get("sub")
+    rows = _db_exec("""
+        SELECT email, email_verified FROM memory_service.users WHERE id = %s::UUID
+    """, (user_id,))
+    if not rows:
+        raise HTTPException(404, detail="User not found")
+    
+    email, verified = rows[0]
+    if verified:
+        return {"message": "Email already verified."}
+    
+    verification_token = _create_verification_token(user_id)
+    verification_url = f"{SITE_BASE}/verify.html?token={verification_token}"
+    logger.info(f"EMAIL_VERIFICATION_RESEND user={email} url={verification_url}")
+    
+    return {"message": "Verification email sent. Check your inbox."}
 
 
 @router.post("/email/login", response_model=AuthResponse)
@@ -552,6 +635,9 @@ async def email_login(req: EmailLoginRequest):
     if not bcrypt.verify(req.password, user["password_hash"]):
         raise HTTPException(401, detail="Invalid email or password")
     
+    # Check verification status — allow login but include warning
+    email_verified = user.get("email_verified", False)
+    
     token = create_jwt(user)
     return AuthResponse(
         token=token,
@@ -561,6 +647,7 @@ async def email_login(req: EmailLoginRequest):
             "name": user["name"],
             "plan": user["plan"],
             "tenant_id": user["tenant_id"],
+            "email_verified": email_verified,
         },
     )
 

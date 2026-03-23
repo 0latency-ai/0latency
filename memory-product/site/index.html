@@ -1709,6 +1709,19 @@ mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"wha
     <section class="pricing" id="pricing">
         <h2>Simple, transparent pricing</h2>
         <p class="subtitle">Start free. Scale without limits. No contracts, cancel anytime.</p>
+
+        <!-- Billing Toggle -->
+        <div style="display:flex;align-items:center;justify-content:center;gap:1rem;margin-bottom:2.5rem;">
+            <span id="toggle-monthly-label" style="font-size:0.95rem;font-weight:600;color:var(--text);">Monthly</span>
+            <label style="position:relative;display:inline-block;width:52px;height:28px;cursor:pointer;">
+                <input type="checkbox" id="billing-toggle" onchange="toggleBilling()" style="opacity:0;width:0;height:0;">
+                <span style="position:absolute;inset:0;background:#d1d5db;border-radius:28px;transition:background 0.3s;"></span>
+                <span id="toggle-knob" style="position:absolute;top:2px;left:2px;width:24px;height:24px;background:#fff;border-radius:50%;transition:transform 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></span>
+            </label>
+            <span id="toggle-annual-label" style="font-size:0.95rem;font-weight:500;color:var(--text-dim);">Annual</span>
+            <span style="background:rgba(34,197,94,0.1);color:#059669;font-size:0.75rem;font-weight:700;padding:0.2rem 0.7rem;border-radius:12px;border:1px solid rgba(34,197,94,0.2);">Save 20%</span>
+        </div>
+
         <div class="pricing-grid fade-in">
             <!-- Free -->
             <div class="plan">
@@ -1730,9 +1743,12 @@ mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"wha
             <div class="plan">
                 <div class="plan-name">Pro</div>
                 <div class="plan-desc">For production AI applications</div>
-                <div class="plan-price">
-                    <span class="amount">$19</span>
-                    <span class="period">/month</span>
+                <div class="plan-price" id="pro-price">
+                    <span class="amount" id="pro-amount">$19</span>
+                    <span class="period" id="pro-period">/month</span>
+                </div>
+                <div id="pro-savings" style="display:none;margin-top:-0.75rem;margin-bottom:0.75rem;">
+                    <span style="font-size:0.8rem;color:#059669;font-weight:600;">$182/yr — save $46</span>
                 </div>
                 <ul class="plan-features">
                     <li>50,000 memories</li>
@@ -1748,9 +1764,12 @@ mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"wha
                 <span class="plan-badge">MOST POPULAR</span>
                 <div class="plan-name">Scale</div>
                 <div class="plan-desc">Unlimited everything, zero limits</div>
-                <div class="plan-price">
-                    <span class="amount">$99</span>
-                    <span class="period">/month</span>
+                <div class="plan-price" id="scale-price">
+                    <span class="amount" id="scale-amount">$99</span>
+                    <span class="period" id="scale-period">/month</span>
+                </div>
+                <div id="scale-savings" style="display:none;margin-top:-0.75rem;margin-bottom:0.75rem;">
+                    <span style="font-size:0.8rem;color:#059669;font-weight:600;">$950/yr — save $238</span>
                 </div>
                 <ul class="plan-features">
                     <li>Unlimited memories</li>
@@ -1840,7 +1859,7 @@ mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"wha
                 </div>
             </div>
             <div class="faq-answer">
-                <p>Not yet — but it's coming soon with a discount. Subscribe monthly for now.</p>
+                <p>Yes! Toggle the Annual switch on the pricing section above. You'll save 20% — Pro drops to $15/mo ($182/yr) and Scale to $79/mo ($950/yr).</p>
             </div>
         </div>
     </section>
@@ -1966,6 +1985,47 @@ mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"wha
     } else if (params.get('checkout') === 'cancelled') {
         banner.className = 'checkout-banner cancelled';
         banner.textContent = 'Checkout cancelled. No charges were made.';
+    }
+
+    // Billing toggle
+    let isAnnual = false;
+    function toggleBilling() {
+        isAnnual = document.getElementById('billing-toggle').checked;
+        const knob = document.getElementById('toggle-knob');
+        const monthlyLabel = document.getElementById('toggle-monthly-label');
+        const annualLabel = document.getElementById('toggle-annual-label');
+        
+        if (isAnnual) {
+            knob.style.transform = 'translateX(24px)';
+            knob.parentElement.querySelector('span:nth-child(2)').style.background = '#f97316';
+            monthlyLabel.style.color = 'var(--text-dim)';
+            monthlyLabel.style.fontWeight = '500';
+            annualLabel.style.color = 'var(--text)';
+            annualLabel.style.fontWeight = '600';
+            
+            document.getElementById('pro-amount').textContent = '$15';
+            document.getElementById('pro-period').textContent = '/mo billed annually';
+            document.getElementById('pro-savings').style.display = 'block';
+            
+            document.getElementById('scale-amount').textContent = '$79';
+            document.getElementById('scale-period').textContent = '/mo billed annually';
+            document.getElementById('scale-savings').style.display = 'block';
+        } else {
+            knob.style.transform = 'translateX(0)';
+            knob.parentElement.querySelector('span:nth-child(2)').style.background = '#d1d5db';
+            monthlyLabel.style.color = 'var(--text)';
+            monthlyLabel.style.fontWeight = '600';
+            annualLabel.style.color = 'var(--text-dim)';
+            annualLabel.style.fontWeight = '500';
+            
+            document.getElementById('pro-amount').textContent = '$19';
+            document.getElementById('pro-period').textContent = '/month';
+            document.getElementById('pro-savings').style.display = 'none';
+            
+            document.getElementById('scale-amount').textContent = '$99';
+            document.getElementById('scale-period').textContent = '/month';
+            document.getElementById('scale-savings').style.display = 'none';
+        }
     }
 
     function getToken() {
