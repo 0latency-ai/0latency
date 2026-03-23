@@ -77,6 +77,10 @@ app.include_router(auth_router)
 from api.billing import router as billing_router
 app.include_router(billing_router)
 
+# --- Security Module (secret scanning) ---
+from api.security import router as security_router, check_for_secrets
+app.include_router(security_router)
+
 @app.middleware("http")
 async def request_logging(request: Request, call_next):
     """Log every request with ID, tenant, endpoint, latency."""
@@ -306,6 +310,10 @@ class HealthResponse(BaseModel):
 @app.post("/extract", response_model=ExtractResponse)
 async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_api_key)):
     """Extract memories from a conversation turn."""
+    # Secret scanning — reject if secrets detected in inbound content
+    check_for_secrets(req.human_message, "human_message")
+    check_for_secrets(req.agent_message, "agent_message")
+    
     start_time = time.time()
     try:
         # Enforce memory limit
@@ -367,6 +375,9 @@ async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depend
     Extraction accepts instantly and processes in the background.
     Partial results beat blocking.
     """
+    # Secret scanning — reject if secrets detected in inbound content
+    check_for_secrets(req.content, "content")
+    
     import threading
     
     job_id = str(uuid.uuid4())
@@ -592,6 +603,11 @@ class BatchExtractRequest(BaseModel):
 @app.post("/extract/batch")
 async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require_api_key)):
     """Extract memories from multiple conversation turns in one request."""
+    # Secret scanning — reject entire batch if any turn contains secrets
+    for i, turn in enumerate(req.turns):
+        check_for_secrets(turn.human_message, f"turns[{i}].human_message")
+        check_for_secrets(turn.agent_message, f"turns[{i}].agent_message")
+    
     start_time = time.time()
     total_stored = 0
     all_ids = []
