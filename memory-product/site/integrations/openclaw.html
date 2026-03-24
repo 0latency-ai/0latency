@@ -296,14 +296,21 @@
             background: #f97316;
             color: #ffffff;
         }
-    </style>
+    
+/* Responsive nav logo - hide text on mobile */
+.logo-text { display: inline; }
+@media (max-width: 767px) {
+  .logo-text { display: none !important; }
+  .logo img, .nav-logo img { height: 32px !important; }
+}
+</style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
         <header>
     <nav role="navigation" aria-label="Main navigation">
-        <a href="/" class="logo" style="text-decoration:none;display:flex;align-items:center;"><img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="50" style="border-radius:4px;"></a>
+        <a href="/" class="logo" style="text-decoration:none;display:flex;align-items:center;gap:8px;"><img src="/logos/logo-icon.svg" alt="0Latency" height="36"><span class="logo-text" style="font-size:1.3rem;font-weight:700;letter-spacing:-0.5px;"><span style="color:#f97316;">0</span>Latency</span></a>
         <button class="hamburger" aria-label="Menu">☰</button>
             <div class="nav-links">
             <a href="https://github.com/jghiglia2380/0Latency">GitHub</a>
