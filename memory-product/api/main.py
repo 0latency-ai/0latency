@@ -1023,6 +1023,81 @@ async def export_memories(
     }
 
 
+# === PUBLIC DEMO ENDPOINT (no auth, rate-limited by IP) ===
+
+class DemoExtractRequest(BaseModel):
+    content: str = Field(..., min_length=10, max_length=2000)
+
+def _check_demo_rate_limit(client_ip: str, max_per_hour: int = 5):
+    """Rate limit demo endpoint by IP: max_per_hour requests per hour."""
+    r = _get_redis()
+    if r:
+        try:
+            key = f"demo_rl:{client_ip}"
+            count = r.incr(key)
+            if count == 1:
+                r.expire(key, 3600)
+            if count > max_per_hour:
+                ttl = max(r.ttl(key), 1)
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Demo rate limit exceeded ({max_per_hour} requests/hour). Try again in {ttl}s.",
+                    headers={"Retry-After": str(ttl)},
+                )
+            return
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+    # In-memory fallback
+    now = time.time()
+    window = _demo_rate_limits.setdefault(client_ip, [])
+    _demo_rate_limits[client_ip] = [t for t in window if now - t < 3600]
+    if len(_demo_rate_limits[client_ip]) >= max_per_hour:
+        raise HTTPException(429, detail=f"Demo rate limit exceeded ({max_per_hour} requests/hour). Try again later.")
+    _demo_rate_limits[client_ip].append(now)
+
+_demo_rate_limits: dict[str, list[float]] = {}
+
+@app.post("/demo/extract")
+async def demo_extract_endpoint(req: DemoExtractRequest, request: Request):
+    """Public demo endpoint — extracts memories from text without authentication.
+    Rate limited to 5 requests per IP per hour. Max 2000 chars input.
+    """
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else "unknown")
+    _check_demo_rate_limit(client_ip)
+    
+    start_time = time.time()
+    try:
+        memories = extract_memories(
+            human_message=req.content,
+            agent_message="",
+            agent_id="demo",
+            session_key="demo-playground",
+        )
+        
+        results = []
+        for mem in (memories or []):
+            results.append({
+                "text": mem.get("headline", ""),
+                "category": mem.get("memory_type", "fact"),
+                "importance": round(mem.get("importance", 0.5), 2),
+                "entities": mem.get("entities", []),
+            })
+        
+        latency_ms = int((time.time() - start_time) * 1000)
+        logger.info(f"demo_extract ip={client_ip} memories={len(results)} latency={latency_ms}ms")
+        
+        return {
+            "memories": results,
+            "count": len(results),
+            "latency_ms": latency_ms,
+        }
+    except Exception as e:
+        logger.error(f"Demo extraction failed: {e}")
+        raise HTTPException(500, detail="Extraction failed. Please try again.")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check — no auth required. Verifies DB connectivity and pool status."""
