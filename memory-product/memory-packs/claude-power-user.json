@@ -1,0 +1,167 @@
+{
+  "name": "Claude Power User",
+  "description": "Expert-level knowledge for getting the most out of Claude — prompting patterns, model selection, MCP usage, and project structuring.",
+  "version": "1.0.0",
+  "facts": [
+    {
+      "text": "Claude follows instructions in system prompts more faithfully than in conversation. Put behavioral rules, output format requirements, and persona instructions in the system prompt. Put task-specific context in the user message.",
+      "category": "prompting",
+      "importance": 0.95
+    },
+    {
+      "text": "XML tags are Claude's preferred structured delimiter. Use <context>, <instructions>, <examples>, <output_format> to organize complex prompts. Claude parses these more reliably than markdown headers or triple backticks for structural meaning.",
+      "category": "prompting",
+      "importance": 0.9
+    },
+    {
+      "text": "Give Claude examples of what you want (few-shot prompting). One good input→output example is worth 100 words of description. For complex tasks, provide 2-3 examples showing edge cases. Place examples in <example> tags in the system prompt.",
+      "category": "prompting",
+      "importance": 0.9
+    },
+    {
+      "text": "Chain of thought works but costs tokens. For simple tasks, add 'Answer directly, no explanation needed.' For complex reasoning, use 'Think step by step.' For critical decisions, use extended thinking (Opus/Sonnet) which gives Claude a private scratchpad.",
+      "category": "prompting",
+      "importance": 0.85
+    },
+    {
+      "text": "Claude's context window is 200K tokens but quality degrades in the middle. Put critical information at the very beginning or very end of the prompt. This is the 'lost in the middle' effect — applies to all LLMs, not just Claude.",
+      "category": "prompting",
+      "importance": 0.9
+    },
+    {
+      "text": "Use prefilled assistant responses to control output format. Start the assistant message with '{' to force JSON, '```python' to force code, or 'Step 1:' to force structured reasoning. This is one of the most underused prompting techniques.",
+      "category": "prompting",
+      "importance": 0.85
+    },
+    {
+      "text": "Claude is instruction-following, not instruction-inferring. Be explicit about what you want. 'Analyze this data' is vague. 'List the top 5 anomalies in this data, sorted by severity, with a one-sentence explanation each' gets you exactly what you need.",
+      "category": "prompting",
+      "importance": 0.85
+    },
+    {
+      "text": "For code generation, specify: language, framework version, style preferences (functional vs OOP), error handling approach, and whether you want tests. 'Write a Python function' gives generic code. 'Write a Python 3.12 async function using httpx with proper error handling and a pytest test' gives production code.",
+      "category": "prompting",
+      "importance": 0.85
+    },
+    {
+      "text": "Claude Haiku (3.5) is ideal for: classification, extraction, simple Q&A, routing, summarization. It's ~60x cheaper than Opus and fast. Use it for high-volume, lower-complexity tasks. Don't waste Opus tokens on 'is this email spam?'",
+      "category": "model-selection",
+      "importance": 0.9
+    },
+    {
+      "text": "Claude Sonnet (3.5/4) is the best all-rounder: coding, analysis, writing, tool use. Use Sonnet as your default model. It handles 90% of tasks with a good balance of quality, speed, and cost.",
+      "category": "model-selection",
+      "importance": 0.9
+    },
+    {
+      "text": "Claude Opus (4) excels at: multi-step reasoning, complex code architecture, nuanced writing, tasks requiring deep understanding. Use Opus when Sonnet's output isn't good enough, or for tasks where getting it right the first time saves hours of iteration.",
+      "category": "model-selection",
+      "importance": 0.9
+    },
+    {
+      "text": "Extended thinking (Opus and Sonnet only) gives Claude an internal scratchpad for complex reasoning. Enable it for math, logic puzzles, code architecture decisions, and multi-step analysis. The thinking tokens cost money but dramatically improve accuracy on hard problems.",
+      "category": "model-selection",
+      "importance": 0.85
+    },
+    {
+      "text": "MCP (Model Context Protocol) connects Claude to external tools and data sources. The key mental model: MCP servers expose tools (functions Claude can call) and resources (data Claude can read). Think of it as giving Claude hands and eyes into your systems.",
+      "category": "mcp",
+      "importance": 0.9
+    },
+    {
+      "text": "MCP tool descriptions are critical — they're the 'prompt' that tells Claude when and how to use the tool. Write them like you're explaining to a smart junior dev: what the tool does, when to use it, what parameters mean, and common mistakes to avoid.",
+      "category": "mcp",
+      "importance": 0.85
+    },
+    {
+      "text": "Keep MCP tool count under 20 per server for best results. Too many tools confuse the model about which to use. If you need more, split into multiple focused servers (one for database, one for email, one for calendar).",
+      "category": "mcp",
+      "importance": 0.8
+    },
+    {
+      "text": "MCP servers should validate inputs strictly and return clear error messages. Claude will retry with corrected parameters if it gets a helpful error. A bare 500 error gives Claude nothing to work with; 'Invalid date format, expected YYYY-MM-DD, got: March 5' lets it self-correct.",
+      "category": "mcp",
+      "importance": 0.85
+    },
+    {
+      "text": "For Claude Projects, put stable reference material in project knowledge (uploaded docs). Put instructions that change frequently in the system prompt. Project knowledge persists across conversations; system prompts can be edited per-conversation.",
+      "category": "project-structure",
+      "importance": 0.8
+    },
+    {
+      "text": "Structure large codebases for Claude: include an ARCHITECTURE.md at the root explaining the project structure, key decisions, and where to find things. Claude reads this first and navigates much more effectively than if it has to discover the structure itself.",
+      "category": "project-structure",
+      "importance": 0.85
+    },
+    {
+      "text": "When Claude gets something wrong, don't just say 'wrong, try again.' Say what specifically is wrong and why. 'The SQL query is wrong — you're using LEFT JOIN but the requirement says we only want matching records, so use INNER JOIN.' Correction quality determines iteration speed.",
+      "category": "prompting",
+      "importance": 0.85
+    },
+    {
+      "text": "Claude's training data has a knowledge cutoff. For recent events, APIs, or library versions, provide the relevant documentation directly in context. Don't assume Claude knows about features released in the last few months.",
+      "category": "limitation",
+      "importance": 0.8
+    },
+    {
+      "text": "Claude is better at analysis than generation in creative writing. Give it a draft to improve rather than asking it to write from scratch. 'Improve this paragraph: [text]' consistently outperforms 'Write a paragraph about X.'",
+      "category": "prompting",
+      "importance": 0.75
+    },
+    {
+      "text": "Artifacts in Claude.ai are for standalone, reusable content: code files, documents, diagrams, HTML. Don't use artifacts for conversational responses or short snippets. The rule of thumb: if the user would want to copy/download it, make it an artifact.",
+      "category": "artifacts",
+      "importance": 0.8
+    },
+    {
+      "text": "Claude can generate interactive HTML artifacts with JavaScript, CSS, and SVGs. Use this for data visualizations, interactive demos, calculators, and prototypes. It's often faster than describing what you want — just say 'build me an interactive prototype.'",
+      "category": "artifacts",
+      "importance": 0.8
+    },
+    {
+      "text": "For Mermaid diagrams in artifacts, keep them focused. Claude generates better diagrams when you specify: diagram type (flowchart, sequence, ER), key entities, and level of detail. 'Create a sequence diagram showing the OAuth2 authorization code flow with 4 actors: User, Client, Auth Server, Resource Server.'",
+      "category": "artifacts",
+      "importance": 0.7
+    },
+    {
+      "text": "Claude can process images: screenshots, diagrams, handwritten notes, charts. Send a screenshot of an error and ask 'What's wrong and how do I fix it?' Send a whiteboard photo and ask 'Convert this to a proper architecture diagram.' Vision is underutilized.",
+      "category": "capability",
+      "importance": 0.85
+    },
+    {
+      "text": "Batch API is 50% cheaper with 24-hour turnaround. Use it for: processing large datasets, bulk content generation, evaluation runs, data extraction from many documents. If it doesn't need to be real-time, batch it.",
+      "category": "cost-optimization",
+      "importance": 0.8
+    },
+    {
+      "text": "Prompt caching reduces costs by up to 90% for repeated context. If you send the same system prompt or project context repeatedly, the cached prefix is charged at 10% of the normal rate. Structure prompts with stable content first, variable content last.",
+      "category": "cost-optimization",
+      "importance": 0.85
+    },
+    {
+      "text": "Claude Code (CLI) is best for: multi-file code changes, repo-wide refactoring, running tests and fixing failures iteratively, and working with codebases too large to paste into chat. It has direct filesystem access and can run commands.",
+      "category": "tool-selection",
+      "importance": 0.85
+    },
+    {
+      "text": "For complex multi-turn interactions, periodically summarize the conversation state. 'To confirm: we've decided on X, implemented Y, and the remaining task is Z. Correct?' This prevents context drift and catches misunderstandings early.",
+      "category": "prompting",
+      "importance": 0.8
+    },
+    {
+      "text": "Role prompting works: 'You are a senior database architect reviewing this schema' produces more thorough technical feedback than 'Review this schema.' But don't over-specify — Claude doesn't need a 3-paragraph backstory. One sentence establishing expertise is enough.",
+      "category": "prompting",
+      "importance": 0.8
+    },
+    {
+      "text": "When debugging with Claude, provide: the error message, relevant code, what you expected, and what happened. The more context upfront, the fewer back-and-forth turns. A good bug report to Claude is the same as a good bug report to a human developer.",
+      "category": "prompting",
+      "importance": 0.8
+    },
+    {
+      "text": "Claude respects 'negative prompting' — telling it what NOT to do. 'Do not include import statements' or 'Do not add explanatory comments' or 'Do not apologize or caveat your response' work reliably. Combine positive and negative instructions for precise output control.",
+      "category": "prompting",
+      "importance": 0.75
+    }
+  ]
+}

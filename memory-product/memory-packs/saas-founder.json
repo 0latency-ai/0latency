@@ -1,0 +1,187 @@
+{
+  "name": "SaaS Founder",
+  "description": "Essential knowledge for SaaS founders — metrics, fundraising, pricing psychology, growth frameworks, and common pitfalls.",
+  "version": "1.0.0",
+  "facts": [
+    {
+      "text": "LTV:CAC ratio should be at least 3:1. Below 3:1 means you're spending too much to acquire customers relative to their value. Above 5:1 often means you're underinvesting in growth.",
+      "category": "metrics",
+      "importance": 0.95
+    },
+    {
+      "text": "Net Dollar Retention (NDR) above 120% means you grow even if you stop acquiring new customers. Best-in-class SaaS companies (Snowflake, Datadog) hit 130%+. Below 100% means your bucket is leaking.",
+      "category": "metrics",
+      "importance": 0.95
+    },
+    {
+      "text": "Monthly logo churn above 5% is a crisis — you're replacing half your customer base every year. For SMB SaaS, target <3% monthly. For enterprise, target <1% monthly (or <10% annual).",
+      "category": "metrics",
+      "importance": 0.9
+    },
+    {
+      "text": "CAC payback period should be under 18 months. Over 24 months and you have a capital efficiency problem. Under 12 months is excellent and means you can reinvest faster.",
+      "category": "metrics",
+      "importance": 0.85
+    },
+    {
+      "text": "The Rule of 40: your revenue growth rate + profit margin should exceed 40%. At $10M ARR growing 60% with -15% margins, you're at 45% — healthy. This is the benchmark investors use to evaluate SaaS efficiency.",
+      "category": "metrics",
+      "importance": 0.85
+    },
+    {
+      "text": "Gross margin for SaaS should be 70-85%. If yours is below 65%, you either have heavy infrastructure costs or services revenue dragging it down. Investors care about this because it determines how much revenue drops to the bottom line at scale.",
+      "category": "metrics",
+      "importance": 0.8
+    },
+    {
+      "text": "Magic Number measures sales efficiency: (Net New ARR × 4) / Sales & Marketing Spend of prior quarter. Above 0.75 means you should invest more in sales. Below 0.5 means your go-to-market is inefficient.",
+      "category": "metrics",
+      "importance": 0.8
+    },
+    {
+      "text": "ARR ≠ revenue. ARR is the annualized value of your recurring subscriptions right now. Revenue is what you actually collected. Mixing these up in a pitch deck will kill your credibility with sophisticated investors.",
+      "category": "fundraising",
+      "importance": 0.85
+    },
+    {
+      "text": "Pre-seed: $500K-$2M at $5-10M cap, typically from angels/pre-seed funds. Seed: $2-5M at $10-25M cap. Series A: $8-20M at $40-100M+ valuation, requires $1M+ ARR with clear path to $10M.",
+      "category": "fundraising",
+      "importance": 0.85
+    },
+    {
+      "text": "SAFE notes (Simple Agreement for Future Equity) are standard for pre-seed/seed. Use post-money SAFEs (YC standard) so you know exactly how much dilution you're taking. A $1M SAFE on a $10M post-money cap = 10% dilution.",
+      "category": "fundraising",
+      "importance": 0.8
+    },
+    {
+      "text": "Dilution math: expect to sell 15-25% at each round. After seed + A + B, founders typically own 30-45%. If you're giving up more than 25% per round, you're either raising too much or your valuation is too low.",
+      "category": "fundraising",
+      "importance": 0.8
+    },
+    {
+      "text": "Revenue-based financing (Pipe, Capchase, Lighter Capital) lets you borrow against ARR without dilution. Good for bridging between rounds or funding growth without giving up equity. Typical cost: 6-12% of capital.",
+      "category": "fundraising",
+      "importance": 0.7
+    },
+    {
+      "text": "Most VCs pass. The median VC sees 1,000+ deals/year and invests in 5-10. Don't take rejection personally — it's a numbers game. But if 50+ investors pass, the problem is your business, not bad luck.",
+      "category": "fundraising",
+      "importance": 0.75
+    },
+    {
+      "text": "Price anchoring: always show your most expensive plan first. Users perceive the middle tier as reasonable by comparison. This alone can increase average deal size 15-25%.",
+      "category": "pricing",
+      "importance": 0.85
+    },
+    {
+      "text": "The decoy effect: add a plan that's intentionally bad value to make your target plan look great. If Basic is $29 and Pro is $79, add a 'Plus' at $69 with fewer features than Pro. Most buyers will pick Pro.",
+      "category": "pricing",
+      "importance": 0.8
+    },
+    {
+      "text": "Usage-based pricing (Stripe, Twilio model) aligns cost with value and reduces churn, but makes revenue less predictable. Hybrid is often best: base platform fee + usage. This gives you a revenue floor with upside.",
+      "category": "pricing",
+      "importance": 0.8
+    },
+    {
+      "text": "Annual contracts paid upfront are a cash flow weapon. Offer 15-20% discount for annual vs monthly. You get 10+ months of cash immediately, improve NDR, and reduce churn (annual churn is always lower than monthly×12).",
+      "category": "pricing",
+      "importance": 0.85
+    },
+    {
+      "text": "Price increases are the highest-leverage growth move. A 10% price increase on existing customers drops straight to the bottom line. Most SaaS companies underprice by 30-50%. If no one complains about price, you're too cheap.",
+      "category": "pricing",
+      "importance": 0.9
+    },
+    {
+      "text": "Product-Led Growth (PLG) works when: the product can be tried without sales assistance, value is experienced quickly (under 5 minutes), and the end user has buying power or strong influence. Slack, Figma, Notion are PLG. Enterprise security tools are not.",
+      "category": "growth",
+      "importance": 0.85
+    },
+    {
+      "text": "PLG metrics that matter: activation rate (% of signups who hit the 'aha moment'), time-to-value, PQL conversion rate (product-qualified lead → paid). If activation is below 25%, fix onboarding before spending on acquisition.",
+      "category": "growth",
+      "importance": 0.8
+    },
+    {
+      "text": "Enterprise sales cycle: 3-9 months. Land with a department (50-seat deal), expand to division, then company-wide. Don't try to sell company-wide on day one. The land-and-expand motion accounts for 30%+ of revenue at top SaaS companies.",
+      "category": "growth",
+      "importance": 0.85
+    },
+    {
+      "text": "Sales-led growth: when ACV (annual contract value) exceeds $15-25K, you need salespeople. Below that, the math rarely works — a $150K/year AE needs to close 10+ deals at $25K ACV to justify their cost.",
+      "category": "growth",
+      "importance": 0.8
+    },
+    {
+      "text": "The T2D3 benchmark: after reaching $2M ARR, triple revenue two years in a row, then double three years in a row. This gets you to ~$100M ARR in 5 years. Very few companies achieve this — it's the venture-scale bar.",
+      "category": "growth",
+      "importance": 0.75
+    },
+    {
+      "text": "Unit economics formula: LTV = ARPU × Gross Margin / Monthly Churn Rate. If ARPU is $100/mo, gross margin is 80%, and monthly churn is 3%, LTV = $100 × 0.80 / 0.03 = $2,667. CAC must be well below this.",
+      "category": "unit-economics",
+      "importance": 0.9
+    },
+    {
+      "text": "Contribution margin per customer should be positive by month 12-18. If you're subsidizing customers beyond that, your pricing model is broken. Free tiers are fine but track how many convert and what they cost you to serve.",
+      "category": "unit-economics",
+      "importance": 0.8
+    },
+    {
+      "text": "Customer acquisition channels have diminishing returns. What works at $1M ARR (founder-led sales, content marketing) breaks at $10M ARR. Plan your next channel before the current one saturates.",
+      "category": "growth",
+      "importance": 0.8
+    },
+    {
+      "text": "Churn is the silent killer. A 5% monthly churn means you need to replace 46% of your revenue every year just to stay flat. Reducing churn by 1% often has more impact than increasing new sales by 10%.",
+      "category": "pitfalls",
+      "importance": 0.9
+    },
+    {
+      "text": "Building for enterprise too early kills startups. Enterprise means SOC2, SSO, SCIM, custom contracts, 6-month sales cycles, and support SLAs. Don't add these until you have 10+ enterprise prospects asking and willing to pay.",
+      "category": "pitfalls",
+      "importance": 0.85
+    },
+    {
+      "text": "The 'one more feature' trap: customers ask for features, but what they really want is outcomes. The company that ships 3 features that work perfectly beats the company that ships 30 mediocre ones every time.",
+      "category": "pitfalls",
+      "importance": 0.85
+    },
+    {
+      "text": "Discounting to close deals trains your market to expect discounts. Instead of dropping price, add value: extra onboarding, training, extended trial. Protect your pricing integrity — it compounds.",
+      "category": "pitfalls",
+      "importance": 0.8
+    },
+    {
+      "text": "Founder-led sales is mandatory until $1-2M ARR. No one sells your product better than you. You also learn what customers actually need. Hiring salespeople before understanding your sales process is burning money.",
+      "category": "pitfalls",
+      "importance": 0.85
+    },
+    {
+      "text": "Burn multiple: Net Burn / Net New ARR. Under 1.5x is efficient, 1.5-2x is okay, over 2x means you're burning too fast relative to growth. In a downturn, investors focus on this metric above all else.",
+      "category": "metrics",
+      "importance": 0.8
+    },
+    {
+      "text": "Expansion revenue is the easiest revenue. Selling more to existing happy customers costs 5-7x less than acquiring new ones. Build your pricing to have natural expansion triggers: more seats, more usage, more features.",
+      "category": "growth",
+      "importance": 0.85
+    },
+    {
+      "text": "Quick Ratio = (New MRR + Expansion MRR) / (Churned MRR + Contraction MRR). Above 4 is excellent. Below 2 means growth is fragile. This is the single best metric for understanding the health of your revenue engine.",
+      "category": "metrics",
+      "importance": 0.85
+    },
+    {
+      "text": "Don't optimize for vanity metrics: total signups, page views, downloads. Optimize for activation, retention, and revenue. A startup with 100 paying users who love you beats one with 100K signups and no engagement.",
+      "category": "pitfalls",
+      "importance": 0.8
+    },
+    {
+      "text": "The best SaaS companies have negative churn — they grow faster from existing customers than they lose from churned ones. This only happens with strong expansion revenue and low logo churn. It's the holy grail.",
+      "category": "metrics",
+      "importance": 0.85
+    }
+  ]
+}

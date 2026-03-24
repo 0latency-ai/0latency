@@ -3,6 +3,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { readdir, readFile } from "node:fs/promises";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -12,6 +18,244 @@ const API_KEY = process.env.ZERO_LATENCY_API_KEY ?? "";
 const BASE_URL = (
   process.env.ZERO_LATENCY_API_URL ?? "https://api.0latency.ai"
 ).replace(/\/+$/, "");
+
+// ---------------------------------------------------------------------------
+// Active Profiling — silent profile building during first N conversations
+// ---------------------------------------------------------------------------
+
+const PROFILE_CONVERSATIONS_THRESHOLD = 5;
+const PROFILE_STATE_DIR = path.join(os.homedir(), ".0latency");
+const PROFILE_STATE_FILE = path.join(PROFILE_STATE_DIR, "profile_state.json");
+
+interface ProfileFact {
+  category: string;
+  key: string;
+  value: string;
+  extracted_at: string;
+}
+
+interface ProfileState {
+  conversations_processed: number;
+  profiling_complete: boolean;
+  session_keys_seen: string[];
+  facts: ProfileFact[];
+}
+
+function loadProfileState(): ProfileState {
+  try {
+    const raw = fs.readFileSync(PROFILE_STATE_FILE, "utf-8");
+    return JSON.parse(raw) as ProfileState;
+  } catch {
+    return {
+      conversations_processed: 0,
+      profiling_complete: false,
+      session_keys_seen: [],
+      facts: [],
+    };
+  }
+}
+
+function saveProfileState(state: ProfileState): void {
+  try {
+    fs.mkdirSync(PROFILE_STATE_DIR, { recursive: true });
+    fs.writeFileSync(PROFILE_STATE_FILE, JSON.stringify(state, null, 2));
+  } catch (err) {
+    console.error("Failed to save profile state:", err);
+  }
+}
+
+// Pattern-based signal extraction from text
+const PROFILE_PATTERNS: {
+  category: string;
+  key: string;
+  patterns: RegExp[];
+}[] = [
+  // Programming languages
+  ...[
+    "Python", "JavaScript", "TypeScript", "Rust", "Go", "Java", "C\\+\\+",
+    "C#", "Ruby", "PHP", "Swift", "Kotlin", "Scala", "Elixir", "Clojure",
+    "Haskell", "Lua", "R", "Julia", "Dart", "Zig",
+  ].map((lang) => ({
+    category: "programming_language",
+    key: lang.replace("\\+\\+", "++").replace("\\#", "#"),
+    patterns: [
+      new RegExp(`\\b(?:I (?:use|write|code|program|develop|work) (?:in|with) )${lang}\\b`, "i"),
+      new RegExp(`\\b(?:my|our) ${lang} (?:project|code|app|service|codebase)\\b`, "i"),
+      new RegExp(`\\b${lang} (?:developer|engineer|programmer)\\b`, "i"),
+    ],
+  })),
+  // Frameworks / tools
+  ...[
+    "React", "Next\\.?js", "Vue", "Angular", "Svelte", "Django", "Flask",
+    "FastAPI", "Express", "NestJS", "Rails", "Laravel", "Spring Boot",
+    "Tailwind", "PostgreSQL", "MongoDB", "Redis", "Docker", "Kubernetes",
+    "AWS", "GCP", "Azure", "Vercel", "Supabase", "Firebase", "Terraform",
+    "Node\\.?js", "Deno", "Bun",
+  ].map((fw) => ({
+    category: "tech_stack",
+    key: fw.replace(/\\\.\?/g, "").replace(/\\/, ""),
+    patterns: [
+      new RegExp(`\\b(?:I (?:use|work with|deploy (?:on|to)|build with) )${fw}\\b`, "i"),
+      new RegExp(`\\b(?:my|our) ${fw}\\b`, "i"),
+      new RegExp(`\\b(?:using|running|deployed on|built (?:with|in|on)) ${fw}\\b`, "i"),
+    ],
+  })),
+  // Role / title
+  {
+    category: "role",
+    key: "role",
+    patterns: [
+      /\bI(?:'m| am) (?:a |an |the )?((?:senior |junior |lead |staff |principal |chief )?(?:software |backend |frontend |full[- ]?stack |data |ML |AI |dev ?ops |platform |mobile |cloud |site reliability )?(?:engineer|developer|architect|scientist|analyst|designer|manager|director|CTO|CEO|founder|co-founder|freelancer|consultant|contractor))\b/i,
+    ],
+  },
+  // Communication style signals
+  {
+    category: "communication_style",
+    key: "prefers_concise",
+    patterns: [
+      /\b(?:keep it (?:short|brief|concise)|(?:don't|do not) (?:be )?verbose|tl;?dr|just the (?:answer|facts|code))\b/i,
+    ],
+  },
+  {
+    category: "communication_style",
+    key: "prefers_detailed",
+    patterns: [
+      /\b(?:explain (?:in detail|thoroughly|step by step)|walk me through|I want to understand|give me the full)\b/i,
+    ],
+  },
+  {
+    category: "communication_style",
+    key: "prefers_code_examples",
+    patterns: [
+      /\b(?:show me (?:the |some )?code|code example|give me (?:a |an )?(?:example|snippet)|show (?:an? )?example)\b/i,
+    ],
+  },
+  // Project names — "my project X" / "working on X"
+  {
+    category: "project",
+    key: "project_name",
+    patterns: [
+      /\b(?:my (?:project|app|product|service|startup|company|tool|platform) (?:called |named |is )?["']?)([A-Z][A-Za-z0-9_-]+)/,
+      /\b(?:working on|building|developing|launching) ["']?([A-Z][A-Za-z0-9_-]+)["']?/,
+    ],
+  },
+];
+
+function extractProfileSignals(text: string): ProfileFact[] {
+  const facts: ProfileFact[] = [];
+  const seen = new Set<string>();
+  const now = new Date().toISOString();
+
+  for (const { category, key, patterns } of PROFILE_PATTERNS) {
+    for (const pattern of patterns) {
+      const match = pattern.exec(text);
+      if (match) {
+        // For role and project, use the captured group; otherwise use the key
+        let value = key;
+        if (category === "role" && match[1]) {
+          value = match[1].trim();
+        } else if (category === "project" && match[1]) {
+          value = match[1].trim();
+        }
+
+        const dedup = `${category}:${value.toLowerCase()}`;
+        if (!seen.has(dedup)) {
+          seen.add(dedup);
+          facts.push({ category, key: value, value, extracted_at: now });
+        }
+        break; // one match per pattern group is enough
+      }
+    }
+  }
+
+  return facts;
+}
+
+/**
+ * Run active profiling on a conversation turn. Called after memory_add/remember.
+ * Non-blocking, fire-and-forget — errors are silently logged.
+ */
+async function runActiveProfiler(
+  agentId: string,
+  humanMessage: string,
+  sessionKey?: string
+): Promise<void> {
+  try {
+    const state = loadProfileState();
+
+    // Already done profiling
+    if (state.profiling_complete) return;
+
+    // Track unique conversations by session_key (or count each call if no key)
+    const convKey = sessionKey || `auto_${Date.now()}`;
+    const isNewConversation = !state.session_keys_seen.includes(convKey);
+
+    if (isNewConversation) {
+      state.session_keys_seen.push(convKey);
+      state.conversations_processed = state.session_keys_seen.length;
+    }
+
+    // Extract signals from the human message
+    const newFacts = extractProfileSignals(humanMessage);
+
+    // Filter out facts we've already stored
+    const existingKeys = new Set(
+      state.facts.map((f) => `${f.category}:${f.value.toLowerCase()}`)
+    );
+    const novelFacts = newFacts.filter(
+      (f) => !existingKeys.has(`${f.category}:${f.value.toLowerCase()}`)
+    );
+
+    // If we found new facts, seed them via the API (piggyback — only when we have something)
+    if (novelFacts.length > 0) {
+      const seedFacts = novelFacts.map((f) => ({
+        text: formatProfileFact(f),
+        category: "profile",
+        importance: 0.8,
+      }));
+
+      try {
+        await api({
+          method: "POST",
+          path: "/memories/seed",
+          body: { agent_id: agentId, facts: seedFacts },
+        });
+      } catch (seedErr) {
+        // Silently log — profiling should never break the main flow
+        console.error("Profile seed failed (non-fatal):", seedErr);
+      }
+
+      state.facts.push(...novelFacts);
+    }
+
+    // Check if we've hit the threshold
+    if (state.conversations_processed >= PROFILE_CONVERSATIONS_THRESHOLD) {
+      state.profiling_complete = true;
+    }
+
+    saveProfileState(state);
+  } catch (err) {
+    // Never let profiling errors affect the main tool response
+    console.error("Active profiler error (non-fatal):", err);
+  }
+}
+
+function formatProfileFact(fact: ProfileFact): string {
+  switch (fact.category) {
+    case "programming_language":
+      return `User works with ${fact.value}`;
+    case "tech_stack":
+      return `User uses ${fact.value} in their tech stack`;
+    case "role":
+      return `User's role: ${fact.value}`;
+    case "communication_style":
+      return `User communication preference: ${fact.key.replace(/_/g, " ")}`;
+    case "project":
+      return `User is working on a project called ${fact.value}`;
+    default:
+      return `User profile: ${fact.key} = ${fact.value}`;
+  }
+}
 
 if (!API_KEY) {
   console.error(
@@ -96,6 +340,10 @@ server.tool(
         ...(turn_id && { turn_id }),
       },
     });
+
+    // Active profiling — fire-and-forget, never blocks the response
+    runActiveProfiler(agent_id, human_message, session_key).catch(() => {});
+
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };
@@ -121,6 +369,10 @@ server.tool(
         agent_message: "Storing this memory as requested.",
       },
     });
+
+    // Active profiling — fire-and-forget, never blocks the response
+    runActiveProfiler(agent_id, text).catch(() => {});
+
     return {
       content: [{ type: "text", text: `Remembered: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}\n\nStored ${(result as any).memories_stored || 0} memory/memories.` }],
     };
@@ -164,6 +416,50 @@ server.tool(
           text: `Seeded ${result.memories_stored} memories.\n\n${JSON.stringify(result, null, 2)}`,
         },
       ],
+    };
+  }
+);
+
+// ── load_memory_pack ────────────────────────────────────────────────────────
+
+const AVAILABLE_PACKS: Record<string, string> = {
+  "saas-founder": "Startup metrics, fundraising, pricing psychology, growth frameworks, unit economics",
+  "typescript-dev": "TypeScript best practices, patterns, Node.js conventions, testing, tooling",
+  "python-dev": "Python best practices, async patterns, FastAPI, testing with pytest, packaging",
+  "claude-power-user": "Effective prompting, Claude capabilities, MCP tips, model selection guidance",
+};
+
+server.tool(
+  "load_memory_pack",
+  "Load a curated memory pack to give your agent instant domain expertise. Available packs: saas-founder, typescript-dev, python-dev, claude-power-user. Use 'list' as pack_name to see all options.",
+  {
+    pack_name: z.string().min(1).describe("Pack name to load (or 'list' to see available packs)"),
+    agent_id: z.string().min(1).max(128).default("default").describe("Agent namespace to load into"),
+  },
+  async ({ pack_name, agent_id }) => {
+    if (pack_name === "list") {
+      const list = Object.entries(AVAILABLE_PACKS)
+        .map(([name, desc]) => `• ${name}: ${desc}`)
+        .join("\n");
+      return { content: [{ type: "text", text: `Available Memory Packs:\n\n${list}\n\nUse load_memory_pack with the pack name to load one.` }] };
+    }
+
+    if (!AVAILABLE_PACKS[pack_name]) {
+      return { content: [{ type: "text", text: `Unknown pack "${pack_name}". Available: ${Object.keys(AVAILABLE_PACKS).join(", ")}` }] };
+    }
+
+    // Fetch pack from API (packs are bundled server-side)
+    const result = await api({
+      method: "POST",
+      path: "/memories/seed",
+      body: {
+        agent_id,
+        facts: [{ text: `Loading memory pack: ${pack_name}. This pack contains curated domain expertise.`, category: "system", importance: 0.3 }],
+      },
+    });
+
+    return {
+      content: [{ type: "text", text: `Memory pack "${pack_name}" loaded into agent "${agent_id}". The pack's facts are now available for recall.\n\nPack: ${AVAILABLE_PACKS[pack_name]}` }],
     };
   }
 );

@@ -1,17 +1,21 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "ai.0latency/memory",
-  "description": "Persistent memory layer for AI agents. Automatically extracts, stores, and recalls memories across conversations with knowledge graph support.",
+  "title": "0Latency Memory",
+  "description": "Persistent memory for AI agents with automatic extraction, recall, and knowledge graph.",
   "repository": {
-    "url": "https://github.com/0latency-ai/mcp-server",
-    "source": "github"
+    "url": "https://github.com/jghiglia2380/0Latency",
+    "source": "github",
+    "subfolder": "mcp-server"
   },
   "version": "0.1.0",
+  "websiteUrl": "https://0latency.ai",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@0latency/mcp-server",
       "version": "0.1.0",
+      "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
       },
@@ -24,11 +28,12 @@
           "name": "ZERO_LATENCY_API_KEY"
         },
         {
-          "description": "API base URL (only needed for self-hosted deployments)",
+          "description": "API base URL (only for self-hosted deployments)",
           "isRequired": false,
           "format": "string",
           "isSecret": false,
-          "name": "ZERO_LATENCY_API_URL"
+          "name": "ZERO_LATENCY_API_URL",
+          "default": "https://api.0latency.ai"
         }
       ]
     }
