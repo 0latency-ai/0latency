@@ -5,6 +5,13 @@ FastAPI REST endpoints for multi-tenant agent memory with real authentication.
 import os
 import sys
 import time
+
+# Load .env file for environment variables (Stripe keys, etc.)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 import hashlib
 import uuid
 import logging
@@ -264,6 +271,20 @@ async def dashboard(request: Request, tenant=Depends(require_api_key)):
         return HTMLResponse(content=f.read())
 
 
+class SeedFact(BaseModel):
+    text: str = Field(..., min_length=1, max_length=5000)
+    category: Optional[str] = Field(None, max_length=64)
+    importance: float = Field(default=0.5, ge=0.0, le=1.0)
+
+class SeedRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    facts: list[SeedFact] = Field(..., min_length=1, max_length=500)
+
+class SeedResponse(BaseModel):
+    memories_stored: int
+    memory_ids: list[str]
+
+
 class ExtractRequest(BaseModel):
     agent_id: str = Field(..., min_length=1, max_length=128)
     human_message: str = Field(..., min_length=1, max_length=50000)
@@ -383,6 +404,72 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
     except Exception as e:
         track_api_usage(tenant["id"], "/extract", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
         raise HTTPException(500, detail="Extraction failed. Please check your input and try again.")
+
+
+@app.post("/memories/seed", response_model=SeedResponse)
+async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key)):
+    """Seed memories directly from raw facts, bypassing the extraction pipeline.
+    
+    Use this to bulk-load known facts, preferences, or context into an agent's
+    memory without requiring conversation-format input. Each fact becomes a
+    memory with its own embedding.
+    """
+    start_time = time.time()
+    try:
+        # Secret scanning on each fact
+        for i, fact in enumerate(req.facts):
+            check_for_secrets(fact.text, f"facts[{i}].text")
+
+        # Enforce memory limit
+        count_rows = _db_execute_rows("""
+            SELECT COUNT(*) FROM memory_service.memories
+            WHERE tenant_id = %s::UUID AND superseded_at IS NULL
+        """, (tenant["id"],), tenant_id=tenant["id"])
+        current_count = int(count_rows[0][0]) if count_rows else 0
+        remaining = tenant["memory_limit"] - current_count
+        if remaining <= 0:
+            raise HTTPException(429, detail=f"Memory limit reached ({tenant['memory_limit']}). Upgrade plan or delete old memories.")
+        if len(req.facts) > remaining:
+            raise HTTPException(429, detail=f"Would exceed memory limit. {remaining} slots remaining, {len(req.facts)} facts submitted.")
+
+        # Build memory dicts from facts and store them
+        memories = []
+        for fact in req.facts:
+            categories = [fact.category] if fact.category else []
+            memories.append({
+                "agent_id": req.agent_id,
+                "headline": fact.text,
+                "context": fact.text,
+                "full_content": fact.text,
+                "memory_type": fact.category or "fact",
+                "importance": fact.importance,
+                "confidence": 0.9,
+                "entities": [],
+                "categories": categories,
+                "scope": "/",
+                "source_session": "seed",
+                "source_turn": None,
+                "metadata": {"source": "seed_api"},
+            })
+
+        ids = store_memories(memories, tenant["id"])
+        response = SeedResponse(memories_stored=len(ids), memory_ids=ids)
+
+        # Track usage
+        response_time = int((time.time() - start_time) * 1000)
+        track_api_usage(tenant["id"], "/memories/seed",
+                       tokens_used=sum(len(f.text) for f in req.facts),
+                       response_time_ms=response_time)
+
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        track_api_usage(tenant["id"], "/memories/seed",
+                       response_time_ms=int((time.time() - start_time) * 1000),
+                       status_code=500)
+        logger.error(f"Seed endpoint failed: {e}")
+        raise HTTPException(500, detail="Seed failed. Please check your input and try again.")
 
 
 # --- Async Extraction Job Store (in-memory for now, Redis-backed in production) ---
@@ -660,6 +747,234 @@ async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require
         "memories_stored": total_stored,
         "memory_ids": all_ids,
         "errors": errors if errors else None,
+    }
+
+
+# === BULK IMPORT & THREAD IMPORT ENDPOINTS ===
+
+class BulkImportRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    content: str = Field(..., min_length=1, max_length=204800)  # 200KB
+    source: Optional[str] = Field(None, max_length=256)
+
+class ConversationTurn(BaseModel):
+    role: str = Field(..., pattern="^(human|assistant|user|system)$")
+    content: str = Field(..., min_length=1, max_length=100000)
+
+class ThreadImportRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    conversation: list[ConversationTurn] = Field(..., min_length=1, max_length=500)
+    source: Optional[str] = Field(None, max_length=256)
+
+
+def _chunk_text(text: str, chunk_size: int = 2000, overlap: int = 200) -> list[str]:
+    """Split text into overlapping chunks of ~chunk_size characters."""
+    if len(text) <= chunk_size:
+        return [text]
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        # Try to break at a sentence or paragraph boundary
+        if end < len(text):
+            # Look for paragraph break first
+            para_break = text.rfind("\n\n", start + chunk_size // 2, end + 200)
+            if para_break > start:
+                end = para_break
+            else:
+                # Look for sentence break
+                for sep in [". ", ".\n", "! ", "? ", "\n"]:
+                    sent_break = text.rfind(sep, start + chunk_size // 2, end + 100)
+                    if sent_break > start:
+                        end = sent_break + len(sep)
+                        break
+        chunks.append(text[start:end].strip())
+        start = end - overlap  # overlap for context continuity
+        if start >= len(text):
+            break
+    return [c for c in chunks if c]  # filter empty
+
+
+@app.post("/memories/import")
+async def bulk_import_endpoint(req: BulkImportRequest, tenant: dict = Depends(require_api_key)):
+    """Bulk import: accepts a large text document, chunks it, extracts memories from each chunk.
+    
+    Use this to import project briefs, wiki pages, documentation, or any large text block.
+    Content is chunked into ~2000 char segments with overlap, and each chunk is run through
+    the extraction pipeline.
+    """
+    # Secret scanning on full content
+    check_for_secrets(req.content, "content")
+    
+    start_time = time.time()
+    
+    # Enforce memory limit
+    count_rows = _db_execute_rows("""
+        SELECT COUNT(*) FROM memory_service.memories
+        WHERE tenant_id = %s::UUID AND superseded_at IS NULL
+    """, (tenant["id"],), tenant_id=tenant["id"])
+    current_count = int(count_rows[0][0]) if count_rows else 0
+    if current_count >= tenant["memory_limit"]:
+        raise HTTPException(429, detail=f"Memory limit reached ({tenant['memory_limit']}). Upgrade plan or delete old memories.")
+    
+    # Chunk the content
+    chunks = _chunk_text(req.content)
+    
+    total_stored = 0
+    all_ids = []
+    
+    # Fetch recent headlines for dedup context
+    existing_context = ""
+    try:
+        recent = _db_execute_rows("""
+            SELECT headline FROM memory_service.memories
+            WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+            ORDER BY created_at DESC LIMIT 30
+        """, (req.agent_id, tenant["id"]), tenant_id=tenant["id"])
+        if recent:
+            existing_context = "\n".join(f"- {row[0]}" for row in recent)
+    except Exception as e:
+        logger.warning(f"Failed to load existing context for dedup: {e}")
+    
+    for chunk in chunks:
+        # Check memory limit per chunk to avoid overshooting
+        if current_count + total_stored >= tenant["memory_limit"]:
+            logger.warning(f"Memory limit reached during import for tenant {tenant['id']}")
+            break
+        
+        try:
+            memories = extract_memories(
+                human_message=chunk,
+                agent_message="",
+                agent_id=req.agent_id,
+                session_key=req.source or "bulk-import",
+                existing_context=existing_context,
+            )
+            if memories:
+                ids = store_memories(memories, tenant["id"])
+                total_stored += len(ids)
+                all_ids.extend(ids)
+                # Update dedup context with new headlines
+                for mem in memories:
+                    existing_context += f"\n- {mem['headline']}"
+        except Exception as e:
+            logger.error(f"Chunk extraction failed during import: {e}")
+    
+    response_time = int((time.time() - start_time) * 1000)
+    track_api_usage(tenant["id"], "/memories/import",
+                   tokens_used=len(req.content),
+                   response_time_ms=response_time)
+    
+    return {
+        "memories_stored": total_stored,
+        "memory_ids": all_ids,
+        "chunks_processed": len(chunks),
+    }
+
+
+@app.post("/memories/import-thread")
+async def thread_import_endpoint(req: ThreadImportRequest, tenant: dict = Depends(require_api_key)):
+    """Thread import: accepts a conversation export and extracts memories from each turn pair.
+    
+    Use this to import Claude Desktop exports, ChatGPT exports, or any conversation in
+    [{role, content}] format. Human+assistant messages are paired and each pair is processed
+    through the extraction pipeline.
+    """
+    # Secret scanning on all content
+    for i, turn in enumerate(req.conversation):
+        check_for_secrets(turn.content, f"conversation[{i}].content")
+    
+    start_time = time.time()
+    
+    # Enforce memory limit
+    count_rows = _db_execute_rows("""
+        SELECT COUNT(*) FROM memory_service.memories
+        WHERE tenant_id = %s::UUID AND superseded_at IS NULL
+    """, (tenant["id"],), tenant_id=tenant["id"])
+    current_count = int(count_rows[0][0]) if count_rows else 0
+    if current_count >= tenant["memory_limit"]:
+        raise HTTPException(429, detail=f"Memory limit reached ({tenant['memory_limit']}). Upgrade plan or delete old memories.")
+    
+    # Pair human+assistant turns
+    turns_processed = 0
+    total_stored = 0
+    all_ids = []
+    
+    # Fetch recent headlines for dedup context
+    existing_context = ""
+    try:
+        recent = _db_execute_rows("""
+            SELECT headline FROM memory_service.memories
+            WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+            ORDER BY created_at DESC LIMIT 30
+        """, (req.agent_id, tenant["id"]), tenant_id=tenant["id"])
+        if recent:
+            existing_context = "\n".join(f"- {row[0]}" for row in recent)
+    except Exception as e:
+        logger.warning(f"Failed to load existing context for dedup: {e}")
+    
+    # Build turn pairs: collect consecutive human/assistant pairs
+    i = 0
+    recent_pairs: list[tuple[str, str]] = []
+    while i < len(req.conversation):
+        human_msg = ""
+        assistant_msg = ""
+        
+        # Collect human message(s)
+        if req.conversation[i].role in ("human", "user"):
+            human_msg = req.conversation[i].content
+            i += 1
+            # Check if next is assistant
+            if i < len(req.conversation) and req.conversation[i].role == "assistant":
+                assistant_msg = req.conversation[i].content
+                i += 1
+        elif req.conversation[i].role == "assistant":
+            # Standalone assistant message — use as agent_message with empty human
+            assistant_msg = req.conversation[i].content
+            i += 1
+        else:
+            # Skip system messages
+            i += 1
+            continue
+        
+        if not human_msg and not assistant_msg:
+            continue
+        
+        # Check memory limit per turn
+        if current_count + total_stored >= tenant["memory_limit"]:
+            logger.warning(f"Memory limit reached during thread import for tenant {tenant['id']}")
+            break
+        
+        try:
+            memories = extract_memories(
+                human_message=human_msg,
+                agent_message=assistant_msg,
+                agent_id=req.agent_id,
+                session_key=req.source or "thread-import",
+                existing_context=existing_context,
+                recent_turns=recent_pairs[-4:] if recent_pairs else None,
+            )
+            if memories:
+                ids = store_memories(memories, tenant["id"])
+                total_stored += len(ids)
+                all_ids.extend(ids)
+                for mem in memories:
+                    existing_context += f"\n- {mem['headline']}"
+        except Exception as e:
+            logger.error(f"Turn extraction failed during thread import: {e}")
+        
+        recent_pairs.append((human_msg, assistant_msg))
+        turns_processed += 1
+    
+    response_time = int((time.time() - start_time) * 1000)
+    track_api_usage(tenant["id"], "/memories/import-thread",
+                   tokens_used=sum(len(t.content) for t in req.conversation),
+                   response_time_ms=response_time)
+    
+    return {
+        "memories_stored": total_stored,
+        "memory_ids": all_ids,
+        "turns_processed": turns_processed,
     }
 
 

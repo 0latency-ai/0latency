@@ -102,6 +102,72 @@ server.tool(
   }
 );
 
+// ── remember (simple interface for prosumer use) ────────────────────────────
+
+server.tool(
+  "remember",
+  "Store a piece of information to remember across conversations. Use this whenever the user asks you to remember something, or when important facts come up worth preserving.",
+  {
+    text: z.string().min(1).max(50000).describe("The information to remember"),
+    agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
+  },
+  async ({ text, agent_id }) => {
+    const result = await api({
+      method: "POST",
+      path: "/memories/extract",
+      body: {
+        agent_id,
+        human_message: text,
+        agent_message: "Storing this memory as requested.",
+      },
+    });
+    return {
+      content: [{ type: "text", text: `Remembered: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}\n\nStored ${(result as any).memories_stored || 0} memory/memories.` }],
+    };
+  }
+);
+
+// ── seed_memories ───────────────────────────────────────────────────────────
+
+server.tool(
+  "seed_memories",
+  "Seed memories directly from raw facts, bypassing the extraction pipeline. Use this to bulk-load known facts, preferences, or context into an agent's memory without conversation-format input.",
+  {
+    agent_id: z.string().min(1).max(128).describe("Agent / namespace identifier"),
+    facts: z
+      .array(
+        z.object({
+          text: z.string().min(1).max(5000).describe("The fact or piece of information to store"),
+          category: z.string().max(64).optional().describe("Optional category (e.g. fact, preference, relationship)"),
+          importance: z
+            .number()
+            .min(0)
+            .max(1)
+            .default(0.5)
+            .describe("Importance score from 0 to 1 (default 0.5)"),
+        })
+      )
+      .min(1)
+      .max(500)
+      .describe("Array of facts to seed as memories"),
+  },
+  async ({ agent_id, facts }) => {
+    const result = await api<{ memories_stored: number; memory_ids: string[] }>({
+      method: "POST",
+      path: "/memories/seed",
+      body: { agent_id, facts },
+    });
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Seeded ${result.memories_stored} memories.\n\n${JSON.stringify(result, null, 2)}`,
+        },
+      ],
+    };
+  }
+);
+
 // ── memory_recall ───────────────────────────────────────────────────────────
 
 server.tool(
@@ -202,6 +268,69 @@ server.tool(
             typeof result === "string" && result === ""
               ? "Memory deleted successfully."
               : JSON.stringify(result, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+// ── import_document ─────────────────────────────────────────────────────────
+
+server.tool(
+  "import_document",
+  "Import a large text document (project brief, wiki page, documentation, etc.) and extract memories from it. Content is automatically chunked and processed through the extraction pipeline.",
+  {
+    agent_id: z.string().min(1).max(128).describe("Agent / namespace identifier"),
+    content: z.string().min(1).max(204800).describe("The document text to import (up to 200KB)"),
+    source: z.string().max(256).optional().describe("Source label (e.g. 'project-brief', 'wiki', 'manual')"),
+  },
+  async ({ agent_id, content, source }) => {
+    const result = await api<{ memories_stored: number; memory_ids: string[]; chunks_processed: number }>({
+      method: "POST",
+      path: "/memories/import",
+      body: { agent_id, content, ...(source && { source }) },
+    });
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Imported document: ${result.chunks_processed} chunks processed, ${result.memories_stored} memories stored.\n\n${JSON.stringify(result, null, 2)}`,
+        },
+      ],
+    };
+  }
+);
+
+// ── import_conversation ─────────────────────────────────────────────────────
+
+server.tool(
+  "import_conversation",
+  "Import a conversation export (e.g. from Claude Desktop or ChatGPT) and extract memories from each turn pair. Provide the conversation as an array of {role, content} objects.",
+  {
+    agent_id: z.string().min(1).max(128).describe("Agent / namespace identifier"),
+    conversation: z
+      .array(
+        z.object({
+          role: z.enum(["human", "assistant", "user", "system"]).describe("Message role"),
+          content: z.string().min(1).max(100000).describe("Message content"),
+        })
+      )
+      .min(1)
+      .max(500)
+      .describe("Array of conversation messages in [{role, content}] format"),
+    source: z.string().max(256).optional().describe("Source label (e.g. 'claude-desktop', 'chatgpt')"),
+  },
+  async ({ agent_id, conversation, source }) => {
+    const result = await api<{ memories_stored: number; memory_ids: string[]; turns_processed: number }>({
+      method: "POST",
+      path: "/memories/import-thread",
+      body: { agent_id, conversation, ...(source && { source }) },
+    });
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Imported conversation: ${result.turns_processed} turns processed, ${result.memories_stored} memories stored.\n\n${JSON.stringify(result, null, 2)}`,
         },
       ],
     };

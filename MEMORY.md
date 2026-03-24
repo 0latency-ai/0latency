@@ -7,6 +7,14 @@
 - **File attachments (JSON, etc.) ARE acceptable** — Justin confirmed this is fine and corrected Thomas for over-correcting.
 - This rule exists because Thomas asked Justin to paste a PyPI token in Telegram plaintext. That was wrong. Never again.
 
+## TODO Verification Rule (NON-NEGOTIABLE — added March 23, 2026)
+- **NEVER present a TODO/action item as open without verification.**
+- Before surfacing tasks to Justin: run `python3 /root/scripts/verify_todos.py` — it cross-references open TODOs against daily notes + session transcripts and flags stale items.
+- Only present items from the `open` list in the output. Items in `likely_done` are stale until proven otherwise.
+- Output lives at `/root/scripts/.verified_todos.json` — check it before any "what should I work on" type question.
+- If you can't run the script, run memory_search manually — but the script is the primary gate.
+- This is the exact failure mode 0Latency solves. Don't be your own counter-example.
+
 ## Communication Rules (NON-NEGOTIABLE)
 - **NEVER ask Justin to paste API keys, secrets, tokens, or credentials into Telegram/chat.** He practices clean API key hygiene. Always provide terminal/SSH instructions to store credentials directly on the server. No exceptions. (Added March 22, 2026 — Justin called this out twice.)
 - **NEVER say** "I want to be straight with you," "to be honest," "I'll be honest," "let me be real," or any variant. Justin despises this framing — it implies you might otherwise be dishonest. Just say the thing. No preamble.
@@ -17,6 +25,14 @@
 ## Output Redundancy Rule (NON-NEGOTIABLE — added March 20, 2026)
 - Say it ONCE. Don't explain something in prose and then re-list it as bullets. Don't summarize what you just showed. Pick one format and commit.
 - This is the same root cause as the screenshot play-by-play: generating volume instead of being precise.
+
+## Sub-Agent Delegation Rules (NON-NEGOTIABLE — added March 23, 2026 after 7-min outage)
+- **Main session = conversation + coordination ONLY.** Execution → sub-agents.
+- Mandatory delegate: >2 files, web fetches, research, code gen >50 lines, tasks >30 sec, multi-step debugging
+- **Acknowledge-first:** Respond to Justin within 1 tool call. NEVER run >2 tool calls before first reply.
+- Token awareness: 80k+ = aggressive delegation. 120k+ = EMERGENCY, zero inline work, write checkpoint immediately.
+- Only inline: read 1-2 small files, single quick commands, sending messages, spawning agents, writing memory.
+- Root cause of March 23 outage: inline work bloated tokens 120k→202k in 2 hours → compaction crash → 7 min blackout.
 
 ## Capabilities Awareness (NON-NEGOTIABLE — added March 18, 2026)
 - On every session start, read the **Capabilities Manifest** in `TOOLS.md`. It lists every integration, API, and tool I have access to.
@@ -67,6 +83,12 @@ This prevents context blowout from large file drops.
 5. **Track spawn failures:** Log every failed spawn in the daily memory file — what was attempted, why it failed, tokens wasted. Review weekly for patterns.
 6. **Polling overhead:** No agent polls more frequently than hourly unless there's an active reason. Default: hourly. Exception: only if Justin explicitly requests faster.
 7. **Right tool for the job:** 3 file edits = direct edit. Research on 6 states = sub-agent. Full app build = coding agent. Match the tool to the scope.
+
+## Responsiveness Rule (NON-NEGOTIABLE — added March 23, 2026)
+- **ANY debug, fix, or investigation task estimated over 60 seconds MUST be spawned as a sub-agent.**
+- The main session stays responsive to Justin at all times. No exceptions.
+- Justin flagged this directly: 6 minutes of silence while debugging OAuth/Stripe was unacceptable.
+- Pattern: spawn agent → confirm to Justin it's being handled → stay available for conversation.
 
 ## Non-Negotiable Operating Rules
 0. **Verify Before Claiming (added March 16, 2026 — after Justin rightfully called this out):** NEVER tell Justin something is broken, unavailable, or not working based on old notes or assumptions. TEST IT FIRST. If you have credentials, make the API call. If you have a path, check the file. If you have a URL, hit it. Report what you ACTUALLY FOUND, not what you remember reading. Stale memory ≠ current state. This applies to everything — integrations, APIs, services, tools, access. No exceptions.
@@ -369,6 +391,32 @@ Source: `/home/ubuntu/pfl-academy/product-docs/writing_rules.md` (full doc). Cop
 - **Scaling:** Stateless, Docker + fly.toml ready. Current droplet handles 10 concurrent. fly.io for production auto-scaling.
 - **Key files:** ARCHITECTURE.md, GAP_ANALYSIS_5.md, memory-product/
 - **Next:** Seb review, Chrome Web Store publish, fly.io production deploy, pricing model (Gemini analysis pending)
+
+## 0Latency — Product & Strategy (as of March 23, 2026)
+- **Status:** Pre-launch, 92% production-ready. 47 API endpoints, 147 tests, 6,840 lines of code, 2 SDKs, 3 blog posts, Stripe billing, Google/GitHub OAuth
+- **Memory count:** 624 (this IS the marketing story)
+- **API:** api.0latency.ai (FastAPI, uvicorn, port 8420 behind Cloudflare)
+- **Site:** 0latency.ai (static HTML on nginx, /var/www/0latency/)
+- **Repo:** github.com/jghiglia2380/0Latency (private, master branch)
+- **Pricing:** Free (10K/5 agents/20 RPM) → Pro $19 (100K/25/100) → Scale $89 (1M/∞/500/graph) → Enterprise custom
+- **MCP server:** @0latency/mcp-server, built but NOT on npm yet. Needs publishing for Claude Desktop distribution.
+- **Sebastian Lucaciu (sebbuilds):** Reviewing codebase, few days. Found OAuth + billing issues (both fixed).
+- **Strategic pivot:** Claude thread memory as prosumer go-to-market. Same product, MCP delivery. TAM: 6.4M Claude power users.
+- **Dual track:** Dev API (Nate/Greg/HN) + Claude prosumer (r/ClaudeAI, r/ClaudeCode, Product Hunt)
+- **Competitive moat:** Temporal decay, negative recall, cross-platform portability (Anthropic won't build this), sub-100ms recall
+- **Platform risk:** Anthropic Memory Beta is basic now but will improve. Window is finite. Move fast.
+- **Openclaw Labs (@Openclawlabs):** YouTube educator, introduced Justin to mem0. Potential distribution partner. Reach out AFTER product polished.
+- **Key insight from Gemini:** Gate on velocity (RPM) and intelligence (graph memory), not storage. "Unlimited Claude Memory" framing for prosumer.
+
+## Loop — Expanded Role (Queued, March 24 2026)
+When Loop comes online, her responsibilities include:
+- **Daily channel monitoring:** Reddit (r/ClaudeAI, r/ClaudeCode, r/AI_Agents, r/LocalLLaMA), GitHub (stars/forks/issues on Mem0, Zep, Hindsight, MCP repos), X/Twitter (MCP memory, Claude memory complaints, @0latencyai), HN, Anthropic Discord MCP channels
+- **PFL Academy monitoring (lighter cadence):** r/teachers, r/financialliteracy, state DOE procurement boards
+- **Daily digest:** Volume, sentiment, key threads across all channels
+- **Real-time alerts:** Flag posts/conversations where 0Latency should participate, with suggested responses
+- **Competitive intel:** New features, pricing changes, launches from Mem0/Zep/Hindsight/others
+- **Automated engagement:** Thoughtful replies where appropriate (not spam)
+- Justin's directive: "Loop stays informed and alerts us to posts or conversations we should be a part of"
 
 ## Agent Status (as of March 9, 2026)
 - **Thomas:** Active. Memory system certified. All 6 phases complete.

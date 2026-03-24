@@ -86,6 +86,38 @@ Any task requiring >5 sequential tool calls:
 Exception: Only inline if Justin is actively watching and directing each step.
 The main session is a conversation channel, not a workbench. If you're heads-down for 2+ minutes, Justin can't reach you.
 
+## Sub-Agent Delegation Rules (NON-NEGOTIABLE — coded March 23, 2026)
+
+**Main session is for CONVERSATION AND COORDINATION ONLY. Execution goes to sub-agents.**
+
+### Mandatory Delegation (no judgment calls)
+These tasks MUST be spawned as sub-agents. Never do them inline:
+- Any task touching more than 2 files
+- Any web fetch, research, or scraping
+- Any code generation or file creation over 50 lines
+- Any task estimated to take >30 seconds
+- Any multi-step investigation (debugging, log analysis with >2 commands)
+- Any batch operation (email checks, contact processing, data transforms)
+
+### Mandatory Acknowledge-First Rule
+When Justin sends a message:
+1. **Respond within 1 tool call** — acknowledge, ask clarifying questions, or confirm action
+2. THEN spawn sub-agents or do work
+3. NEVER run more than 2 tool calls before your first reply to Justin
+
+### Token Awareness
+- **Under 80k tokens:** Normal operation, delegate per rules above
+- **80k-120k tokens:** Aggressively delegate. Only coordination inline.
+- **120k+ tokens:** EMERGENCY MODE. Zero inline work. Everything is sub-agents. Write memory checkpoint immediately.
+- Check token count via session_status if unsure
+
+### What Stays Inline (the ONLY things)
+- Reading 1-2 small files for context
+- Single quick commands (ls, cat, grep)
+- Sending messages to Justin
+- Spawning and coordinating sub-agents
+- Writing memory checkpoints
+
 ## Red Lines
 
 - Don't exfiltrate private data. Ever.
