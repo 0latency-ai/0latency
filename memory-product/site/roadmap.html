@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roadmap | 0Latency - Agent Memory API</title>
+    <meta name="description" content="Public roadmap for 0Latency. Track our progress and upcoming features.">
+    <link rel="icon" type="image/png" href="/logos/0latency-icon-32.png">
+    <link rel="apple-touch-icon" href="/logos/0latency-icon-512.png">
+    <style>
+        :root {
+            --font-heading: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-body: ui-sans-serif, system-ui, -apple-system, sans-serif;
+            --font-quote: Georgia, "Times New Roman", serif;
+            --font-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-body);
+            color: #111827;
+            background: #ffffff;
+            line-height: 1.6;
+        }
+        header {
+            background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+            border-bottom: 1px solid #e5e7eb;
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.9);
+        }
+        .header-content {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            color: #111827;
+            font-family: var(--font-heading);
+            font-weight: 600;
+        }
+        .nav {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+        .nav a {
+            color: #6b7280;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .nav a:hover { color: #111827; }
+        .hero {
+            background: linear-gradient(180deg, #f9fafb 0%, #ffffff 100%);
+            padding: 4rem 2rem 3rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .hero-content {
+            max-width: 900px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        .hero h1 {
+            font-family: var(--font-heading);
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #111827 0%, #374151 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero p {
+            font-size: 1.15rem;
+            color: #6b7280;
+            margin-bottom: 2rem;
+            line-height: 1.7;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.35rem 0.9rem;
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #374151;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+        }
+        .roadmap-section {
+            margin-bottom: 4rem;
+        }
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .section-title {
+            font-family: var(--font-heading);
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #111827;
+        }
+        .section-timing {
+            font-size: 0.85rem;
+            color: #9ca3af;
+            font-weight: 500;
+        }
+        .roadmap-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.25rem;
+        }
+        .roadmap-item {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .roadmap-item:hover {
+            border-color: #d1d5db;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transform: translateY(-2px);
+        }
+        .item-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .status-icon {
+            flex-shrink: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+        .item-title {
+            font-family: var(--font-heading);
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #111827;
+            line-height: 1.4;
+        }
+        .status-completed { color: #10b981; }
+        .status-inprogress { color: #f59e0b; }
+        .status-planned { color: #6b7280; }
+        footer {
+            background: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+            padding: 3rem 2rem 2rem;
+        }
+        .footer-content {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 3rem;
+        }
+        .footer-brand p {
+            color: #6b7280;
+            font-size: 0.9rem;
+            line-height: 1.7;
+            max-width: 300px;
+            margin-bottom: 1.25rem;
+        }
+        .footer-quote {
+            font-family: var(--font-quote);
+            font-style: italic;
+            color: #9ca3af;
+            font-size: 0.85rem;
+            letter-spacing: 0.03em;
+        }
+        .footer-section h4 {
+            font-family: var(--font-heading);
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #374151;
+            margin-bottom: 1rem;
+        }
+        .footer-links {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+        .footer-links a {
+            color: #6b7280;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .footer-links a:hover { color: #111827; }
+        .footer-bottom {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 1.5rem 2rem 0;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+        }
+        .footer-bottom p {
+            color: #9ca3af;
+            font-size: 0.8rem;
+        }
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2rem; }
+            .footer-content { grid-template-columns: 1fr; gap: 2rem; }
+            .roadmap-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <a href="/" class="logo">
+                <img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="32" style="border-radius:4px;">
+            </a>
+            <nav class="nav">
+                <a href="/#features">Features</a>
+                <a href="/#pricing">Pricing</a>
+                <a href="/docs/">Docs</a>
+                <a href="/roadmap.html">Roadmap</a>
+                <a href="https://0latency.ai/dashboard" style="background:#111827;color:#fff;padding:0.5rem 1.25rem;border-radius:6px;">Dashboard</a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="hero-content">
+            <span class="badge">Building in Public</span>
+            <h1>Product Roadmap</h1>
+            <p>We believe in transparency. Here's what we've shipped, what we're building, and where we're headed. All updates are real-time.</p>
+        </div>
+    </section>
+
+    <div class="container">
+        <!-- NOW: Shipped & In Progress -->
+        <section class="roadmap-section">
+            <div class="section-header">
+                <h2 class="section-title">Now</h2>
+                <span class="section-timing">Shipped & In Progress</span>
+            </div>
+            <div class="roadmap-grid">
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-completed">✅</span>
+                        <h3 class="item-title">Multi-tenant Memory API</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Isolated memory spaces per agent/user with sub-100ms retrieval. Production-ready.</p>
+                </div>
+                
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-completed">✅</span>
+                        <h3 class="item-title">MCP Integration (Claude Code)</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Model Context Protocol server for seamless Claude Code integration.</p>
+                </div>
+
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-completed">✅</span>
+                        <h3 class="item-title">Python SDK</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Full-featured Python client with async support and streaming.</p>
+                </div>
+
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-completed">✅</span>
+                        <h3 class="item-title">Real-time Monitoring & Alerting</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Health checks, uptime monitoring, and instant alerts for API status.</p>
+                </div>
+
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-inprogress">🔄</span>
+                        <h3 class="item-title">JavaScript/TypeScript SDK</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Native TypeScript support with full type safety and async/await.</p>
+                </div>
+
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-inprogress">🔄</span>
+                        <h3 class="item-title">Documentation Upgrade</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Interactive examples, tutorials, and comprehensive API reference.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- NEXT: 2-4 Weeks -->
+        <section class="roadmap-section">
+            <div class="section-header">
+                <h2 class="section-title">Next</h2>
+                <span class="section-timing">2-4 Weeks</span>
+            </div>
+            <div class="roadmap-grid">
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-planned">📍</span>
+                        <h3 class="item-title">Multi-provider Embeddings</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Support for OpenAI, Voyage, and Cohere embeddings. Choose what works best for you.</p>
+                </div>
+
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-planned">📍</span>
+                        <h3 class="item-title">LangChain Integration</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Official LangChain memory provider for seamless agent integration.</p>
+                </div>
+
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-planned">📍</span>
+                        <h3 class="item-title">Code Examples Repository</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">10+ production-ready examples: chatbots, RAG, multi-agent systems.</p>
+                </div>
+
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-planned">📍</span>
+                        <h3 class="item-title">Video Tutorials</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Step-by-step video guides for common use cases and integrations.</p>
+                </div>
+
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-planned">📍</span>
+                        <h3 class="item-title">Community Discord</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Direct access to the team and other developers building with 0Latency.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- LATER: Nice-to-Have -->
+        <section class="roadmap-section">
+            <div class="section-header">
+                <h2 class="section-title">Later</h2>
+                <span class="section-timing">Nice-to-Have</span>
+            </div>
+            <div class="roadmap-grid">
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-planned">💡</span>
+                        <h3 class="item-title">LlamaIndex Integration</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Native support for LlamaIndex-based applications.</p>
+                </div>
+
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-planned">💡</span>
+                        <h3 class="item-title">GraphQL API</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Flexible GraphQL interface for complex queries and mutations.</p>
+                </div>
+
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-planned">💡</span>
+                        <h3 class="item-title">Webhooks for Memory Updates</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Real-time notifications when memories are created or updated.</p>
+                </div>
+
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-planned">💡</span>
+                        <h3 class="item-title">Team Accounts & RBAC</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Role-based access control for enterprise teams.</p>
+                </div>
+
+                <div class="roadmap-item">
+                    <div class="item-header">
+                        <span class="status-icon status-planned">💡</span>
+                        <h3 class="item-title">Advanced Analytics Dashboard</h3>
+                    </div>
+                    <p style="color:#6b7280;font-size:0.9rem;">Deep insights into memory usage, retrieval patterns, and performance.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Section -->
+        <section style="background: linear-gradient(135deg, #111827 0%, #1f2937 100%);border-radius:16px;padding:3rem;text-align:center;margin-top:4rem;">
+            <h2 style="font-family:var(--font-heading);font-size:2rem;font-weight:700;color:#fff;margin-bottom:1rem;">Want to Influence the Roadmap?</h2>
+            <p style="color:#d1d5db;font-size:1.1rem;margin-bottom:2rem;max-width:600px;margin-left:auto;margin-right:auto;">We prioritize based on customer needs. Tell us what you're building and what you need.</p>
+            <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
+                <a href="/support.html" style="display:inline-block;background:#fff;color:#111827;padding:0.875rem 2rem;border-radius:8px;text-decoration:none;font-weight:600;transition:all 0.2s;">Request a Feature</a>
+                <a href="https://github.com/0latency" style="display:inline-block;background:transparent;color:#fff;padding:0.875rem 2rem;border-radius:8px;text-decoration:none;font-weight:600;border:2px solid rgba(255,255,255,0.3);transition:all 0.2s;">Follow on GitHub</a>
+            </div>
+        </section>
+    </div>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-brand">
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;">
+                    <img src="/logos/0latency-logo-light.jpg" alt="0Latency" height="32" style="border-radius:4px;">
+                </div>
+                <p>Persistent memory layer for AI agents. Sub-100ms recall, zero configuration. Your agent remembers everything.</p>
+                <p class="footer-quote">Zero latency. Elegance.</p>
+            </div>
+            <div class="footer-section">
+                <h4>Product</h4>
+                <div class="footer-links">
+                    <a href="/#pricing">Pricing</a>
+                    <a href="/docs/">Docs</a>
+                    <a href="/roadmap.html">Roadmap</a>
+                    <a href="/integrations/">Integrations</a>
+                    <a href="/blog/why-your-agent-forgets.html">Blog</a>
+                    <a href="/support.html">Support</a>
+                </div>
+            </div>
+            <div class="footer-section">
+                <h4>Resources</h4>
+                <div class="footer-links">
+                    <a href="https://github.com/0latency">GitHub</a>
+                    <a href="https://api.0latency.ai/health">Status</a>
+                    <a href="/privacy.html">Privacy</a>
+                    <a href="/terms.html">Terms</a>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>© 2026 0Latency. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>
