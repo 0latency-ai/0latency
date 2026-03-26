@@ -1,0 +1,204 @@
+# CRITICAL FIX: Auth Rate Limiting
+# Priority: P0 - Deploy before public launch
+# Prevents brute-force attacks on /auth/email/login endpoint
+
+## Problem
+Currently, /auth/email/login has NO rate limiting. An attacker can attempt unlimited 
+password guesses. Stress test confirmed: 50 failed login attempts with no 429 response.
+
+## Solution
+Add IP-based rate limiting: 10 attempts per 15 minutes per IP address.
+
+## Files to Modify
+
+### 1. api/auth_routes.py
+
+Add rate limiting function and apply to login endpoint:
+
+```python
+# After imports, before router definition
+from api.main import _get_redis
+import time
+import logging
+
+logger = logging.getLogger("zerolatency")
+
+
+def _check_auth_rate_limit(client_ip: str, max_attempts: int = 10, window_seconds: int = 900):
+    """
+    Rate limit auth attempts: 10 per 15 minutes per IP.
+    Uses Redis for cross-worker consistency, falls back to blocking all on Redis failure.
+    """
+    r = _get_redis()
+    if r:
+        try:
+            key = f"auth_rl:{client_ip}"
+            count = r.incr(key)
+            if count == 1:
+                r.expire(key, window_seconds)
+            if count > max_attempts:
+                ttl = max(r.ttl(key), 1)
+                logger.warning(f"auth_rate_limit_hit ip={client_ip} attempts={count}")
+                raise HTTPException(
+                    status_code=429,
+                    detail={
+                        "error": "too_many_attempts",
+                        "message": f"Too many login attempts. Try again in {ttl} seconds.",
+                        "retry_after": ttl,
+                    },
+                    headers={"Retry-After": str(ttl)}
+                )
+            return
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Redis auth rate limit failed: {e}")
+            # Fail closed: block all auth attempts if Redis is down
+            raise HTTPException(
+                status_code=503,
+                detail="Authentication service temporarily unavailable. Please try again later."
+            )
+    else:
+        # No Redis available - fail closed for security
+        logger.warning(f"Redis unavailable for auth rate limiting - blocking request from {client_ip}")
+        raise HTTPException(
+            status_code=503,
+            detail="Authentication service temporarily unavailable. Please try again later."
+        )
+
+
+# Modify login endpoint:
+@router.post("/login", response_model=LoginResponse)
+async def login(req: LoginRequest, request: Request, response: Response):
+    """
+    Login with email + password.
+    Returns session token and API key.
+    Rate limited: 10 attempts per 15 minutes per IP.
+    """
+    # Get client IP (handle proxies)
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if not client_ip:
+        client_ip = request.headers.get("x-real-ip", "")
+    if not client_ip and request.client:
+        client_ip = request.client.host
+    if not client_ip:
+        client_ip = "unknown"
+    
+    # Apply rate limiting BEFORE password verification
+    _check_auth_rate_limit(client_ip)
+    
+    # Existing login logic
+    user = auth.verify_password(req.email, req.password)
+    
+    if not user:
+        # Log failed attempt for monitoring
+        logger.warning(f"failed_login ip={client_ip} email={req.email}")
+        raise HTTPException(401, detail="Invalid email or password")
+    
+    # ... rest of existing code
+```
+
+### 2. api/auth.py (Email/Password Auth)
+
+Also add to the email login endpoint:
+
+```python
+@router.post("/auth/email/login")
+async def email_login(req: EmailLoginRequest, request: Request):
+    """Email + password login with rate limiting."""
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or \
+                request.headers.get("x-real-ip", "") or \
+                (request.client.host if request.client else "unknown")
+    
+    # Import from auth_routes
+    from api.auth_routes import _check_auth_rate_limit
+    _check_auth_rate_limit(client_ip)
+    
+    # ... existing login logic
+```
+
+## Testing
+
+### Verify Fix
+```bash
+# Should rate limit after 10 attempts
+for i in {1..15}; do
+  curl -X POST https://api.0latency.ai/auth/email/login \
+    -H "Content-Type: application/json" \
+    -d '{"email":"test@example.com","password":"wrong"}' \
+    -w "\nStatus: %{http_code}\n"
+  sleep 1
+done
+
+# Expected:
+# Attempts 1-10: 401 (Invalid credentials)
+# Attempts 11-15: 429 (Rate limited)
+```
+
+### Monitor for Attacks
+```bash
+# Check Redis for auth rate limit violations
+redis-cli KEYS "auth_rl:*"
+
+# Monitor logs for brute-force attempts
+journalctl -u 0latency-api -f | grep "auth_rate_limit_hit"
+```
+
+## Deployment Steps
+
+1. **Backup current code**
+   ```bash
+   cd /root/.openclaw/workspace/memory-product
+   git add -A
+   git commit -m "Pre-auth-rate-limit-fix backup"
+   ```
+
+2. **Apply patch**
+   - Edit `api/auth_routes.py` with rate limiting function
+   - Edit `api/auth.py` to call rate limiting on email login
+
+3. **Restart API**
+   ```bash
+   sudo systemctl restart 0latency-api
+   ```
+
+4. **Verify deployment**
+   - Test with script above (should rate limit after 10 attempts)
+   - Check logs: `journalctl -u 0latency-api -n 100`
+
+5. **Monitor for issues**
+   - Watch error rate for 1 hour
+   - Check Redis connectivity
+   - Verify legitimate users not blocked
+
+## Rollback Plan
+
+If issues arise:
+```bash
+cd /root/.openclaw/workspace/memory-product
+git revert HEAD
+sudo systemctl restart 0latency-api
+```
+
+## Success Criteria
+
+- ✅ Failed login attempts rate limited after 10 in 15 minutes
+- ✅ 429 response includes Retry-After header
+- ✅ Legitimate users can still log in
+- ✅ No 503 errors (Redis must be available)
+- ✅ Brute-force attacks blocked in logs
+
+## Additional Hardening (Future)
+
+1. **Account lockout** - Lock account after 20 failed attempts (requires DB table)
+2. **CAPTCHA** - Add after 3 failed attempts (hCaptcha or similar)
+3. **Geo-blocking** - Block IPs from high-risk countries (CloudFlare rule)
+4. **2FA** - Add optional TOTP for high-value accounts
+
+---
+
+**Estimated Time:** 1-2 hours (implementation + testing + deployment)
+**Risk:** LOW (fail-safe implementation, Redis required)
+**Impact:** HIGH (eliminates critical vulnerability)
+
+**Deploy ASAP before any public announcement or marketing.**

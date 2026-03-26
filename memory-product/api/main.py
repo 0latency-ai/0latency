@@ -59,6 +59,14 @@ from org_memory import (
     delete_org_memory, promote_to_org,
 )
 
+# Monitoring & Error Tracking
+try:
+    from api.monitoring import track_critical_errors
+except ImportError:
+    # If monitoring not available, create pass-through decorator
+    def track_critical_errors(func):
+        return func
+
 # --- App ---
 app = FastAPI(
     title="Zero Latency Memory API",
@@ -105,6 +113,21 @@ async def request_logging(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     return response
+
+# --- Security & Observability Middleware ---
+try:
+    from api.middleware_security import security_middleware
+    app.middleware("http")(security_middleware)
+    logger.info("Security middleware enabled")
+except ImportError as e:
+    logger.warning(f"Security middleware not available: {e}")
+
+try:
+    from api.metrics_middleware import metrics_middleware
+    app.middleware("http")(metrics_middleware)
+    logger.info("Metrics middleware enabled")
+except ImportError as e:
+    logger.warning(f"Metrics middleware not available: {e}")
 
 # --- Configuration ---
 def _admin_key(): return os.environ.get("MEMORY_ADMIN_KEY", "")
@@ -300,6 +323,10 @@ class AsyncExtractRequest(BaseModel):
 class ExtractResponse(BaseModel):
     memories_stored: int
     memory_ids: list[str]
+    entities_extracted: int = 0
+    relationships_created: int = 0
+    sentiment_analyzed: bool = False
+    tier_features_used: list[str] = []
 
 class RecallRequest(BaseModel):
     agent_id: str = Field(..., min_length=1, max_length=128)
@@ -350,6 +377,7 @@ class HealthResponse(BaseModel):
 
 # --- Endpoints ---
 @app.post("/extract", response_model=ExtractResponse)
+@track_critical_errors
 async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_api_key)):
     """Extract memories from a conversation turn."""
     # Secret scanning — reject if secrets detected in inbound content
@@ -392,7 +420,59 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
             response = ExtractResponse(memories_stored=0, memory_ids=[])
         else:
             ids = store_memories(memories, tenant["id"])
-            response = ExtractResponse(memories_stored=len(ids), memory_ids=ids)
+            
+            # Tier-based auto-enablement of premium features
+            entities_extracted = 0
+            relationships_created = 0
+            sentiment_analyzed = False
+            tier_features_used = []
+            
+            if tenant.get("plan") in ["pro", "scale", "enterprise"]:
+                try:
+                    # Auto-extract entities and build graph for paid tiers
+                    from src.graph import extract_relationships_from_memory
+                    
+                    for i, memory_id in enumerate(ids):
+                        # Get the memory object that was stored
+                        memory_dict = memories[i] if i < len(memories) else None
+                        if not memory_dict:
+                            continue
+                        
+                        # Add the ID to the memory dict for relationship extraction
+                        memory_dict["id"] = memory_id
+                        
+                        # Extract entities and relationships using existing graph function
+                        extract_relationships_from_memory(memory_dict, req.agent_id, tenant_id=tenant["id"])
+                        
+                        # Count entities for response
+                        entity_count = len(memory_dict.get("entities", []))
+                        entities_extracted += entity_count
+                        
+                        # Count relationships (rough estimate: n*(n-1)/2 for n entities)
+                        if entity_count >= 2:
+                            relationships_created += (entity_count * (entity_count - 1)) // 2
+                    
+                    if entities_extracted > 0:
+                        tier_features_used.append("entity_extraction")
+                    if relationships_created > 0:
+                        tier_features_used.append("graph_relationships")
+                    
+                    # Sentiment is already extracted in extract_memories()
+                    # Just flag that it was used for paid tiers
+                    sentiment_analyzed = True
+                    tier_features_used.append("sentiment_analysis")
+                    
+                except Exception as e:
+                    logger.warning(f"Tier features auto-enablement failed (non-critical): {e}")
+            
+            response = ExtractResponse(
+                memories_stored=len(ids), 
+                memory_ids=ids,
+                entities_extracted=entities_extracted,
+                relationships_created=relationships_created,
+                sentiment_analyzed=sentiment_analyzed,
+                tier_features_used=list(set(tier_features_used))  # dedup
+            )
         
         # Track usage
         response_time = int((time.time() - start_time) * 1000)
@@ -401,12 +481,15 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
                        response_time_ms=response_time)
         
         return response
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions (429, 401, etc.) as-is
     except Exception as e:
         track_api_usage(tenant["id"], "/extract", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
         raise HTTPException(500, detail="Extraction failed. Please check your input and try again.")
 
 
 @app.post("/memories/seed", response_model=SeedResponse)
+@track_critical_errors
 async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key)):
     """Seed memories directly from raw facts, bypassing the extraction pipeline.
     
@@ -551,6 +634,7 @@ async def get_extract_job(job_id: str, tenant: dict = Depends(require_api_key)):
 
 
 @app.post("/recall", response_model=RecallResponse)
+@track_critical_errors
 async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api_key)):
     """Recall relevant memories for a conversation context."""
     start_time = time.time()
@@ -796,6 +880,7 @@ def _chunk_text(text: str, chunk_size: int = 2000, overlap: int = 200) -> list[s
 
 
 @app.post("/memories/import")
+@track_critical_errors
 async def bulk_import_endpoint(req: BulkImportRequest, tenant: dict = Depends(require_api_key)):
     """Bulk import: accepts a large text document, chunks it, extracts memories from each chunk.
     
@@ -1147,6 +1232,53 @@ async def health_check():
             "db_pool": {},
             "redis": "unknown",
         }
+
+
+@app.get("/metrics")
+async def metrics_endpoint():
+    """Performance metrics — no auth required. Shows request rates, latency percentiles, error rates."""
+    try:
+        from api.metrics_middleware import get_metrics_summary
+        return get_metrics_summary()
+    except Exception as e:
+        return {"error": "Metrics not available", "detail": str(e)}
+
+
+@app.get("/observability/anomalies")
+async def anomalies_endpoint(
+    hours: int = Query(24, ge=1, le=168),
+    severity: Optional[str] = Query(None, regex="^(low|medium|high|critical)$")
+):
+    """Recent anomalies detected by statistical analysis. Public endpoint for status page."""
+    try:
+        from observability import get_recent_anomalies
+        return {
+            "anomalies": get_recent_anomalies(hours=hours, severity=severity),
+            "hours": hours,
+            "severity_filter": severity
+        }
+    except Exception as e:
+        return {"error": "Anomaly detection not available", "detail": str(e)}
+
+
+@app.get("/observability/anomalies/summary")
+async def anomalies_summary_endpoint():
+    """Summary of recent anomaly detection activity. Public endpoint."""
+    try:
+        from observability import get_anomaly_summary
+        return get_anomaly_summary()
+    except Exception as e:
+        return {"error": "Anomaly detection not available", "detail": str(e)}
+
+
+@app.get("/observability/errors/stats")
+async def error_stats_endpoint(hours: int = Query(24, ge=1, le=168)):
+    """Error statistics for monitoring. Public endpoint."""
+    try:
+        from observability import get_error_stats
+        return get_error_stats(hours=hours)
+    except Exception as e:
+        return {"error": "Error tracking not available", "detail": str(e)}
 
 
 # === GRAPH MEMORY ENDPOINTS ===

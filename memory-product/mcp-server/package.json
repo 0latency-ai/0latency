@@ -1,6 +1,6 @@
 {
   "name": "@0latency/mcp-server",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "description": "MCP server for 0Latency — persistent memory layer for AI agents. Give Claude, Cursor, or any MCP client long-term memory.",
   "author": "Justin Ghiglia <justin@0latency.ai>",
   "license": "MIT",

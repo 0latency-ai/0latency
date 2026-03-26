@@ -264,6 +264,70 @@ if (!API_KEY) {
 }
 
 // ---------------------------------------------------------------------------
+// Sentinel (DLP) — Format warnings from API responses
+// ---------------------------------------------------------------------------
+
+interface SentinelFinding {
+  pattern_name: string;
+  pattern_category: string;
+  confidence: string;
+  redacted: string;
+}
+
+interface SentinelResponse {
+  detected?: SentinelFinding[];
+  action?: string;
+  secrets_found?: number;
+}
+
+function formatSentinelWarning(sentinel: SentinelResponse): string {
+  if (!sentinel || !sentinel.detected || sentinel.detected.length === 0) {
+    return "";
+  }
+
+  const lines: string[] = [
+    "",
+    "⚠️  SENTINEL WARNING: Credentials/secrets detected in your memory content!",
+    `   Found ${sentinel.secrets_found} potential secret(s):`,
+  ];
+
+  for (const finding of sentinel.detected) {
+    lines.push(
+      `   • [${finding.confidence?.toUpperCase()}] ${finding.pattern_name}: ${finding.redacted}`
+    );
+  }
+
+  lines.push("");
+  lines.push(`   Action taken: ${sentinel.action?.toUpperCase()}`);
+
+  if (sentinel.action === "flagged") {
+    lines.push(
+      "   ℹ️  Content was stored as-is. Consider removing secrets from your memory content."
+    );
+    lines.push(
+      "   💡 To auto-redact secrets, ask your admin to set sentinel_mode to 'redact'."
+    );
+  } else if (sentinel.action === "redacted") {
+    lines.push(
+      "   ✅ Secrets were automatically redacted before storage."
+    );
+  }
+
+  lines.push("");
+  return lines.join("\n");
+}
+
+function appendSentinelWarning(baseText: string, apiResult: any): string {
+  if (apiResult && apiResult.sentinel) {
+    const warning = formatSentinelWarning(apiResult.sentinel as SentinelResponse);
+    if (warning) {
+      return baseText + warning;
+    }
+  }
+  return baseText;
+}
+
+// ---------------------------------------------------------------------------
 // HTTP helper
 // ---------------------------------------------------------------------------
 
@@ -322,7 +386,7 @@ server.tool(
   "memory_add",
   "Extract and store memories from a conversation turn. Provide the human message, agent response, and an agent_id to namespace the memories.",
   {
-    agent_id: z.string().min(1).max(128).describe("Agent / namespace identifier"),
+    agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
     human_message: z.string().min(1).max(50000).describe("The human's message in this turn"),
     agent_message: z.string().min(1).max(50000).describe("The agent's response in this turn"),
     session_key: z.string().max(256).optional().describe("Optional session key for grouping conversation turns"),
@@ -344,8 +408,11 @@ server.tool(
     // Active profiling — fire-and-forget, never blocks the response
     runActiveProfiler(agent_id, human_message, session_key).catch(() => {});
 
+    const baseText = JSON.stringify(result, null, 2);
+    const outputText = appendSentinelWarning(baseText, result);
+
     return {
-      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+      content: [{ type: "text", text: outputText }],
     };
   }
 );
@@ -362,7 +429,7 @@ server.tool(
   async ({ text, agent_id }) => {
     const result = await api({
       method: "POST",
-      path: "/memories/extract",
+      path: "/extract",
       body: {
         agent_id,
         human_message: text,
@@ -373,8 +440,11 @@ server.tool(
     // Active profiling — fire-and-forget, never blocks the response
     runActiveProfiler(agent_id, text).catch(() => {});
 
+    let baseText = `Remembered: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}\n\nStored ${(result as any).memories_stored || 0} memory/memories.`;
+    baseText = appendSentinelWarning(baseText, result);
+
     return {
-      content: [{ type: "text", text: `Remembered: ${text.slice(0, 100)}${text.length > 100 ? '...' : ''}\n\nStored ${(result as any).memories_stored || 0} memory/memories.` }],
+      content: [{ type: "text", text: baseText }],
     };
   }
 );
@@ -385,7 +455,7 @@ server.tool(
   "seed_memories",
   "Seed memories directly from raw facts, bypassing the extraction pipeline. Use this to bulk-load known facts, preferences, or context into an agent's memory without conversation-format input.",
   {
-    agent_id: z.string().min(1).max(128).describe("Agent / namespace identifier"),
+    agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
     facts: z
       .array(
         z.object({
@@ -404,16 +474,18 @@ server.tool(
       .describe("Array of facts to seed as memories"),
   },
   async ({ agent_id, facts }) => {
-    const result = await api<{ memories_stored: number; memory_ids: string[] }>({
+    const result = await api<{ memories_stored: number; memory_ids: string[]; sentinel?: SentinelResponse }>({
       method: "POST",
       path: "/memories/seed",
       body: { agent_id, facts },
     });
+    let baseText = `Seeded ${result.memories_stored} memories.\n\n${JSON.stringify(result, null, 2)}`;
+    baseText = appendSentinelWarning(baseText, result);
     return {
       content: [
         {
           type: "text",
-          text: `Seeded ${result.memories_stored} memories.\n\n${JSON.stringify(result, null, 2)}`,
+          text: baseText,
         },
       ],
     };
@@ -470,7 +542,7 @@ server.tool(
   "memory_recall",
   "Recall relevant memories given a conversation context. Returns a formatted context block ready to inject into a prompt.",
   {
-    agent_id: z.string().min(1).max(128).describe("Agent / namespace identifier"),
+    agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
     conversation_context: z
       .string()
       .min(1)
@@ -506,7 +578,7 @@ server.tool(
   "memory_search",
   "Search memories by text query. Returns matching memories ranked by relevance.",
   {
-    agent_id: z.string().min(1).max(128).describe("Agent / namespace identifier"),
+    agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
     q: z.string().min(1).max(500).describe("Search query"),
     limit: z.number().int().min(1).max(100).default(20).describe("Max results to return"),
   },
@@ -527,7 +599,7 @@ server.tool(
   "memory_list",
   "List stored memories with optional filters. Supports pagination via limit/offset.",
   {
-    agent_id: z.string().min(1).max(128).describe("Agent / namespace identifier"),
+    agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
     memory_type: z.string().max(32).optional().describe("Filter by memory type (e.g. fact, preference, event)"),
     limit: z.number().int().min(1).max(200).default(50).describe("Max results to return"),
     offset: z.number().int().min(0).default(0).describe("Pagination offset"),
@@ -576,7 +648,7 @@ server.tool(
   "import_document",
   "Import a large text document (project brief, wiki page, documentation, etc.) and extract memories from it. Content is automatically chunked and processed through the extraction pipeline.",
   {
-    agent_id: z.string().min(1).max(128).describe("Agent / namespace identifier"),
+    agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
     content: z.string().min(1).max(204800).describe("The document text to import (up to 200KB)"),
     source: z.string().max(256).optional().describe("Source label (e.g. 'project-brief', 'wiki', 'manual')"),
   },
@@ -603,7 +675,7 @@ server.tool(
   "import_conversation",
   "Import a conversation export (e.g. from Claude Desktop or ChatGPT) and extract memories from each turn pair. Provide the conversation as an array of {role, content} objects.",
   {
-    agent_id: z.string().min(1).max(128).describe("Agent / namespace identifier"),
+    agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
     conversation: z
       .array(
         z.object({
@@ -639,7 +711,7 @@ server.tool(
   "memory_graph",
   "Query the knowledge graph. List entities, explore an entity's relationships, or find the path between two entities.",
   {
-    agent_id: z.string().min(1).max(128).describe("Agent / namespace identifier"),
+    agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
     action: z
       .enum(["list_entities", "entity_detail", "entity_memories", "find_path"])
       .describe("Graph operation to perform"),
@@ -686,6 +758,108 @@ server.tool(
         break;
     }
 
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+);
+
+// ── memory_graph_traverse ───────────────────────────────────────────────────
+
+server.tool(
+  "memory_graph_traverse",
+  "Get related memories via graph relationships. Finds memories connected to a starting memory through semantic relationships. Requires Pro or Scale tier.",
+  {
+    agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
+    memory_id: z.string().uuid().describe("Starting memory ID for graph traversal"),
+    depth: z.number().int().min(1).max(3).default(2).describe("Max traversal depth (1-3)"),
+    min_strength: z.number().min(0).max(1).default(0.3).describe("Minimum relationship strength threshold"),
+  },
+  async ({ agent_id, memory_id, depth, min_strength }) => {
+    const result = await api({
+      path: "/memories/graph",
+      query: { agent_id, memory_id, depth, min_strength },
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+);
+
+// ── memory_entities ─────────────────────────────────────────────────────────
+
+server.tool(
+  "memory_entities",
+  "List all entities extracted from an agent's memories, with mention counts and type info. Requires Pro or Scale tier.",
+  {
+    agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
+    entity_type: z.string().max(32).optional().describe("Filter by entity type (e.g. person, company, location)"),
+    min_mentions: z.number().int().min(1).default(1).describe("Minimum mention count to include"),
+    limit: z.number().int().min(1).max(200).default(50).describe("Max results to return"),
+  },
+  async ({ agent_id, entity_type, min_mentions, limit }) => {
+    const result = await api({
+      path: "/memories/entities",
+      query: { agent_id, entity_type, min_mentions, limit },
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+);
+
+// ── memory_sentiment_summary ────────────────────────────────────────────────
+
+server.tool(
+  "memory_sentiment_summary",
+  "Get aggregate sentiment statistics for an agent's memories. Returns positive/negative/neutral counts, averages, and confidence stats. Requires Pro or Scale tier.",
+  {
+    agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
+  },
+  async ({ agent_id }) => {
+    const result = await api({
+      path: "/memories/sentiment-summary",
+      query: { agent_id },
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+);
+
+// ── memory_by_entity ────────────────────────────────────────────────────────
+
+server.tool(
+  "memory_by_entity",
+  "Find all memories mentioning a specific entity. Requires Pro or Scale tier.",
+  {
+    agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
+    entity_text: z.string().min(1).max(256).describe("Entity name to search for"),
+    limit: z.number().int().min(1).max(100).default(20).describe("Max results to return"),
+  },
+  async ({ agent_id, entity_text, limit }) => {
+    const result = await api({
+      path: "/memories/by-entity",
+      query: { agent_id, entity_text, limit },
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+);
+
+// ── memory_history ──────────────────────────────────────────────────────────
+
+server.tool(
+  "memory_history",
+  "Get the full version history for a specific memory. Shows how the memory evolved over time, including what changed and why.",
+  {
+    memory_id: z.string().uuid().describe("The UUID of the memory to get history for"),
+  },
+  async ({ memory_id }) => {
+    const result = await api({
+      path: `/memories/${encodeURIComponent(memory_id)}/history`,
+    });
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
     };

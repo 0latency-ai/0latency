@@ -6,36 +6,36 @@
 <title>Zero Latency Memory — Dashboard</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #e0e0e0; min-height: 100vh; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #fafafa; color: #111827; min-height: 100vh; }
   .container { max-width: 1060px; margin: 0 auto; padding: 24px; }
-  h1 { font-size: 24px; margin-bottom: 4px; color: #fff; }
+  h1 { font-size: 24px; margin-bottom: 4px; color: #111827; }
   h2 { font-size: 16px; margin-bottom: 12px; color: #ccc; }
   .subtitle { color: #888; margin-bottom: 24px; font-size: 14px; }
   .row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-  input, select { padding: 10px 14px; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #fff; font-family: monospace; font-size: 14px; }
+  input, select { padding: 10px 14px; background: #ffffff; border: 1px solid #d1d5db; border-radius: 6px; color: #111827; font-family: monospace; font-size: 14px; }
   input:focus, select:focus { border-color: #2563eb; outline: none; }
   .flex1 { flex: 1; min-width: 200px; }
-  button { padding: 10px 20px; background: #2563eb; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; white-space: nowrap; }
+  button { padding: 10px 20px; background: #2563eb; color: #111827; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; white-space: nowrap; }
   button:hover { background: #1d4ed8; }
-  button.secondary { background: #333; }
+  button.secondary { background: #d1d5db; }
   button.secondary:hover { background: #444; }
   button.danger { background: #dc2626; }
   button.danger:hover { background: #b91c1c; }
   button.sm { padding: 4px 10px; font-size: 12px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
-  .card { background: #1a1a1a; border: 1px solid #222; border-radius: 8px; padding: 20px; }
+  .card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; }
   .card .label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-  .card .value { font-size: 28px; font-weight: 600; color: #fff; }
+  .card .value { font-size: 28px; font-weight: 600; color: #111827; }
   .card .detail { font-size: 12px; color: #666; margin-top: 4px; }
   .section { margin-bottom: 28px; }
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; padding: 8px 12px; font-size: 12px; color: #888; text-transform: uppercase; border-bottom: 1px solid #222; }
   td { padding: 8px 12px; border-bottom: 1px solid #1a1a1a; font-size: 13px; }
-  tr:hover td { background: #111; }
+  tr:hover td { background: #f8fafc; }
   .status-ok { color: #22c55e; }
   .status-warn { color: #eab308; }
   .status-error { color: #ef4444; }
-  .bar { background: #222; border-radius: 4px; height: 8px; overflow: hidden; margin-top: 8px; }
+  .bar { background: #e5e7eb; border-radius: 4px; height: 8px; overflow: hidden; margin-top: 8px; }
   .bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
   .bar-fill.green { background: #22c55e; }
   .bar-fill.yellow { background: #eab308; }
@@ -44,15 +44,15 @@
   .error-msg { color: #ef4444; padding: 12px; background: #1a0a0a; border: 1px solid #3a1a1a; border-radius: 6px; margin-bottom: 16px; }
   .mono { font-family: monospace; font-size: 12px; }
   .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
-  .tag-fact { background: #1e3a5f; color: #60a5fa; }
-  .tag-preference { background: #3b1f5c; color: #c084fc; }
-  .tag-decision { background: #1f3b1f; color: #86efac; }
-  .tag-correction { background: #5c3b1f; color: #fbbf24; }
-  .tag-identity { background: #5c1f3b; color: #f472b6; }
+  .tag-fact { background: #1e3a5f; color: #2563eb; }
+  .tag-preference { background: #3b1f5c; color: #9333ea; }
+  .tag-decision { background: #1f3b1f; color: #16a34a; }
+  .tag-correction { background: #5c3b1f; color: #d97706; }
+  .tag-identity { background: #5c1f3b; color: #db2777; }
   .tag-task { background: #1f4f4f; color: #5eead4; }
   .tag-relationship { background: #3b3b1f; color: #fde047; }
   .truncate { max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 8px; color: #fff; font-size: 14px; z-index: 100; transition: opacity 0.3s; }
+  .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 8px; color: #111827; font-size: 14px; z-index: 100; transition: opacity 0.3s; }
   .toast-ok { background: #16a34a; }
   .toast-err { background: #dc2626; }
   #dashboard { opacity: 0; transition: opacity 0.3s; }
@@ -60,6 +60,10 @@
 </style>
 </head>
 <body>
+<div style="padding: 20px; border-bottom: 1px solid var(--border, #e5e7eb); background: var(--surface, #ffffff);">
+    <img src="/logos/0latency-logo-final.svg" alt="0Latency" style="height: 32px;">
+</div>
+
 <div class="container">
   <h1>⚡ Zero Latency Memory</h1>
   <p class="subtitle">Tenant Dashboard v2</p>

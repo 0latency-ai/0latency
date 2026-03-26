@@ -16,9 +16,10 @@ def snapshot_version(memory_id: str, tenant_id: str, changed_by: str = "system",
     Call this BEFORE updating a memory to preserve its previous state.
     Returns the version number.
     """
-    # Get current state
+    # Get current state (including sentiment fields)
     rows = _db_execute_rows("""
-        SELECT headline, context, full_content, memory_type, importance, confidence, version
+        SELECT headline, context, full_content, memory_type, importance, confidence, version,
+               sentiment, sentiment_score
         FROM memory_service.memories
         WHERE id = %s::UUID AND tenant_id = %s::UUID
     """, (memory_id, tenant_id), tenant_id=tenant_id)

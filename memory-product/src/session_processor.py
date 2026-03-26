@@ -269,7 +269,6 @@ def regenerate_context(agent_id, workspace_dir):
             agent_id=agent_id,
             conversation_context=recent_context,
             budget_tokens=4000,
-            dynamic_budget=True,
         )
         
         context_block = result["context_block"]

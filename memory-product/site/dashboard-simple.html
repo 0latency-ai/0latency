@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — 0Latency</title>
+    <style>
+        :root {
+            --bg: #fafafa;
+            --surface: #ffffff;
+            --surface-alt: #f8fafc;
+            --border: #e5e7eb;
+            --text: #111827;
+            --text-dim: #6b7280;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 2rem;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+        .subtitle { color: #94a3b8; margin-bottom: 2rem; }
+        .card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid #334155;
+        }
+        .card h2 { font-size: 1.25rem; margin-bottom: 1rem; }
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 0.95rem;
+            font-family: 'SF Mono', 'Monaco', monospace;
+        }
+        input:focus { outline: none; border-color: #f97316; }
+        button {
+            background: #f97316;
+            color: #fff;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+        button:hover { background: #ea580c; }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        .stat {
+            background: #0f172a;
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+        .stat-label { color: #94a3b8; font-size: 0.875rem; margin-bottom: 0.5rem; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+        .success { color: #10b981; margin-top: 1rem; }
+        .error { color: #ef4444; margin-top: 1rem; }
+        .key-display {
+            background: #0f172a;
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            font-family: 'SF Mono', 'Monaco', monospace;
+            word-break: break-all;
+            margin-top: 1rem;
+        }
+        .copy-btn {
+            background: #334155;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>0Latency Dashboard</h1>
+        <p class="subtitle">Memory API for AI agents</p>
+
+        <div class="card">
+            <h2>Get Your API Key</h2>
+            <p style="color:#94a3b8;margin-bottom:1rem;">Enter your email to receive your API key. Free tier: 10,000 memories.</p>
+            <input type="email" id="email" placeholder="your@email.com">
+            <button onclick="getApiKey()">Get API Key</button>
+            <div id="result"></div>
+        </div>
+
+        <div class="card" id="statsCard" style="display:none;">
+            <h2>Usage Stats</h2>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-label">Total Memories</div>
+                    <div class="stat-value" id="memoryCount">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Agents</div>
+                    <div class="stat-value" id="agentCount">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Plan</div>
+                    <div class="stat-value" id="planName">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Quick Start</h2>
+            <p style="color:#94a3b8;margin-bottom:1rem;">Install the MCP server:</p>
+            <div class="key-display">npx @0latency/mcp-server@0.1.4</div>
+            <p style="color:#94a3b8;margin:1rem 0;">Add to claude_desktop_config.json:</p>
+            <div class="key-display" style="font-size:0.875rem;">{
+  "mcpServers": {
+    "0latency": {
+      "command": "npx",
+      "args": ["-y", "@0latency/mcp-server@0.1.4"],
+      "env": {
+        "ZERO_LATENCY_API_KEY": "your_key_here"
+      }
+    }
+  }
+}</div>
+        </div>
+    </div>
+
+    <script>
+        const API = 'https://api.0latency.ai';
+
+        async function getApiKey() {
+            const email = document.getElementById('email').value;
+            if (!email || !email.includes('@')) {
+                document.getElementById('result').innerHTML = '<div class="error">Please enter a valid email</div>';
+                return;
+            }
+
+            document.getElementById('result').innerHTML = '<div style="color:#94a3b8;">Creating your account...</div>';
+
+            try {
+                // Call the signup endpoint
+                const response = await fetch(API + '/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Signup failed');
+                }
+
+                const data = await response.json();
+                
+                // Display the API key
+                document.getElementById('result').innerHTML = `
+                    <div class="success">✓ Account created!</div>
+                    <div class="key-display" style="margin-top:1rem;">
+                        <div style="color:#94a3b8;font-size:0.875rem;margin-bottom:0.5rem;">Your API Key:</div>
+                        <div id="apiKeyText">${data.api_key || data.api_key_live || 'Check your email'}</div>
+                    </div>
+                    <button class="copy-btn" onclick="copyKey()">Copy Key</button>
+                `;
+
+                // Store it for later use
+                localStorage.setItem('zl_api_key', data.api_key || data.api_key_live);
+
+                // Show stats
+                if (data.api_key || data.api_key_live) {
+                    fetchStats(data.api_key || data.api_key_live);
+                }
+
+            } catch (error) {
+                document.getElementById('result').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function fetchStats(apiKey) {
+            try {
+                const response = await fetch(API + '/memories?agent_id=default&limit=1', {
+                    headers: { 'X-API-Key': apiKey }
+                });
+
+                if (response.ok) {
+                    document.getElementById('statsCard').style.display = 'block';
+                    document.getElementById('memoryCount').textContent = '0';
+                    document.getElementById('agentCount').textContent = '1';
+                    document.getElementById('planName').textContent = 'Free';
+                }
+            } catch (error) {
+                console.error('Stats fetch failed:', error);
+            }
+        }
+
+        function copyKey() {
+            const key = document.getElementById('apiKeyText').textContent;
+            navigator.clipboard.writeText(key);
+            alert('API key copied to clipboard!');
+        }
+
+        // Check if user already has a key
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedKey = localStorage.getItem('zl_api_key');
+            if (savedKey) {
+                document.getElementById('result').innerHTML = `
+                    <div class="key-display">
+                        <div style="color:#94a3b8;font-size:0.875rem;margin-bottom:0.5rem;">Your API Key:</div>
+                        <div id="apiKeyText">${savedKey}</div>
+                    </div>
+                    <button class="copy-btn" onclick="copyKey()">Copy Key</button>
+                `;
+                fetchStats(savedKey);
+            }
+        });
+    </script>
+</body>
+</html>

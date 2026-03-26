@@ -45,8 +45,8 @@ def _get_connection_pool():
         with _pool_lock:
             if _connection_pool is None:
                 _connection_pool = psycopg2.pool.ThreadedConnectionPool(
-                    minconn=2,
-                    maxconn=10,
+                    minconn=1,
+                    maxconn=5,
                     dsn=_get_db_conn()
                 )
     return _connection_pool
@@ -450,7 +450,9 @@ def _check_contradiction(agent_id: str, headline: str, embedding: list[float], t
 
 
 def _handle_correction(memory: dict, correction_id: str, tenant_id: str):
-    """Handle correction by superseding old facts within the tenant."""
+    """Handle correction by superseding old facts within the tenant.
+    Snapshots the old memory's state to memory_versions before superseding.
+    """
     # Search for related memories that this corrects (within tenant only)
     embed_text = f"{memory['headline']}. {memory['context']}"
     embedding = _embed_text(embed_text)
@@ -472,6 +474,14 @@ def _handle_correction(memory: dict, correction_id: str, tenant_id: str):
             parts = row.split("|||")
             old_id = parts[0].strip()
             old_headline = parts[1].strip() if len(parts) > 1 else ""
+            
+            # Snapshot version before superseding
+            try:
+                from versioning import snapshot_version
+                snapshot_version(old_id, tenant_id, changed_by="extraction",
+                                change_reason=f"superseded by correction: {memory['headline'][:120]}")
+            except Exception as e:
+                print(f"  ⚠ Version snapshot failed (non-fatal): {e}")
             
             # Supersede the top match within this tenant
             _db_execute("""
@@ -659,7 +669,7 @@ def create_tenant(name: str, plan: str = 'free') -> dict:
     
     # Default limits by plan
     limits = {
-        'free': {'memory_limit': 1000, 'rate_limit_rpm': 20},
+        'free': {'memory_limit': 10000, 'rate_limit_rpm': 20},
         'pro': {'memory_limit': 50000, 'rate_limit_rpm': 100},
         'enterprise': {'memory_limit': 500000, 'rate_limit_rpm': 500}
     }
@@ -668,14 +678,15 @@ def create_tenant(name: str, plan: str = 'free') -> dict:
     
     # Insert tenant (bypassing RLS for admin operation)
     query = """
-        INSERT INTO memory_service.tenants (name, api_key_hash, plan, memory_limit, rate_limit_rpm)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO memory_service.tenants (name, api_key_hash, api_key_live, plan, memory_limit, rate_limit_rpm)
+        VALUES (%s, %s, %s, %s, %s, %s)
         RETURNING id, created_at;
     """
     
     params = (
         name,
         api_key_hash,
+        api_key,  # Store plaintext key for dashboard display
         plan,
         plan_limits['memory_limit'],
         plan_limits['rate_limit_rpm']

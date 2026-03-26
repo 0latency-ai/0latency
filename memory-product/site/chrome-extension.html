@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chrome Extension — 0Latency</title>
+    <link rel="icon" href="/logos/favicon.svg" type="image/svg+xml">
+    <style>
+        :root {
+            --bg: #fafafa;
+            --surface: #ffffff;
+            --border: #e5e7eb;
+            --text: #111827;
+            --text-dim: #6b7280;
+            --accent: #f97316;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+        
+        h2 {
+            font-size: 1.75rem;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+        
+        h3 {
+            font-size: 1.25rem;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        p {
+            margin-bottom: 1rem;
+            color: var(--text-dim);
+        }
+        
+        ul, ol {
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-dim);
+        }
+        
+        li {
+            margin-bottom: 0.5rem;
+        }
+        
+        code {
+            background: var(--surface);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9em;
+            border: 1px solid var(--border);
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        
+        .feature {
+            padding: 1.5rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: var(--accent);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-top: 1rem;
+            margin-right: 1rem;
+            transition: all 0.2s;
+        }
+        
+        .btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        
+        .alert {
+            padding: 1rem;
+            background: #fef3c7;
+            border: 1px solid #fbbf24;
+            border-radius: 8px;
+            margin: 2rem 0;
+        }
+        
+        .alert-title {
+            font-weight: 600;
+            color: #78350f;
+            margin-bottom: 0.5rem;
+        }
+        
+        .alert-text {
+            color: #78350f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧩 0Latency Chrome Extension</h1>
+        <p style="font-size: 1.1rem; margin-bottom: 2rem;">Automatically capture AI conversations from ChatGPT, Claude, Gemini, and Perplexity into your 0Latency memory layer.</p>
+        
+        <div class="alert">
+            <div class="alert-title">⚠️ Pre-Launch Notice</div>
+            <div class="alert-text">The Chrome extension is currently in development. It will be available via Chrome Web Store after launch. For now, you can install it manually in developer mode.</div>
+        </div>
+        
+        <h2>📦 Installation (Developer Mode)</h2>
+        <ol>
+            <li>Download the extension: <a href="mailto:justin@pflacademy.co?subject=0Latency Chrome Extension Request">Request access</a></li>
+            <li>Open <code>chrome://extensions</code> in Chrome</li>
+            <li>Enable <strong>Developer mode</strong> (top right toggle)</li>
+            <li>Click <strong>Load unpacked</strong></li>
+            <li>Select the downloaded <code>chrome-extension</code> folder</li>
+        </ol>
+        
+        <h2>⚙️ Setup</h2>
+        <ol>
+            <li>Click the 0Latency icon in your Chrome toolbar</li>
+            <li>Enter your API key (<code>zl_live_...</code>)</li>
+            <li>Set your Agent ID (default: <code>chrome-extension</code>)</li>
+            <li>Toggle auto-capture ON</li>
+        </ol>
+        
+        <h2>✨ How It Works</h2>
+        <p>The extension watches your AI conversations using DOM observers and detects conversation turns on supported platforms:</p>
+        
+        <ul>
+            <li><strong>ChatGPT</strong> — Detects <code>[data-message-author-role]</code> elements</li>
+            <li><strong>Claude</strong> — Detects <code>[data-testid="user-message"]</code> and <code>[data-testid="ai-message"]</code></li>
+            <li><strong>Gemini</strong> — Detects query/response containers</li>
+            <li><strong>Perplexity</strong> — Detects question/answer pairs</li>
+        </ul>
+        
+        <p>When a conversation turn completes (2s debounce after streaming finishes), the extension sends the human message + agent response to your 0Latency API for memory extraction.</p>
+        
+        <h2>🚀 Features</h2>
+        <div class="feature-grid">
+            <div class="feature">
+                <div class="feature-icon">🔄</div>
+                <h3>Auto-capture</h3>
+                <p>Conversations captured as they happen</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">⚡</div>
+                <h3>Rate limited</h3>
+                <p>Max 1 extraction per 10s per tab</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔒</div>
+                <h3>Private</h3>
+                <p>API key stays local in Chrome sync</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">📊</div>
+                <h3>Badge counter</h3>
+                <p>Shows memories captured per turn</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🌐</div>
+                <h3>4 platforms</h3>
+                <p>ChatGPT, Claude, Gemini, Perplexity</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔐</div>
+                <h3>Your data</h3>
+                <p>Sent only to your API endpoint</p>
+            </div>
+        </div>
+        
+        <h2>🔐 Privacy</h2>
+        <ul>
+            <li>Extension only activates on supported AI chat sites</li>
+            <li>Conversation data sent only to your configured API endpoint</li>
+            <li>No data sent to any third party</li>
+            <li>API key stored locally in Chrome's sync storage</li>
+        </ul>
+        
+        <div style="margin-top: 3rem;">
+            <a href="/login" class="btn">Get API Key</a>
+            <a href="/docs/" class="btn btn-secondary">View Documentation</a>
+        </div>
+    </div>
+</body>
+</html>

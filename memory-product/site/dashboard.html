@@ -4,802 +4,443 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard — 0Latency</title>
-    <meta name="robots" content="noindex, nofollow">
-    <link rel="icon" type="image/svg+xml" href="/logos/favicon.svg">
     <style>
-        html { scroll-behavior: smooth; }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
             --bg: #fafafa;
             --surface: #ffffff;
+            --surface-alt: #f8fafc;
             --border: #e5e7eb;
             --text: #111827;
             --text-dim: #6b7280;
-            --accent: #f97316;
-            --accent-hover: #fb923c;
-            --accent-light: rgba(249, 115, 22, 0.08);
-            --green: #059669;
-            --green-light: #ecfdf5;
-            --red: #dc2626;
-            --red-light: #fef2f2;
-            --yellow: #d97706;
         }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.6;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #0a0e1a;
+            color: #e2e8f0;
             min-height: 100vh;
         }
 
         /* Nav */
         nav {
+            background: rgba(15, 23, 42, 0.95);
+            border-bottom: 1px solid #1e293b;
+            padding: 1rem 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 1rem 2rem;
-            border-bottom: 1px solid var(--border);
-            background: #ffffff;
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            backdrop-filter: blur(10px);
         }
-        .nav-left { display: flex; align-items: center; gap: 2rem; }
-        .nav-links a {
-            color: var(--text-dim);
+        .nav-logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #f97316;
             text-decoration: none;
-            font-size: 0.9rem;
-            transition: color 0.2s;
         }
-        .nav-links a:hover { color: var(--text); }
-        .nav-user {
+        .nav-right {
             display: flex;
+            gap: 1rem;
             align-items: center;
-            gap: 0.5rem;
-            font-size: 0.875rem;
-            color: var(--text-dim);
         }
-        .nav-user .avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: var(--accent-light);
-            color: var(--accent);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            font-size: 0.8rem;
-        }
-        .btn-logout {
-            background: none;
-            border: 1px solid var(--border);
+        .nav-email { color: #94a3b8; font-size: 0.875rem; }
+        .nav-btn {
+            background: #334155;
+            color: #e2e8f0;
+            border: none;
+            padding: 0.5rem 1rem;
             border-radius: 6px;
-            padding: 0.4rem 0.8rem;
-            font-size: 0.8rem;
-            color: var(--text-dim);
             cursor: pointer;
-            transition: all 0.15s;
+            font-size: 0.875rem;
         }
-        .btn-logout:hover { border-color: var(--red); color: var(--red); }
+        .nav-btn:hover { background: #475569; }
 
-        /* Layout */
-        .dashboard-layout {
-            display: flex;
-            min-height: calc(100vh - 57px);
-        }
-
-        /* Sidebar */
-        .sidebar {
-            width: 220px;
-            background: var(--surface);
-            border-right: 1px solid var(--border);
-            padding: 1.5rem 0;
-            flex-shrink: 0;
-        }
-        .sidebar-nav { list-style: none; }
-        .sidebar-nav li {
-            padding: 0;
-        }
-        .sidebar-nav a {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            padding: 0.6rem 1.5rem;
-            color: var(--text-dim);
-            text-decoration: none;
-            font-size: 0.9rem;
-            font-weight: 500;
-            transition: all 0.15s;
-            border-left: 3px solid transparent;
-        }
-        .sidebar-nav a:hover {
-            color: var(--text);
-            background: #f9fafb;
-        }
-        .sidebar-nav a.active {
-            color: var(--accent);
-            background: var(--accent-light);
-            border-left-color: var(--accent);
-            font-weight: 600;
-        }
-        .sidebar-nav .icon { font-size: 1.1rem; width: 20px; text-align: center; }
-
-        /* Main content */
-        .main-content {
-            flex: 1;
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
             padding: 2rem;
-            max-width: 960px;
         }
 
-        /* Tab content */
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
+        /* Auth Forms */
+        .auth-container {
+            max-width: 400px;
+            margin: 80px auto;
+            padding: 2rem;
+        }
+        .auth-card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 2rem;
+            border: 1px solid #334155;
+        }
+        .auth-card h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+        .auth-card p {
+            color: #94a3b8;
+            text-align: center;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            color: #94a3b8;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 0.95rem;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #f97316;
+        }
+        .auth-btn {
+            width: 100%;
+            background: #f97316;
+            color: #fff;
+            border: none;
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 0.5rem;
+        }
+        .auth-btn:hover { background: #ea580c; }
+        .auth-btn:disabled {
+            background: #475569;
+            cursor: not-allowed;
+        }
+        .auth-toggle {
+            text-align: center;
+            margin-top: 1rem;
+            color: #94a3b8;
+            font-size: 0.875rem;
+        }
+        .auth-toggle a {
+            color: #f97316;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .auth-toggle a:hover { text-decoration: underline; }
+
+        /* Dashboard */
+        .dashboard { display: none; }
+
+        .welcome-banner {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .welcome-banner h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+        .welcome-banner p { color: #94a3b8; }
 
         /* Cards */
         .card {
-            background: var(--surface);
-            border: 1px solid var(--border);
+            background: #1e293b;
             border-radius: 12px;
             padding: 1.5rem;
-            margin-bottom: 1.25rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            margin-bottom: 1.5rem;
+            border: 1px solid #334155;
         }
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .card h2 {
+            font-size: 1.125rem;
             margin-bottom: 1rem;
-        }
-        .card-title {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        /* Badge */
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3rem;
-            padding: 0.2rem 0.6rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        .badge-green { background: var(--green-light); color: var(--green); }
-        .badge-orange { background: var(--accent-light); color: var(--accent); }
-        .badge-gray { background: #f3f4f6; color: #6b7280; }
-        .badge-red { background: var(--red-light); color: var(--red); }
-
-        /* Welcome */
-        .welcome-card {
-            background: linear-gradient(135deg, #fff7ed 0%, #ffffff 60%);
-            border: 1px solid #fed7aa;
-        }
-        .welcome-card h2 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 0.25rem;
-        }
-        .welcome-card p { color: var(--text-dim); font-size: 0.95rem; }
-
-        /* Stats grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
-            margin-bottom: 1.25rem;
-        }
-        .stat-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.25rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-        }
-        .stat-card .stat-label {
-            font-size: 0.8rem;
-            color: var(--text-dim);
-            margin-bottom: 0.25rem;
-        }
-        .stat-card .stat-value {
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: var(--text);
-        }
-        .stat-card .stat-change {
-            font-size: 0.75rem;
-            color: var(--green);
-            margin-top: 0.25rem;
-        }
-
-        /* Subscription card */
-        .sub-card {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 0.5rem;
         }
-        .sub-info h3 { font-size: 1.1rem; font-weight: 600; }
-        .sub-info p { color: var(--text-dim); font-size: 0.9rem; }
-        .btn-upgrade {
-            background: var(--accent);
-            color: #fff;
-            border: none;
-            padding: 0.6rem 1.5rem;
+
+        /* API Key */
+        .key-display {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: #0f172a;
+            padding: 0.75rem 1rem;
             border-radius: 8px;
-            font-weight: 600;
+            border: 1px solid #334155;
+            font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
             font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.15s;
-            text-decoration: none;
         }
-        .btn-upgrade:hover { background: var(--accent-hover); transform: translateY(-1px); }
-
-        /* Checklist */
-        .checklist { list-style: none; }
-        .checklist li {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.75rem 0;
-            border-bottom: 1px solid var(--border);
-            font-size: 0.95rem;
-        }
-        .checklist li:last-child { border-bottom: none; }
-        .check-icon {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.7rem;
-            flex-shrink: 0;
-        }
-        .check-done { background: var(--green-light); color: var(--green); }
-        .check-pending { background: #f3f4f6; color: #9ca3af; border: 2px solid #e5e7eb; }
-        .checklist .step-text { flex: 1; }
-        .checklist .step-text.done { color: var(--text-dim); text-decoration: line-through; }
-
-        /* API Keys */
-        .api-key-display {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            background: #f8f9fa;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
-            margin: 1rem 0;
-        }
-        .api-key-display code {
+        .key-text {
             flex: 1;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 0.9rem;
-            color: var(--text);
-            letter-spacing: 0.5px;
-        }
-        .btn-sm {
-            padding: 0.4rem 0.8rem;
-            border-radius: 6px;
-            font-size: 0.8rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s;
-            border: 1px solid var(--border);
-            background: var(--surface);
-            color: var(--text-dim);
-        }
-        .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
-        .btn-danger {
-            border-color: var(--red);
-            color: var(--red);
-            background: var(--red-light);
-        }
-        .btn-danger:hover { background: #fecaca; }
-        .key-meta {
-            font-size: 0.85rem;
-            color: var(--text-dim);
-            margin-top: 0.5rem;
-        }
-
-        /* Progress bars */
-        .usage-item {
-            margin-bottom: 1.5rem;
-        }
-        .usage-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 0.4rem;
-            font-size: 0.9rem;
-        }
-        .usage-header .label { font-weight: 500; }
-        .usage-header .value { color: var(--text-dim); }
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: #f3f4f6;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        .progress-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.3s;
-        }
-        .progress-green { background: var(--green); }
-        .progress-orange { background: var(--accent); }
-        .progress-red { background: var(--red); }
-
-        /* Chart placeholder */
-        .chart-placeholder {
-            background: #f8f9fa;
-            border: 1px dashed var(--border);
-            border-radius: 8px;
-            height: 200px;
-            display: flex;
-            align-items: flex-end;
-            justify-content: center;
-            padding: 1rem;
-            gap: 6px;
-        }
-        .chart-bar {
-            width: 28px;
-            background: var(--accent);
-            border-radius: 4px 4px 0 0;
-            opacity: 0.7;
-            transition: opacity 0.2s;
-        }
-        .chart-bar:hover { opacity: 1; }
-
-        /* Settings */
-        .settings-section {
-            margin-bottom: 2rem;
-        }
-        .settings-section h3 {
-            font-size: 1rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--border);
-        }
-        .settings-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.75rem 0;
-        }
-        .settings-row .label {
-            font-size: 0.9rem;
-            font-weight: 500;
-        }
-        .settings-row .value {
-            font-size: 0.9rem;
-            color: var(--text-dim);
-        }
-        .danger-zone {
-            border: 1px solid #fecaca;
-            border-radius: 12px;
-            padding: 1.5rem;
-            background: #fef2f2;
-        }
-        .danger-zone h3 {
-            color: var(--red);
-            border-bottom-color: #fecaca;
-        }
-        .btn-danger-action {
-            background: var(--surface);
-            border: 1px solid var(--red);
-            color: var(--red);
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        .btn-danger-action:hover { background: var(--red); color: #fff; }
-
-        /* Billing period */
-        .billing-info {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 1rem;
-            background: #f9fafb;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-            font-size: 0.9rem;
-        }
-        .billing-info .period { font-weight: 600; }
-        .billing-info .dates { color: var(--text-dim); }
-
-        /* Confirm dialog */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.4);
-            backdrop-filter: blur(4px);
-            z-index: 200;
-            align-items: center;
-            justify-content: center;
-        }
-        .modal-overlay.active { display: flex; }
-        .modal {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 2rem;
-            max-width: 420px;
-            width: 90%;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-        }
-        .modal h3 { margin-bottom: 0.75rem; font-size: 1.15rem; }
-        .modal p { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 1.5rem; }
-        .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
-        .btn-modal-cancel {
-            padding: 0.5rem 1rem;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: var(--surface);
-            color: var(--text);
-            cursor: pointer;
-            font-size: 0.9rem;
-        }
-        .btn-modal-confirm {
-            padding: 0.5rem 1rem;
-            border: none;
-            border-radius: 8px;
-            background: var(--red);
-            color: #fff;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 0.9rem;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .sidebar { display: none; }
-            .dashboard-layout { flex-direction: column; }
-            .main-content { padding: 1rem; }
-            .stats-grid { grid-template-columns: 1fr; }
-            .mobile-tabs {
-                display: flex !important;
-                gap: 0;
-                border-bottom: 1px solid var(--border);
-                background: var(--surface);
-                overflow-x: auto;
-            }
-            .mobile-tabs a {
-                padding: 0.75rem 1rem;
-                font-size: 0.85rem;
-                color: var(--text-dim);
-                text-decoration: none;
-                white-space: nowrap;
-                border-bottom: 2px solid transparent;
-            }
-            .mobile-tabs a.active { color: var(--accent); border-bottom-color: var(--accent); }
-        }
-
-        .mobile-tabs { display: none; }
-
-        /* Loading state */
-        .skeleton {
-            background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
-            background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
-            border-radius: 4px;
-        }
-        @keyframes shimmer {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
-    
-        /* Scroll-triggered fade-in */
-        .fade-in {
-            opacity: 0;
-            transform: translateY(20px);
-            transition: opacity 0.6s ease, transform 0.6s ease;
-        }
-        .fade-in.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    
-        /* Code block improvements */
-        pre {
-            position: relative;
-            overflow-x: auto;
+            word-break: break-all;
+            color: #f97316;
         }
         .copy-btn {
+            background: #334155;
+            color: #e2e8f0;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            white-space: nowrap;
+        }
+        .copy-btn:hover { background: #475569; }
+        .copy-btn.copied {
+            background: #10b981;
+            color: #fff;
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+        .stat-card {
+            background: #0f172a;
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+        .stat-label {
+            color: #94a3b8;
+            font-size: 0.8rem;
+            margin-bottom: 0.25rem;
+        }
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        .stat-value.orange { color: #f97316; }
+        .stat-value.green { color: #10b981; }
+        .stat-value.blue { color: #3b82f6; }
+
+        /* Quick Start */
+        .code-block {
+            background: #0f172a;
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            margin: 0.75rem 0;
+            white-space: pre;
+            line-height: 1.5;
+            position: relative;
+        }
+        .code-block .copy-code {
             position: absolute;
             top: 0.5rem;
             right: 0.5rem;
-            background: #e5e7eb;
+            background: #334155;
+            color: #94a3b8;
             border: none;
+            padding: 0.25rem 0.5rem;
             border-radius: 4px;
-            padding: 0.25rem 0.6rem;
-            font-size: 0.75rem;
-            color: #6b7280;
             cursor: pointer;
-            transition: all 0.2s;
-            opacity: 0;
+            font-size: 0.7rem;
         }
-        pre:hover .copy-btn { opacity: 1; }
-        .copy-btn:hover {
+        .code-block .copy-code:hover { background: #475569; color: #e2e8f0; }
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
             background: #f97316;
-            color: #ffffff;
+            color: #fff;
+            border-radius: 50%;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-right: 0.5rem;
         }
-    
-/* Responsive nav logo - hide text on mobile */
-.logo-text { display: inline; }
-@media (max-width: 767px) {
-  .logo-text { display: none !important; }
-  .logo img, .nav-logo img { height: 32px !important; }
-}
-</style>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+        /* Alert / Error */
+        .alert {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+        }
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #10b981;
+        }
+
+        /* Plan badge */
+        .plan-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .plan-free { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+        .plan-pro { background: rgba(249, 115, 22, 0.15); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3); }
+        .plan-scale { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+    </style>
 </head>
 <body>
-    <nav>
-        <div class="nav-left">
-            <a href="/" style="text-decoration:none;display:flex;align-items:center;gap:8px;"><img src="/logos/logo-icon.svg" alt="0Latency" height="36"><span class="logo-text" style="font-size:1.3rem;font-weight:700;letter-spacing:-0.5px;"><span style="color:#f97316;">0</span>Latency</span></a>
-            <div class="nav-links">
-                <a href="https://api.0latency.ai/docs">API Docs</a>
-                <a href="/pricing.html">Pricing</a>
-                <a href="/support.html">Support</a>
+
+    <!-- AUTH VIEW -->
+    <div id="authView">
+        <div class="auth-container">
+            <!-- SIGNUP FORM -->
+            <div id="signupForm" class="auth-card">
+                <h1>Get Started with 0Latency</h1>
+                <p>Create your account. Free tier: 10,000 memories.</p>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="signupEmail" placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="signupPassword" placeholder="Choose a password (8+ characters)">
+                </div>
+                <button class="auth-btn" id="signupBtn" onclick="doSignup()">Create Account</button>
+                <div id="signupAlert"></div>
+                <div class="auth-toggle">
+                    Already have an account? <a onclick="showLogin()">Sign in</a>
+                </div>
+            </div>
+
+            <!-- LOGIN FORM -->
+            <div id="loginForm" class="auth-card" style="display:none;">
+                <h1>Welcome Back</h1>
+                <p>Sign in to access your dashboard.</p>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="loginEmail" placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPassword" placeholder="Your password">
+                </div>
+                <button class="auth-btn" id="loginBtn" onclick="doLogin()">Sign In</button>
+                <div id="loginAlert"></div>
+                <div class="auth-toggle">
+                    Don't have an account? <a onclick="showSignup()">Sign up</a>
+                </div>
             </div>
         </div>
-        <div class="nav-user">
-            <div class="avatar" id="userAvatar">?</div>
-            <span id="userEmail">Loading...</span>
-            <button class="btn-logout" onclick="logout()">Sign Out</button>
-        </div>
-    </nav>
-
-    <!-- Mobile tabs -->
-    <div class="mobile-tabs">
-        <a href="#" class="active" onclick="switchTab('overview', this)">Overview</a>
-        <a href="#" onclick="switchTab('apikeys', this)">API Keys</a>
-        <a href="#" onclick="switchTab('usage', this)">Usage</a>
-        <a href="#" onclick="switchTab('settings', this)">Settings</a>
     </div>
 
-    <div class="dashboard-layout">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <ul class="sidebar-nav">
-                <li><a href="#" class="active" onclick="switchTab('overview', this)" data-tab="overview"><span class="icon">📊</span> Overview</a></li>
-                <li><a href="#" onclick="switchTab('apikeys', this)" data-tab="apikeys"><span class="icon">🔑</span> API Keys</a></li>
-                <li><a href="#" onclick="switchTab('usage', this)" data-tab="usage"><span class="icon">📈</span> Usage</a></li>
-                <li><a href="#" onclick="switchTab('settings', this)" data-tab="settings"><span class="icon">⚙️</span> Settings</a></li>
-            </ul>
-        </aside>
+    <!-- DASHBOARD VIEW -->
+    <div id="dashboardView" class="dashboard">
+        <nav>
+            <a href="/" class="nav-logo">⚡ 0Latency</a>
+            <div class="nav-right">
+                <span class="nav-email" id="navEmail"></span>
+                <span id="navPlan" class="plan-badge plan-free">FREE</span>
+                <button class="nav-btn" onclick="doLogout()">Logout</button>
+            </div>
+        </nav>
 
-        <!-- Main content area -->
-        <main class="main-content">
+        <div class="container">
+            <div class="welcome-banner">
+                <h1>Welcome to 0Latency</h1>
+                <p>Persistent memory infrastructure for AI agents.</p>
+            </div>
 
-            <!-- ========== OVERVIEW TAB ========== -->
-            <div class="tab-content active" id="tab-overview">
-                <!-- Welcome -->
-                <div class="card welcome-card">
-                    <h2>Welcome back, <span id="userName">developer</span> 👋</h2>
-                    <p>Here's what's happening with your memory layer.</p>
+            <!-- API KEY -->
+            <div class="card">
+                <h2>🔑 Your API Key</h2>
+                <div class="key-display">
+                    <span class="key-text" id="apiKeyDisplay">Loading...</span>
+                    <button class="copy-btn" onclick="copyApiKey()">Copy</button>
                 </div>
+                <p style="color:#94a3b8;font-size:0.8rem;margin-top:0.75rem;">
+                    Keep this key secret. Do not share it publicly.
+                </p>
+            </div>
 
-                <!-- Subscription status -->
-                <div class="card sub-card">
-                    <div class="sub-info">
-                        <div style="display:flex;align-items:center;gap:0.75rem;">
-                            <h3 id="planName">Free</h3>
-                            <span class="badge badge-green" id="planBadge">● Active</span>
-                        </div>
-                        <p id="planDesc">100 memories · 1 agent · Community support</p>
-                    </div>
-                    <a href="/pricing.html" class="btn-upgrade" id="upgradeBtn">Upgrade Plan</a>
-                </div>
-
-                <!-- Quick stats -->
+            <!-- STATS -->
+            <div class="card">
+                <h2>📊 Usage</h2>
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-label">Memories Stored</div>
-                        <div class="stat-value" id="statMemories">—</div>
-                        <div class="stat-change" id="statMemoriesChange"></div>
+                        <div class="stat-value orange" id="statMemories">—</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label">API Calls This Month</div>
-                        <div class="stat-value" id="statApiCalls">—</div>
-                        <div class="stat-change" id="statApiCallsChange"></div>
+                        <div class="stat-label">Agents</div>
+                        <div class="stat-value green" id="statAgents">—</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label">Active Agents</div>
-                        <div class="stat-value" id="statAgents">—</div>
+                        <div class="stat-label">Plan</div>
+                        <div class="stat-value blue" id="statPlan">—</div>
                     </div>
-                </div>
-
-                <!-- Getting Started checklist -->
-                <div class="card" id="checklistCard">
-                    <div class="card-header">
-                        <span class="card-title">Getting Started</span>
-                        <span class="badge badge-orange" id="checklistProgress">0 / 3</span>
-                    </div>
-                    <ul class="checklist">
-                        <li>
-                            <div class="check-icon check-pending" id="check1">1</div>
-                            <span class="step-text">Install the SDK — <code style="background:#f3f4f6;padding:0.1rem 0.4rem;border-radius:3px;font-size:0.85em;">pip install zero-latency-sdk</code></span>
-                        </li>
-                        <li>
-                            <div class="check-icon check-pending" id="check2">2</div>
-                            <span class="step-text">Store your first memory — <code style="background:#f3f4f6;padding:0.1rem 0.4rem;border-radius:3px;font-size:0.85em;">mem.add("Hello world")</code></span>
-                        </li>
-                        <li>
-                            <div class="check-icon check-pending" id="check3">3</div>
-                            <span class="step-text">Make your first recall — <code style="background:#f3f4f6;padding:0.1rem 0.4rem;border-radius:3px;font-size:0.85em;">mem.recall("greeting")</code></span>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-
-            <!-- ========== API KEYS TAB ========== -->
-            <div class="tab-content" id="tab-apikeys">
-                <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1.5rem;">API Keys</h2>
-
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">Your API Key</span>
-                        <span class="badge badge-green">Active</span>
-                    </div>
-                    <div class="api-key-display">
-                        <code id="apiKeyValue">zl_live_••••••••••••••••••••</code>
-                        <button class="btn-sm" onclick="toggleKeyVisibility()" id="btnReveal">👁 Reveal</button>
-                        <button class="btn-sm" onclick="copyApiKey()">📋 Copy</button>
-                    </div>
-                    <div class="key-meta">
-                        Created: <span id="keyCreatedDate">—</span>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top:1rem;">
-                    <div class="card-header">
-                        <span class="card-title">Regenerate Key</span>
-                    </div>
-                    <p style="color:var(--text-dim);font-size:0.9rem;margin-bottom:1rem;">Generate a new API key. Your current key will immediately stop working. All active integrations will need to be updated.</p>
-                    <button class="btn-danger-action" onclick="showRegenConfirm()">⚠️ Regenerate API Key</button>
-                </div>
-            </div>
-
-            <!-- ========== USAGE TAB ========== -->
-            <div class="tab-content" id="tab-usage">
-                <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1.5rem;">Usage</h2>
-
-                <div class="billing-info">
-                    <span>📅</span>
-                    <div>
-                        <div class="period">Current Billing Period</div>
-                        <div class="dates" id="billingDates">Mar 1 – Mar 31, 2026</div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="usage-item">
-                        <div class="usage-header">
-                            <span class="label">Memories Stored</span>
-                            <span class="value" id="usageMemories">42 / 100</span>
-                        </div>
-                        <div class="progress-bar">
-                            <div class="progress-fill progress-green" id="progressMemories" style="width: 42%;"></div>
-                        </div>
-                    </div>
-
-                    <div class="usage-item">
-                        <div class="usage-header">
-                            <span class="label">API Calls This Month</span>
-                            <span class="value" id="usageApiCalls">1,247 / 10,000</span>
-                        </div>
-                        <div class="progress-bar">
-                            <div class="progress-fill progress-green" id="progressApiCalls" style="width: 12%;"></div>
-                        </div>
-                    </div>
-
-                    <div class="usage-item" style="margin-bottom:0;">
-                        <div class="usage-header">
-                            <span class="label">Active Agents</span>
-                            <span class="value" id="usageAgents">1 / 1</span>
-                        </div>
-                        <div class="progress-bar">
-                            <div class="progress-fill progress-orange" id="progressAgents" style="width: 100%;"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-header">
-                        <span class="card-title">Daily API Calls (Last 14 Days)</span>
-                    </div>
-                    <div class="chart-placeholder" id="dailyChart">
-                        <!-- Bars generated by JS -->
+                    <div class="stat-card">
+                        <div class="stat-label">Memory Limit</div>
+                        <div class="stat-value" id="statLimit">—</div>
                     </div>
                 </div>
             </div>
 
-            <!-- ========== SETTINGS TAB ========== -->
-            <div class="tab-content" id="tab-settings">
-                <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1.5rem;">Settings</h2>
+            <!-- QUICK START -->
+            <div class="card">
+                <h2>🚀 Quick Start</h2>
 
-                <div class="card">
-                    <div class="settings-section">
-                        <h3>Account</h3>
-                        <div class="settings-row">
-                            <span class="label">Email</span>
-                            <span class="value" id="settingsEmail">—</span>
-                        </div>
-                        <div class="settings-row">
-                            <span class="label">Auth Provider</span>
-                            <span class="value" id="settingsProvider">—</span>
-                        </div>
-                        <div class="settings-row">
-                            <span class="label">Account Created</span>
-                            <span class="value" id="settingsCreated">—</span>
-                        </div>
-                    </div>
-                </div>
+                <p style="margin-bottom:1rem;"><span class="step-number">1</span> Install the MCP server:</p>
+                <div class="code-block">npx @0latency/mcp-server@0.1.4<button class="copy-code" onclick="copyText('npx @0latency/mcp-server@0.1.4')">Copy</button></div>
 
-                <div class="card">
-                    <div class="settings-section" style="margin-bottom:0;">
-                        <h3>Subscription</h3>
-                        <div class="settings-row">
-                            <span class="label">Current Plan</span>
-                            <span class="value" id="settingsPlan">Free</span>
-                        </div>
-                        <div class="settings-row">
-                            <span class="label">Manage Billing</span>
-                            <button class="btn-sm" onclick="openBillingPortal()" id="billingPortalBtn">Open Stripe Portal →</button>
-                        </div>
-                    </div>
-                </div>
+                <p style="margin:1.25rem 0 1rem;"><span class="step-number">2</span> Add to your Claude Desktop config:</p>
+                <div class="code-block" id="configBlock">{
+  "mcpServers": {
+    "0latency": {
+      "command": "npx",
+      "args": ["-y", "@0latency/mcp-server@0.1.4"],
+      "env": {
+        "ZERO_LATENCY_API_KEY": "your_key_here"
+      }
+    }
+  }
+}<button class="copy-code" onclick="copyConfig()">Copy</button></div>
 
-                <div class="danger-zone">
-                    <div class="settings-section" style="margin-bottom:0;">
-                        <h3>Danger Zone</h3>
-                        <div class="settings-row">
-                            <div>
-                                <span class="label">Delete Account</span>
-                                <p style="font-size:0.8rem;color:var(--text-dim);margin-top:0.2rem;">Permanently delete your account and all data. This cannot be undone.</p>
-                            </div>
-                            <button class="btn-danger-action" onclick="showDeleteConfirm()">Delete Account</button>
-                        </div>
-                    </div>
-                </div>
+                <p style="margin:1.25rem 0 1rem;"><span class="step-number">3</span> Restart Claude Desktop and start chatting!</p>
+                <p style="color:#94a3b8;font-size:0.9rem;">Claude will now remember your preferences, decisions, and context across sessions.</p>
             </div>
-        </main>
-    </div>
 
-    <!-- Regenerate Key Confirmation Modal -->
-    <div class="modal-overlay" id="regenModal">
-        <div class="modal">
-            <h3>⚠️ Regenerate API Key?</h3>
-            <p>Your current key will be permanently invalidated. All active integrations will stop working until updated with the new key.</p>
-            <div class="modal-actions">
-                <button class="btn-modal-cancel" onclick="closeModal('regenModal')">Cancel</button>
-                <button class="btn-modal-confirm" onclick="regenerateKey()">Regenerate Key</button>
+            <!-- API DOCS -->
+            <div class="card">
+                <h2>📖 API Documentation</h2>
+                <p style="color:#94a3b8;margin-bottom:1rem;">Use the REST API directly for custom integrations.</p>
+
+                <p style="margin-bottom:0.5rem;font-weight:600;">Store a memory:</p>
+                <div class="code-block">curl -X POST https://api.0latency.ai/extract \
+  -H "X-API-Key: <span class="api-key-inline">YOUR_KEY</span>" \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id":"my-agent","human_message":"I prefer React","agent_message":"Noted"}'<button class="copy-code" onclick="copyExtract()">Copy</button></div>
+
+                <p style="margin:1rem 0 0.5rem;font-weight:600;">Recall memories:</p>
+                <div class="code-block">curl "https://api.0latency.ai/memories?agent_id=my-agent&amp;limit=10" \
+  -H "X-API-Key: <span class="api-key-inline">YOUR_KEY</span>"<button class="copy-code" onclick="copyRecall()">Copy</button></div>
+
+                <p style="margin-top:1rem;">
+                    <a href="/login" style="color:#f97316;text-decoration:none;">Full API Reference →</a>
+                </p>
             </div>
-        </div>
-    </div>
 
-    <!-- Delete Account Confirmation Modal -->
-    <div class="modal-overlay" id="deleteModal">
-        <div class="modal">
-            <h3>🗑️ Delete Account?</h3>
-            <p>This will permanently delete your account, all memories, API keys, and data. This action cannot be undone.</p>
-            <div class="modal-actions">
-                <button class="btn-modal-cancel" onclick="closeModal('deleteModal')">Cancel</button>
-                <button class="btn-modal-confirm" onclick="deleteAccount()">Delete Everything</button>
+            <!-- UPGRADE -->
+            <div class="card" id="upgradeCard">
+                <h2>⬆️ Upgrade</h2>
+                <p style="color:#94a3b8;margin-bottom:1rem;">Unlock graph memory, sentiment analysis, and more.</p>
+                <a href="/pricing.html" style="display:inline-block;background:#f97316;color:#fff;padding:0.5rem 1.5rem;border-radius:6px;text-decoration:none;font-weight:600;">View Plans</a>
             </div>
         </div>
     </div>
@@ -807,351 +448,250 @@
     <script>
         const API = 'https://api.0latency.ai';
         let currentUser = null;
-        let apiKeyRevealed = false;
-        let fullApiKey = null;
 
         // ========== AUTH ==========
-        function getToken() {
-            return localStorage.getItem('zl_token');
+
+        function showLogin() {
+            document.getElementById('signupForm').style.display = 'none';
+            document.getElementById('loginForm').style.display = 'block';
         }
 
-        function requireAuth() {
-            const token = getToken();
-            if (!token) {
-                window.location.href = '/login.html?redirect=/dashboard.html';
-                return false;
+        function showSignup() {
+            document.getElementById('signupForm').style.display = 'block';
+            document.getElementById('loginForm').style.display = 'none';
+        }
+
+        async function doSignup() {
+            const email = document.getElementById('signupEmail').value;
+            const password = document.getElementById('signupPassword').value;
+            const alertDiv = document.getElementById('signupAlert');
+            const btn = document.getElementById('signupBtn');
+
+            if (!email || !email.includes('@')) {
+                alertDiv.innerHTML = '<div class="alert alert-error">Please enter a valid email.</div>';
+                return;
             }
-            return true;
-        }
-
-        function logout() {
-            localStorage.removeItem('zl_token');
-            window.location.href = '/login.html';
-        }
-
-        // ========== TAB SWITCHING ==========
-        function switchTab(tab, el) {
-            event.preventDefault();
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            // Show target tab
-            document.getElementById('tab-' + tab).classList.add('active');
-            // Update sidebar
-            document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
-            document.querySelectorAll('.sidebar-nav a[data-tab="' + tab + '"]').forEach(a => a.classList.add('active'));
-            // Update mobile tabs
-            document.querySelectorAll('.mobile-tabs a').forEach(a => a.classList.remove('active'));
-            if (el && el.closest('.mobile-tabs')) el.classList.add('active');
-        }
-
-        // ========== API CALLS ==========
-        async function fetchUser() {
-            const token = getToken();
-            try {
-                const resp = await fetch(API + '/auth/me', {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
-                if (resp.status === 401) {
-                    localStorage.removeItem('zl_token');
-                    window.location.href = '/login.html?redirect=/dashboard.html';
-                    return;
-                }
-                if (!resp.ok) throw new Error('Failed to fetch user');
-                currentUser = await resp.json();
-                updateUI();
-            } catch (err) {
-                console.error('fetchUser error:', err);
-                // Show placeholder data
-                showMockData();
+            if (!password || password.length < 6) {
+                alertDiv.innerHTML = '<div class="alert alert-error">Password must be at least 6 characters.</div>';
+                return;
             }
-        }
 
-        async function fetchSubscription() {
-            const token = getToken();
-            try {
-                const resp = await fetch(API + '/billing/subscription', {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
-                if (resp.ok) {
-                    const sub = await resp.json();
-                    updateSubscription(sub);
-                }
-            } catch (err) {
-                console.error('fetchSubscription error:', err);
-            }
-        }
-
-        async function openBillingPortal() {
-            const token = getToken();
-            const btn = document.getElementById('billingPortalBtn');
-            btn.textContent = 'Loading...';
             btn.disabled = true;
+            btn.textContent = 'Creating account...';
+            alertDiv.innerHTML = '';
+
             try {
-                const resp = await fetch(API + '/billing/portal', {
+                const res = await fetch(API + '/auth/simple-signup', {
                     method: 'POST',
-                    headers: { 'Authorization': 'Bearer ' + token }
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
                 });
-                const data = await resp.json();
-                if (data.portal_url) {
-                    window.location.href = data.portal_url;
-                } else {
-                    alert('Unable to open billing portal. You may be on the free plan.');
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.detail || 'Signup failed');
                 }
+
+                // Save credentials and show dashboard
+                localStorage.setItem('zl_api_key', data.api_key);
+                localStorage.setItem('zl_email', data.email);
+                localStorage.setItem('zl_tenant_id', data.tenant_id);
+
+                // Auto-login
+                const loginRes = await fetch(API + '/auth/simple-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                if (loginRes.ok) {
+                    const loginData = await loginRes.json();
+                    localStorage.setItem('zl_session', loginData.session_token);
+                }
+
+                showDashboard(data);
+
             } catch (err) {
-                alert('Error opening billing portal.');
+                alertDiv.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
             } finally {
-                btn.textContent = 'Open Stripe Portal →';
                 btn.disabled = false;
+                btn.textContent = 'Create Account';
             }
         }
 
-        async function regenerateKey() {
-            closeModal('regenModal');
-            const token = getToken();
+        async function doLogin() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const alertDiv = document.getElementById('loginAlert');
+            const btn = document.getElementById('loginBtn');
+
+            if (!email || !password) {
+                alertDiv.innerHTML = '<div class="alert alert-error">Please enter email and password.</div>';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Signing in...';
+            alertDiv.innerHTML = '';
+
             try {
-                const resp = await fetch(API + '/auth/api-key/regenerate', {
+                const res = await fetch(API + '/auth/simple-login', {
                     method: 'POST',
-                    headers: { 'Authorization': 'Bearer ' + token }
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
                 });
-                const data = await resp.json();
-                if (data.api_key) {
-                    fullApiKey = data.api_key;
-                    document.getElementById('apiKeyValue').textContent = data.api_key;
-                    apiKeyRevealed = true;
-                    document.getElementById('btnReveal').textContent = '👁 Hide';
-                    alert('New API key generated. Save it now — it won\'t be shown again.');
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.detail || 'Login failed');
+                }
+
+                // Save credentials
+                localStorage.setItem('zl_api_key', data.api_key);
+                localStorage.setItem('zl_email', data.email);
+                localStorage.setItem('zl_tenant_id', data.tenant_id);
+                localStorage.setItem('zl_session', data.session_token);
+
+                showDashboard(data);
+
+            } catch (err) {
+                alertDiv.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Sign In';
+            }
+        }
+
+        function doLogout() {
+            localStorage.removeItem('zl_api_key');
+            localStorage.removeItem('zl_email');
+            localStorage.removeItem('zl_tenant_id');
+            localStorage.removeItem('zl_session');
+            document.getElementById('authView').style.display = 'block';
+            document.getElementById('dashboardView').style.display = 'none';
+            document.getElementById('dashboardView').classList.remove('dashboard');
+        }
+
+        // ========== DASHBOARD ==========
+
+        function showDashboard(user) {
+            currentUser = user;
+
+            document.getElementById('authView').style.display = 'none';
+            document.getElementById('dashboardView').style.display = 'block';
+            document.getElementById('dashboardView').classList.remove('dashboard');
+
+            // Populate UI
+            const apiKey = user.api_key || localStorage.getItem('zl_api_key');
+            document.getElementById('navEmail').textContent = user.email;
+            document.getElementById('apiKeyDisplay').textContent = apiKey;
+
+            // Update config block with actual key
+            const configBlock = document.getElementById('configBlock');
+            configBlock.innerHTML = configBlock.innerHTML.replace('your_key_here', apiKey);
+
+            // Update inline API keys
+            document.querySelectorAll('.api-key-inline').forEach(el => {
+                el.textContent = apiKey;
+            });
+
+            // Fetch stats
+            fetchStats(apiKey);
+        }
+
+        async function fetchStats(apiKey) {
+            try {
+                // Get memory count
+                const memRes = await fetch(API + '/memories?agent_id=default&limit=1', {
+                    headers: { 'X-API-Key': apiKey }
+                });
+
+                if (memRes.ok) {
+                    const memData = await memRes.json();
+                    const count = Array.isArray(memData) ? memData.length : 0;
+                    document.getElementById('statMemories').textContent = count.toString();
+                    document.getElementById('statAgents').textContent = '1';
+                    document.getElementById('statPlan').textContent = 'Free';
+                    document.getElementById('statLimit').textContent = '10,000';
                 } else {
-                    alert('Failed to regenerate key.');
+                    document.getElementById('statMemories').textContent = '0';
+                    document.getElementById('statAgents').textContent = '0';
+                    document.getElementById('statPlan').textContent = 'Free';
+                    document.getElementById('statLimit').textContent = '10,000';
                 }
             } catch (err) {
-                alert('Error regenerating key.');
+                console.error('Stats fetch failed:', err);
             }
         }
 
-        async function deleteAccount() {
-            closeModal('deleteModal');
-            alert('Account deletion requires email confirmation. Check your inbox.');
-        }
-
-        // ========== UI UPDATES ==========
-        function updateUI() {
-            if (!currentUser) return;
-            const name = currentUser.name || currentUser.email?.split('@')[0] || 'developer';
-            const email = currentUser.email || '';
-
-            document.getElementById('userName').textContent = name;
-            document.getElementById('userEmail').textContent = email;
-            document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
-            document.getElementById('settingsEmail').textContent = email;
-            document.getElementById('settingsProvider').textContent = currentUser.provider || 'Email';
-            document.getElementById('settingsCreated').textContent = currentUser.created_at ? new Date(currentUser.created_at).toLocaleDateString() : '—';
-
-            if (currentUser.api_key_prefix) {
-                document.getElementById('apiKeyValue').textContent = currentUser.api_key_prefix + '••••••••••••••••';
-            }
-            if (currentUser.api_key_created) {
-                document.getElementById('keyCreatedDate').textContent = new Date(currentUser.api_key_created).toLocaleDateString();
-            }
-
-            // Stats
-            const memories = currentUser.memories_count || 0;
-            const apiCalls = currentUser.api_calls_month || 0;
-            const agents = currentUser.agents_count || 0;
-
-            document.getElementById('statMemories').textContent = memories.toLocaleString();
-            document.getElementById('statApiCalls').textContent = apiCalls.toLocaleString();
-            document.getElementById('statAgents').textContent = agents;
-
-            // Checklist
-            updateChecklist(memories, apiCalls);
-        }
-
-        function updateSubscription(sub) {
-            if (!sub) return;
-            const plan = sub.plan || 'free';
-            const planNames = { free: 'Free', pro: 'Pro', scale: 'Scale' };
-            const planDescs = {
-                free: '100 memories · 1 agent · Community support',
-                pro: '50,000 memories · 5 agents · Email support',
-                scale: 'Unlimited memories · Unlimited agents · Priority support'
-            };
-            const planLimits = {
-                free: { memories: 100, apiCalls: 10000, agents: 1 },
-                pro: { memories: 50000, apiCalls: 500000, agents: 5 },
-                scale: { memories: Infinity, apiCalls: Infinity, agents: Infinity }
-            };
-
-            document.getElementById('planName').textContent = planNames[plan] || plan;
-            document.getElementById('planDesc').textContent = planDescs[plan] || '';
-            document.getElementById('settingsPlan').textContent = (planNames[plan] || plan) + (sub.price ? ' — $' + sub.price + '/mo' : '');
-
-            if (plan === 'scale') {
-                document.getElementById('upgradeBtn').style.display = 'none';
-            }
-
-            // Update usage bars
-            const limits = planLimits[plan] || planLimits.free;
-            const memories = currentUser?.memories_count || 42;
-            const apiCalls = currentUser?.api_calls_month || 1247;
-            const agents = currentUser?.agents_count || 1;
-
-            updateUsageBar('Memories', memories, limits.memories);
-            updateUsageBar('ApiCalls', apiCalls, limits.apiCalls);
-            updateUsageBar('Agents', agents, limits.agents);
-        }
-
-        function updateUsageBar(type, current, limit) {
-            const pct = limit === Infinity ? 10 : Math.min((current / limit) * 100, 100);
-            const limitStr = limit === Infinity ? '∞' : limit.toLocaleString();
-            const el = document.getElementById('usage' + type);
-            const bar = document.getElementById('progress' + type);
-            if (el) el.textContent = current.toLocaleString() + ' / ' + limitStr;
-            if (bar) {
-                bar.style.width = pct + '%';
-                bar.className = 'progress-fill ' + (pct > 90 ? 'progress-red' : pct > 70 ? 'progress-orange' : 'progress-green');
-            }
-        }
-
-        function updateChecklist(memories, apiCalls) {
-            let done = 0;
-            // Step 1: installed SDK (if they have an API key, assume yes)
-            if (currentUser.api_key_prefix) {
-                document.getElementById('check1').className = 'check-icon check-done';
-                document.getElementById('check1').textContent = '✓';
-                done++;
-            }
-            // Step 2: added first memory
-            if (memories > 0) {
-                document.getElementById('check2').className = 'check-icon check-done';
-                document.getElementById('check2').textContent = '✓';
-                done++;
-            }
-            // Step 3: made first recall
-            if (apiCalls > 1) {
-                document.getElementById('check3').className = 'check-icon check-done';
-                document.getElementById('check3').textContent = '✓';
-                done++;
-            }
-            document.getElementById('checklistProgress').textContent = done + ' / 3';
-            if (done === 3) {
-                document.getElementById('checklistCard').style.display = 'none';
-            }
-        }
-
-        function showMockData() {
-            // Fallback placeholder data when API isn't reachable
-            document.getElementById('userName').textContent = 'developer';
-            document.getElementById('userEmail').textContent = 'you@example.com';
-            document.getElementById('userAvatar').textContent = 'D';
-            document.getElementById('statMemories').textContent = '42';
-            document.getElementById('statApiCalls').textContent = '1,247';
-            document.getElementById('statAgents').textContent = '1';
-            document.getElementById('keyCreatedDate').textContent = 'Mar 22, 2026';
-        }
-
-        // ========== HELPERS ==========
-        function toggleKeyVisibility() {
-            const el = document.getElementById('apiKeyValue');
-            const btn = document.getElementById('btnReveal');
-            if (apiKeyRevealed) {
-                const prefix = fullApiKey ? fullApiKey.substring(0, 8) : 'zl_live_';
-                el.textContent = prefix + '••••••••••••••••';
-                btn.textContent = '👁 Reveal';
-                apiKeyRevealed = false;
-            } else {
-                if (fullApiKey) {
-                    el.textContent = fullApiKey;
-                    btn.textContent = '👁 Hide';
-                    apiKeyRevealed = true;
-                } else {
-                    alert('For security, full API keys can only be viewed when first created or after regeneration.');
-                }
-            }
-        }
+        // ========== UTILITY ==========
 
         function copyApiKey() {
-            const key = document.getElementById('apiKeyValue').textContent;
+            const key = document.getElementById('apiKeyDisplay').textContent;
             navigator.clipboard.writeText(key).then(() => {
-                const btns = document.querySelectorAll('.btn-sm');
-                btns.forEach(b => {
-                    if (b.textContent.includes('Copy')) {
-                        b.textContent = '✓ Copied!';
-                        setTimeout(() => b.textContent = '📋 Copy', 2000);
+                const btn = document.querySelector('.key-display .copy-btn');
+                btn.textContent = 'Copied!';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = 'Copy';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+
+        function copyText(text) {
+            navigator.clipboard.writeText(text);
+        }
+
+        function copyConfig() {
+            const apiKey = document.getElementById('apiKeyDisplay').textContent;
+            const config = JSON.stringify({
+                mcpServers: {
+                    "0latency": {
+                        command: "npx",
+                        args: ["-y", "@0latency/mcp-server@0.1.4"],
+                        env: {
+                            ZERO_LATENCY_API_KEY: apiKey
+                        }
                     }
-                });
-            });
+                }
+            }, null, 2);
+            navigator.clipboard.writeText(config);
         }
 
-        function showRegenConfirm() {
-            document.getElementById('regenModal').classList.add('active');
+        function copyExtract() {
+            const apiKey = document.getElementById('apiKeyDisplay').textContent;
+            const cmd = `curl -X POST https://api.0latency.ai/extract \\
+  -H "X-API-Key: ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"agent_id":"my-agent","human_message":"I prefer React","agent_message":"Noted"}'`;
+            navigator.clipboard.writeText(cmd);
         }
 
-        function showDeleteConfirm() {
-            document.getElementById('deleteModal').classList.add('active');
-        }
-
-        function closeModal(id) {
-            document.getElementById(id).classList.remove('active');
-        }
-
-        // Close modal on backdrop click
-        document.querySelectorAll('.modal-overlay').forEach(overlay => {
-            overlay.addEventListener('click', (e) => {
-                if (e.target === overlay) overlay.classList.remove('active');
-            });
-        });
-
-        // ========== CHART ==========
-        function renderChart() {
-            const container = document.getElementById('dailyChart');
-            const data = [89, 124, 67, 152, 98, 203, 176, 142, 88, 215, 167, 134, 192, 108];
-            const max = Math.max(...data);
-            container.innerHTML = '';
-            data.forEach((val, i) => {
-                const bar = document.createElement('div');
-                bar.className = 'chart-bar';
-                bar.style.height = Math.max((val / max) * 160, 8) + 'px';
-                bar.title = `Day ${i + 1}: ${val} calls`;
-                container.appendChild(bar);
-            });
+        function copyRecall() {
+            const apiKey = document.getElementById('apiKeyDisplay').textContent;
+            const cmd = `curl "https://api.0latency.ai/memories?agent_id=my-agent&limit=10" \\
+  -H "X-API-Key: ${apiKey}"`;
+            navigator.clipboard.writeText(cmd);
         }
 
         // ========== INIT ==========
-        (function init() {
-            if (!requireAuth()) return;
-            fetchUser();
-            fetchSubscription();
-            renderChart();
-        })();
-    </script>
 
-    <!-- Copy button for code blocks -->
-    <script>
-    document.querySelectorAll('pre').forEach(pre => {
-        const btn = document.createElement('button');
-        btn.className = 'copy-btn';
-        btn.textContent = 'Copy';
-        btn.addEventListener('click', () => {
-            const code = pre.querySelector('code') ? pre.querySelector('code').textContent : pre.textContent;
-            navigator.clipboard.writeText(code).then(() => {
-                btn.textContent = 'Copied!';
-                setTimeout(() => btn.textContent = 'Copy', 2000);
-            });
-        });
-        pre.style.position = 'relative';
-        pre.appendChild(btn);
-    });
-    </script>
-    <!-- Scroll-triggered fade-in -->
-    <script>
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('visible');
+        (function init() {
+            const savedKey = localStorage.getItem('zl_api_key');
+            const savedEmail = localStorage.getItem('zl_email');
+            const savedTenantId = localStorage.getItem('zl_tenant_id');
+
+            if (savedKey && savedEmail) {
+                showDashboard({
+                    api_key: savedKey,
+                    email: savedEmail,
+                    tenant_id: savedTenantId
+                });
             }
-        });
-    }, { threshold: 0.1 });
-    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+        })();
     </script>
 </body>
 </html>

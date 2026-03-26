@@ -1,97 +1,129 @@
-# zerolatency
+# 0Latency Python SDK
 
-Python SDK for the [0Latency](https://0latency.ai) memory API — persistent memory for AI agents.
+A lightweight Python client for the [0Latency](https://0latency.ai) agent memory API.
 
-## Install
+## Installation
 
 ```bash
-pip install zerolatency
+pip install zero-latency
 ```
 
-## Quick start
+## Quick Start
 
 ```python
-from zerolatency import Memory
+from zero_latency import ZeroLatencyClient
 
-memory = Memory("your-api-key")
+# Initialize the client
+client = ZeroLatencyClient(api_key="your_api_key_here")
 
-# Store a memory
-memory.add("User said they prefer dark mode and work in Python")
+# Extract memories from a conversation
+result = client.extract(
+    agent_id="my-agent",
+    human_message="I love hiking in the mountains",
+    agent_message="That's great! Mountain hiking is wonderful exercise."
+)
 
 # Recall relevant memories
-context = memory.recall("What are the user's preferences?")
-print(context)
+memories = client.recall(
+    agent_id="my-agent",
+    query="What outdoor activities does the user enjoy?",
+    limit=5
+)
+
+for memory in memories:
+    print(f"- {memory['content']} (confidence: {memory['confidence']})")
 ```
+
+## Features
+
+- **Extract**: Automatically extract and store memories from conversations
+- **Recall**: Semantic search to find relevant memories
+- **Search**: Keyword-based text search
+- **Seed**: Bulk import existing facts or notes
+- **Graph**: Explore memory relationships and connections
+- **Entities**: Extract and track people, places, concepts
+- **Sentiment**: Analyze emotional tone across memories
+- **Consolidate**: Merge and deduplicate similar memories
 
 ## Usage
 
-### Store memories
+### Context Manager (Recommended)
 
 ```python
-memory.add(
-    "User prefers concise answers",
-    agent_id="agent-123",
-    metadata={"source": "onboarding"},
-)
+with ZeroLatencyClient(api_key="your_api_key") as client:
+    memories = client.recall(agent_id="my-agent", query="user preferences")
 ```
 
-### Recall memories
+### Direct Instantiation
 
 ```python
-results = memory.recall("communication style", agent_id="agent-123", limit=5)
-for m in results["memories"]:
-    print(m["content"])
+client = ZeroLatencyClient(api_key="your_api_key")
+try:
+    memories = client.recall(agent_id="my-agent", query="user preferences")
+finally:
+    client.close()
 ```
 
-### Extract memories from a conversation
+### Error Handling
 
 ```python
-conversation = [
-    {"role": "user", "content": "I'm a backend engineer who uses FastAPI."},
-    {"role": "assistant", "content": "Great! I'll keep that in mind."},
-]
+from zero_latency import ZeroLatencyClient, AuthenticationError, ValidationError
 
-job = memory.extract(conversation, agent_id="agent-123")
-status = memory.extract_status(job["job_id"])
-```
-
-### Health check
-
-```python
-print(memory.health())
-```
-
-### Context manager
-
-```python
-with Memory("your-api-key") as memory:
-    memory.add("something to remember")
-```
-
-## Error handling
-
-```python
-from zerolatency import Memory, AuthenticationError, RateLimitError, ZeroLatencyError
+client = ZeroLatencyClient(api_key="your_api_key")
 
 try:
-    memory = Memory("bad-key")
-    memory.add("test")
+    result = client.extract(
+        agent_id="my-agent",
+        human_message="Hello!",
+        agent_message="Hi there!"
+    )
 except AuthenticationError:
-    print("Check your API key")
-except RateLimitError:
-    print("Slow down — retry after a backoff")
-except ZeroLatencyError as e:
-    print(f"API error {e.status_code}: {e.message}")
+    print("Invalid API key")
+except ValidationError as e:
+    print(f"Invalid request: {e}")
 ```
 
-## Configuration
+## API Methods
 
-| Parameter  | Default                      | Description              |
-|------------|------------------------------|--------------------------|
-| `api_key`  | *required*                   | Your 0Latency API key    |
-| `base_url` | `https://api.0latency.ai`   | API base URL override    |
-| `timeout`  | `30.0`                       | Request timeout (seconds)|
+### `extract(agent_id, human_message, agent_message)`
+Extract and store memories from a conversation turn.
+
+### `recall(agent_id, query, limit=10)`
+Recall relevant memories using semantic search.
+
+### `search(agent_id, q, limit=20)`
+Search memories by keyword.
+
+### `list_memories(agent_id, limit=50)`
+List all memories for an agent.
+
+### `seed(agent_id, facts)`
+Bulk import a list of facts.
+
+### `get_graph(agent_id, memory_id, depth=2)`
+Get memory graph traversal.
+
+### `get_entities(agent_id, limit=50)`
+List extracted entities.
+
+### `get_sentiment_summary(agent_id)`
+Get sentiment breakdown.
+
+### `consolidate(agent_id, auto_merge=False)`
+Run consolidation to merge similar memories.
+
+### `delete_memory(memory_id)`
+Delete a specific memory.
+
+## Documentation
+
+Full documentation available at [docs.0latency.ai](https://docs.0latency.ai)
 
 ## License
 
-MIT
+MIT License - see LICENSE file for details.
+
+## Support
+
+- Email: justin@0latency.ai
+- Issues: [GitHub Issues](https://github.com/0latency/python-sdk/issues)

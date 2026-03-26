@@ -41,8 +41,8 @@ def _get_connection_pool():
         with _pool_lock:
             if _connection_pool is None:
                 _connection_pool = psycopg2.pool.ThreadedConnectionPool(
-                    minconn=2,
-                    maxconn=10,
+                    minconn=1,
+                    maxconn=3,
                     dsn=DB_CONN
                 )
     return _connection_pool
@@ -320,14 +320,17 @@ def store_memory(memory: dict) -> str:
             memory['metadata'] = metadata
     
     # Build the insert query with parameterized values
+    # System tenant for Thomas/Echo agents
+    SYSTEM_TENANT = "00000000-0000-0000-0000-000000000000"
+    
     query = """
         INSERT INTO memory_service.memories 
-            (agent_id, headline, context, full_content, memory_type, 
+            (tenant_id, agent_id, headline, context, full_content, memory_type, 
              entities, project, categories, scope,
              importance, confidence, embedding,
              source_session, source_turn, metadata)
         VALUES 
-            (%s, %s, %s, %s, %s,
+            (%s::UUID, %s, %s, %s, %s, %s,
              %s, %s, %s, %s,
              %s, %s, %s::extensions.vector,
              %s, %s, %s::jsonb)
@@ -335,6 +338,7 @@ def store_memory(memory: dict) -> str:
     """
     
     params = (
+        SYSTEM_TENANT,
         memory['agent_id'],
         memory['headline'],
         memory['context'],

@@ -63,7 +63,17 @@ def _db_exec(query: str, params: tuple = None, fetch: bool = True):
     pool = _get_connection_pool()
     conn = pool.getconn()
     try:
-        conn.autocommit = True
+        # Set autocommit if not already in a transaction
+        if conn.status == 0:  # psycopg2.extensions.STATUS_READY
+            conn.autocommit = True
+        elif not conn.autocommit:
+            # Connection is in a transaction, commit or rollback first
+            try:
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            conn.autocommit = True
+        
         with conn.cursor() as cur:
             cur.execute(query, params)
             if fetch and cur.description:
@@ -555,8 +565,21 @@ class AuthResponse(BaseModel):
 
 
 @router.post("/email/register", response_model=AuthResponse)
-async def email_register(req: EmailRegisterRequest):
+async def email_register(req: EmailRegisterRequest, request: Request):
     """Register with email and password. Sends verification email (logged to console for now)."""
+    # Rate limiting: prevent registration abuse (5 per minute per IP)
+    try:
+        if 'security.rate_limiter_enhanced' not in sys.modules:
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+        from security.rate_limiter_enhanced import check_endpoint_rate_limit
+        
+        client_ip = request.client.host if request.client else "unknown"
+        check_endpoint_rate_limit("/auth/email/register", client_ip)
+    except HTTPException:
+        raise  # Re-raise rate limit errors
+    except Exception as e:
+        logger.warning(f"Registration rate limit check failed: {e}")
+    
     existing = find_user_by_email(req.email)
     if existing:
         raise HTTPException(409, detail="Email already registered. Try logging in.")
@@ -625,15 +648,44 @@ async def resend_verification(claims: dict = Depends(require_jwt)):
 @router.post("/email/login", response_model=AuthResponse)
 async def email_login(req: EmailLoginRequest):
     """Login with email and password."""
+    # Brute force protection
+    try:
+        if 'security.auth_hardening' not in sys.modules:
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+        from security.auth_hardening import is_account_locked, record_login_attempt, clear_login_attempts
+        
+        locked, remaining = is_account_locked(req.email)
+        if locked:
+            raise HTTPException(429, detail=f"Account temporarily locked. Try again in {remaining} seconds.")
+    except HTTPException:
+        raise  # Let the 429 through
+    except Exception as e:
+        logger.warning(f"Brute force check failed: {e}")  # Log but continue
+    
     user = find_user_by_email(req.email)
     if not user:
+        try:
+            record_login_attempt(req.email, success=False)
+        except Exception:
+            pass
         raise HTTPException(401, detail="Invalid email or password")
     
     if not user.get("password_hash"):
         raise HTTPException(401, detail="This account uses OAuth login (GitHub/Google). Use that method instead.")
     
     if not bcrypt.verify(req.password, user["password_hash"]):
+        try:
+            record_login_attempt(req.email, success=False)
+        except Exception:
+            pass
         raise HTTPException(401, detail="Invalid email or password")
+    
+    # Successful login - clear failed attempts
+    try:
+        clear_login_attempts(req.email)
+        record_login_attempt(req.email, success=True)
+    except Exception:
+        pass
     
     # Check verification status — allow login but include warning
     email_verified = user.get("email_verified", False)
@@ -661,7 +713,7 @@ async def get_current_user(claims: dict = Depends(require_jwt)):
     rows = _db_exec("""
         SELECT u.id, u.email, u.name, u.avatar_url, u.github_id, u.google_id, 
                u.plan, u.tenant_id, u.created_at,
-               t.api_key_hash, t.memory_limit, t.rate_limit_rpm, t.api_calls_count
+               t.api_key_hash, t.memory_limit, t.rate_limit_rpm, t.api_calls_count, t.api_key_live
         FROM memory_service.users u
         LEFT JOIN memory_service.tenants t ON u.tenant_id = t.id
         WHERE u.id = %s::UUID
@@ -681,6 +733,7 @@ async def get_current_user(claims: dict = Depends(require_jwt)):
         "plan": r[6],
         "tenant_id": str(r[7]) if r[7] else None,
         "created_at": str(r[8]),
+        "api_key": r[13],  # Return actual API key for dashboard
         "tenant": {
             "memory_limit": r[10],
             "rate_limit_rpm": r[11],
@@ -709,7 +762,76 @@ async def regenerate_api_key(claims: dict = Depends(require_jwt)):
     new_hash = hashlib.sha256(new_key.encode()).hexdigest()
     
     _db_exec("""
-        UPDATE memory_service.tenants SET api_key_hash = %s WHERE id = %s::UUID
-    """, (new_hash, tenant_id), fetch=False)
+        UPDATE memory_service.tenants SET api_key_hash = %s, api_key_live = %s WHERE id = %s::UUID
+    """, (new_hash, new_key, tenant_id), fetch=False)
     
     return {"api_key": new_key, "message": "New API key generated. Old key is immediately invalid."}
+
+# ========== SIMPLE EMAIL/PASSWORD AUTH ==========
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+import auth as auth_module
+
+class SimpleSignupRequest(BaseModel):
+    email: str
+    password: str
+
+class SimpleSignupResponse(BaseModel):
+    email: str
+    tenant_id: str
+    api_key: str
+
+class SimpleLoginRequest(BaseModel):
+    email: str
+    password: str
+
+class SimpleLoginResponse(BaseModel):
+    email: str
+    tenant_id: str
+    session_token: str
+    api_key: str
+
+@router.post("/simple-signup", response_model=SimpleSignupResponse)
+async def simple_signup_endpoint(req: SimpleSignupRequest):
+    """Simple email/password signup."""
+    try:
+        result = auth_module.create_user(req.email, req.password)
+        return SimpleSignupResponse(
+            email=result['email'],
+            tenant_id=result['tenant_id'],
+            api_key=result['api_key']
+        )
+    except ValueError as e:
+        raise HTTPException(400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(500, detail=f"Signup failed: {str(e)}")
+
+@router.post("/simple-login", response_model=SimpleLoginResponse)
+async def simple_login_endpoint(req: SimpleLoginRequest, request: Request, response: Response):
+    """Simple email/password login."""
+    user = auth_module.verify_password(req.email, req.password)
+    
+    if not user:
+        raise HTTPException(401, detail="Invalid email or password")
+    
+    # Create session
+    user_agent = request.headers.get('user-agent')
+    ip = request.client.host if request.client else None
+    session_token = auth_module.create_session(str(user['id']), user_agent, ip)
+    
+    # Set cookie
+    response.set_cookie(
+        key="zl_session",
+        value=session_token,
+        max_age=30 * 24 * 60 * 60,
+        httponly=True,
+        secure=True,
+        samesite="lax"
+    )
+    
+    return SimpleLoginResponse(
+        email=user['email'],
+        tenant_id=str(user['id']),
+        session_token=session_token,
+        api_key=user['api_key_live']
+    )

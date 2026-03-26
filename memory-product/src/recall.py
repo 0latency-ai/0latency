@@ -21,8 +21,10 @@ def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-def _load_agent_config(agent_id: str) -> dict:
+def _load_agent_config(agent_id: str, tenant_id: str = None) -> dict:
     """Load agent configuration from DB using parameterized queries."""
+    # Use provided tenant_id or fall back to global context
+    _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
     try:
         rows = _db_execute("""
             SELECT context_budget, recency_weight, semantic_weight, 
@@ -30,7 +32,7 @@ def _load_agent_config(agent_id: str) -> dict:
                    identity::text, user_profile::text
             FROM memory_service.agent_config
             WHERE agent_id = %s
-        """, (agent_id,), tenant_id="00000000-0000-0000-0000-000000000000")
+        """, (agent_id,), tenant_id=_tid)
         
         if rows:
             parts = rows[0].split("|||")
@@ -59,11 +61,13 @@ def _load_agent_config(agent_id: str) -> dict:
     }
 
 
-def _build_always_include(agent_id: str) -> tuple[str, int]:
+def _build_always_include(agent_id: str, tenant_id: str = None) -> tuple[str, int]:
     """Build the always-included context block (identity, profile, last handoff, active corrections)."""
+    # Use provided tenant_id or fall back to global context
+    _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
     blocks = []
     
-    config = _load_agent_config(agent_id)
+    config = _load_agent_config(agent_id, tenant_id=_tid)
     
     if config.get("identity"):
         blocks.append(f"### Agent Identity\n{json.dumps(config['identity'], indent=2)}")
@@ -74,9 +78,9 @@ def _build_always_include(agent_id: str) -> tuple[str, int]:
     try:
         rows = _db_execute("""
             SELECT summary FROM memory_service.session_handoffs
-            WHERE agent_id = %s
+            WHERE agent_id = %s AND tenant_id = %s::UUID
             ORDER BY created_at DESC LIMIT 1
-        """, (agent_id,), tenant_id="00000000-0000-0000-0000-000000000000")
+        """, (agent_id, _tid), tenant_id=_tid)
         if rows:
             blocks.append(f"### Last Session Summary\n{rows[0]}")
     except Exception:
@@ -85,11 +89,11 @@ def _build_always_include(agent_id: str) -> tuple[str, int]:
     try:
         rows = _db_execute("""
             SELECT headline, context FROM memory_service.memories
-            WHERE agent_id = %s
+            WHERE agent_id = %s AND tenant_id = %s::UUID
               AND memory_type = 'correction'
               AND superseded_at IS NULL
             ORDER BY created_at DESC LIMIT 5
-        """, (agent_id,), tenant_id="00000000-0000-0000-0000-000000000000")
+        """, (agent_id, _tid), tenant_id=_tid)
         if rows:
             corrections = []
             for row in rows:
@@ -103,8 +107,10 @@ def _build_always_include(agent_id: str) -> tuple[str, int]:
     return always_block, _estimate_tokens(always_block)
 
 
-def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_text: str) -> list[dict]:
+def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_text: str, tenant_id: str = None) -> list[dict]:
     """Retrieve candidate memories using multiple strategies — fully parameterized."""
+    # SECURITY: Use provided tenant_id for all queries
+    _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
     
     candidates = {}
     embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
@@ -117,13 +123,13 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                    created_at, superseded_at,
                    1 - (embedding <=> %s::extensions.vector) as similarity
             FROM memory_service.memories
-            WHERE agent_id = %s
+            WHERE agent_id = %s AND tenant_id = %s::UUID
               AND superseded_at IS NULL
               AND embedding IS NOT NULL
             ORDER BY embedding <=> %s::extensions.vector
             LIMIT 30
-        """, (embedding_str, agent_id, embedding_str), 
-            tenant_id="00000000-0000-0000-0000-000000000000")
+        """, (embedding_str, agent_id, _tid, embedding_str), 
+            tenant_id=_tid)
         
         for row in rows:
             parts = row.split("|||")
@@ -142,14 +148,14 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                    importance, access_count, reinforcement_count,
                    created_at, superseded_at, 0.5 as similarity
             FROM memory_service.memories
-            WHERE agent_id = %s
+            WHERE agent_id = %s AND tenant_id = %s::UUID
               AND superseded_at IS NULL
               AND importance > 0.8
               AND id NOT IN (SELECT unnest(%s::uuid[]))
             ORDER BY importance DESC
             LIMIT 10
-        """, (agent_id, existing_ids),
-            tenant_id="00000000-0000-0000-0000-000000000000")
+        """, (agent_id, _tid, existing_ids),
+            tenant_id=_tid)
         
         for row in rows2:
             parts = row.split("|||")
@@ -189,7 +195,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             cur = conn.cursor()
             try:
                 cur.execute("BEGIN")
-                cur.execute("SELECT memory_service.set_tenant_context(%s)", ("00000000-0000-0000-0000-000000000000",))
+                cur.execute("SELECT memory_service.set_tenant_context(%s)", (_tid,))
                 
                 # condition_str is built from hardcoded "ILIKE %s" templates — safe
                 query = f"""
@@ -197,14 +203,14 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                            importance, access_count, reinforcement_count,
                            created_at, superseded_at, 0.35 as similarity
                     FROM memory_service.memories
-                    WHERE agent_id = %s
+                    WHERE agent_id = %s AND tenant_id = %s::UUID
                       AND superseded_at IS NULL
                       AND ({condition_str})
                       AND id NOT IN (SELECT unnest(%s::uuid[]))
                     ORDER BY importance DESC
                     LIMIT 15
                 """  # nosec B608 — all values parameterized via %s
-                params = [agent_id] + keyword_params + [existing_ids]
+                params = [agent_id, _tid] + keyword_params + [existing_ids]
                 cur.execute(query, params)
                 
                 if cur.description:
@@ -268,10 +274,14 @@ def recall_fixed(
     agent_id: str,
     conversation_context: str,
     budget_tokens: int = 4000,
+    tenant_id: str = None,
 ) -> dict:
     """
     Recall relevant memories for agent context injection.
     Fully hardened with parameterized queries. Response-cached.
+    
+    SECURITY: tenant_id is used to scope all queries. If not provided,
+    falls back to the global tenant context set by set_tenant_context().
     """
     import time as _time
     
@@ -284,8 +294,12 @@ def recall_fixed(
     
     budget_tokens = max(500, min(budget_tokens, 16000))
     
-    # Check response cache (thread-safe)
-    cache_key = _hashlib.md5(f"{agent_id}:{conversation_context}:{budget_tokens}".encode(), usedforsecurity=False).hexdigest()
+    # SECURITY: Resolve tenant_id from parameter or global context
+    from storage_multitenant import _current_tenant_id
+    _tid = tenant_id or _current_tenant_id or "00000000-0000-0000-0000-000000000000"
+    
+    # Check response cache (thread-safe) — cache key includes tenant_id for isolation
+    cache_key = _hashlib.md5(f"{_tid}:{agent_id}:{conversation_context}:{budget_tokens}".encode(), usedforsecurity=False).hexdigest()
     now = _time.time()
     with _recall_cache_lock:
         if cache_key in _recall_cache:
@@ -296,7 +310,7 @@ def recall_fixed(
                 del _recall_cache[cache_key]
     
     # Step 1: Load agent config
-    config = _load_agent_config(agent_id)
+    config = _load_agent_config(agent_id, tenant_id=_tid)
     
     semantic_weight = config.get("semantic_weight", 0.4)
     recency_weight = config.get("recency_weight", 0.35)
@@ -305,7 +319,7 @@ def recall_fixed(
     half_life_days = config.get("recency_half_life_days", 14)
     
     # Step 2: Always-include block
-    always_block, always_tokens = _build_always_include(agent_id)
+    always_block, always_tokens = _build_always_include(agent_id, tenant_id=_tid)
     remaining_budget = budget_tokens - always_tokens
     
     if remaining_budget <= 0:
@@ -330,8 +344,8 @@ def recall_fixed(
             "recall_details": [],
         }
     
-    # Step 4: Retrieve candidates
-    candidates = _retrieve_candidates(agent_id, query_embedding, conversation_context)
+    # Step 4: Retrieve candidates (tenant-scoped)
+    candidates = _retrieve_candidates(agent_id, query_embedding, conversation_context, tenant_id=_tid)
     
     if not candidates:
         return {
