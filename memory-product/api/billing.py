@@ -218,7 +218,7 @@ async def create_checkout(body: CheckoutRequest = CheckoutRequest(), claims: dic
         customer=customer_id,
         mode="subscription",
         line_items=[{"price": price_id, "quantity": 1}],
-        success_url=f"{SITE_BASE}/dashboard?checkout=success",
+        success_url=f"{SITE_BASE}/checkout-success.html",
         cancel_url=f"{SITE_BASE}/pricing?checkout=cancelled",
         metadata={"user_id": user_id, "plan": plan},
     )
