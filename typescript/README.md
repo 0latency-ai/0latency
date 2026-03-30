@@ -178,7 +178,7 @@ const client = new AnthropicWithMemory(
 
 - [Documentation](https://0latency.ai/docs.html)
 - [API Reference](https://0latency.ai/docs.html#api)
-- [GitHub](https://github.com/jghiglia2380/0Latency)
+- [GitHub](https://github.com/0latency-ai/0latency)
 - [Support](https://0latency.ai/support.html)
 
 ## License
