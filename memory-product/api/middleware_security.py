@@ -46,11 +46,15 @@ async def security_middleware(request: Request, call_next):
     Security middleware - runs before every API request.
     Designed to NEVER break the API - all failures are logged and swallowed.
     """
+    # Let CORS preflight through immediately
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     start_time = time.time()
     request_id = str(uuid.uuid4())[:8]
     tenant_id = "anon"
     client_ip = request.client.host if request.client else "unknown"
-    
+
     # IP rate limiting (best effort - don't break API if Redis is down)
     try:
         check_ip_rate_limit(client_ip)
