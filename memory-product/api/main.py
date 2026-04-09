@@ -76,13 +76,7 @@ app = FastAPI(
 
 _CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "https://164.90.156.169,https://0latency.ai,https://www.0latency.ai,https://api.0latency.ai,http://localhost:3000").split(",")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_CORS_ORIGINS,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    allow_credentials=True,
-)
+# NOTE: CORS middleware is added after other middlewares (below) so it runs FIRST in the chain
 
 # --- Auth Module ---
 from api.auth import router as auth_router
@@ -99,6 +93,8 @@ app.include_router(security_router)
 @app.middleware("http")
 async def request_logging(request: Request, call_next):
     """Log every request with ID, tenant, endpoint, latency."""
+    if request.method == "OPTIONS":
+        return await call_next(request)
     request_id = str(uuid.uuid4())[:8]
     start = time.time()
     response = await call_next(request)
@@ -129,6 +125,15 @@ try:
 except ImportError as e:
     logger.warning(f"Metrics middleware not available: {e}")
 
+# CORS must be added LAST so it runs FIRST (Starlette middleware order)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_CORS_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True,
+)
+
 # --- Configuration ---
 def _admin_key(): return os.environ.get("MEMORY_ADMIN_KEY", "")
 
@@ -137,14 +142,20 @@ import redis as _redis
 
 _redis_client = None
 
+_redis_checked = False
+
 def _get_redis():
-    global _redis_client
-    if _redis_client is None:
+    global _redis_client, _redis_checked
+    if not _redis_checked:
+        _redis_checked = True
         try:
             _redis_url = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+            if _redis_url in ("", "disabled"):
+                return None
             _redis_client = _redis.from_url(_redis_url, decode_responses=True, socket_timeout=2)
             _redis_client.ping()
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Redis unavailable, using in-memory fallback: {e}")
             _redis_client = None
     return _redis_client
 

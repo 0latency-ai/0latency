@@ -29,15 +29,17 @@ API_BASE = os.environ.get("API_BASE_URL", "https://api.0latency.ai")
 
 PLAN_CONFIG = {
     "pro": {
-        "price_id": "price_1TDuCcIrmwNR1eAGLmGkaGSV",
-        "product_id": "prod_UCIoPEsjrxIGI5",
+        "price_id_monthly": os.environ.get("STRIPE_PRO_PRICE_ID_MONTHLY", ""),
+        "price_id_yearly": os.environ.get("STRIPE_PRO_PRICE_ID_YEARLY", ""),
+        "product_id": os.environ.get("STRIPE_PRO_PRODUCT_ID", ""),
         "memory_limit": 50000,
         "rate_limit_rpm": 60,
         "agent_limit": 5,
     },
     "scale": {
-        "price_id": "price_1TDuVLIrmwNR1eAGkNetOd0b",
-        "product_id": "prod_UCJ7s3gpULhV9O",
+        "price_id_monthly": os.environ.get("STRIPE_SCALE_PRICE_ID_MONTHLY", ""),
+        "price_id_yearly": os.environ.get("STRIPE_SCALE_PRICE_ID_YEARLY", ""),
+        "product_id": os.environ.get("STRIPE_SCALE_PRODUCT_ID", ""),
         "memory_limit": -1,  # unlimited
         "rate_limit_rpm": 120,
         "agent_limit": -1,  # unlimited
@@ -51,7 +53,56 @@ FREE_LIMITS = {
 }
 
 # Map price_id back to plan name for webhook handling
-PRICE_TO_PLAN = {cfg["price_id"]: plan for plan, cfg in PLAN_CONFIG.items()}
+PRICE_TO_PLAN = {}
+for _plan, _cfg in PLAN_CONFIG.items():
+    if _cfg["price_id_monthly"]:
+        PRICE_TO_PLAN[_cfg["price_id_monthly"]] = _plan
+    if _cfg["price_id_yearly"]:
+        PRICE_TO_PLAN[_cfg["price_id_yearly"]] = _plan
+
+
+# ─── Cached Stripe prices ────────────────────────────────────────────────────
+
+_cached_prices = None
+_cached_prices_at = 0
+
+
+def _fetch_stripe_prices():
+    """Fetch prices from Stripe and cache them. Returns plan config with live prices."""
+    global _cached_prices, _cached_prices_at
+    import time as _t
+
+    # Cache for 5 minutes
+    if _cached_prices and (_t.time() - _cached_prices_at) < 300:
+        return _cached_prices
+
+    plans = {}
+    for plan_name, cfg in PLAN_CONFIG.items():
+        plan_data = {
+            "name": plan_name,
+            "memory_limit": cfg["memory_limit"],
+            "rate_limit_rpm": cfg["rate_limit_rpm"],
+            "agent_limit": cfg["agent_limit"],
+            "monthly": None,
+            "yearly": None,
+        }
+        for interval, key in [("monthly", "price_id_monthly"), ("yearly", "price_id_yearly")]:
+            price_id = cfg.get(key)
+            if price_id:
+                try:
+                    price = stripe.Price.retrieve(price_id)
+                    plan_data[interval] = {
+                        "price_id": price_id,
+                        "amount": price.unit_amount,  # in cents
+                        "currency": price.currency,
+                    }
+                except Exception as e:
+                    logger.warning(f"Failed to fetch price {price_id}: {e}")
+        plans[plan_name] = plan_data
+
+    _cached_prices = plans
+    _cached_prices_at = _t.time()
+    return plans
 
 
 # ─── Router ──────────────────────────────────────────────────────────────────
@@ -59,12 +110,25 @@ PRICE_TO_PLAN = {cfg["price_id"]: plan for plan, cfg in PLAN_CONFIG.items()}
 router = APIRouter(prefix="/billing", tags=["billing"])
 
 
+@router.get("/plans")
+async def get_plans():
+    """Public endpoint — returns available plans with live Stripe prices."""
+    plans = _fetch_stripe_prices()
+    return {
+        "plans": plans,
+        "free": FREE_LIMITS,
+    }
+
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def _get_or_create_stripe_customer(user_id: str) -> str:
     """Get existing or create new Stripe customer for user."""
     rows = _db_exec("""
-        SELECT stripe_customer_id, email, name FROM memory_service.users WHERE id = %s::UUID
+        SELECT p.stripe_customer_id, au.email, p.name
+        FROM memory_service.profiles p
+        JOIN auth.users au ON au.id = p.id
+        WHERE p.id = %s::UUID
     """, (user_id,))
     if not rows:
         raise HTTPException(404, detail="User not found")
@@ -82,7 +146,7 @@ def _get_or_create_stripe_customer(user_id: str) -> str:
     )
 
     _db_exec("""
-        UPDATE memory_service.users SET stripe_customer_id = %s WHERE id = %s::UUID
+        UPDATE memory_service.profiles SET stripe_customer_id = %s WHERE id = %s::UUID
     """, (customer.id, user_id), fetch=False)
 
     logger.info(f"Created Stripe customer {customer.id} for user {user_id}")
@@ -118,10 +182,15 @@ def _resolve_plan_from_subscription(stripe_subscription_id: str) -> str:
     """Determine plan name from Stripe subscription's price ID."""
     try:
         sub = stripe.Subscription.retrieve(stripe_subscription_id)
-        if sub.get("items") and sub["items"].get("data"):
-            price_id = sub["items"]["data"][0].get("price", {}).get("id")
-            if price_id and price_id in PRICE_TO_PLAN:
-                return PRICE_TO_PLAN[price_id]
+        items = sub.get("items") if isinstance(sub, dict) else getattr(sub, "items", None)
+        if items:
+            items_data = items.get("data") if isinstance(items, dict) else getattr(items, "data", [])
+            if items_data and len(items_data) > 0:
+                item = items_data[0]
+                price = item.get("price") if isinstance(item, dict) else getattr(item, "price", None)
+                price_id = price.get("id") if isinstance(price, dict) else getattr(price, "id", None) if price else None
+                if price_id and price_id in PRICE_TO_PLAN:
+                    return PRICE_TO_PLAN[price_id]
     except Exception as e:
         logger.warning(f"Could not resolve plan from subscription {stripe_subscription_id}: {e}")
     return "pro"  # default fallback
@@ -134,13 +203,13 @@ def _apply_plan_limits(user_id: str, plan: str):
         _db_exec("""
             UPDATE memory_service.tenants
             SET plan = %s, memory_limit = %s, rate_limit_rpm = %s
-            WHERE id = (SELECT tenant_id FROM memory_service.users WHERE id = %s::UUID)
+            WHERE id = (SELECT tenant_id FROM memory_service.profiles WHERE id = %s::UUID)
         """, (plan, cfg["memory_limit"], cfg["rate_limit_rpm"], user_id), fetch=False)
     else:
         _db_exec("""
             UPDATE memory_service.tenants
             SET plan = 'free', memory_limit = %s, rate_limit_rpm = %s
-            WHERE id = (SELECT tenant_id FROM memory_service.users WHERE id = %s::UUID)
+            WHERE id = (SELECT tenant_id FROM memory_service.profiles WHERE id = %s::UUID)
         """, (FREE_LIMITS["memory_limit"], FREE_LIMITS["rate_limit_rpm"], user_id), fetch=False)
 
 
@@ -172,7 +241,7 @@ def _upsert_subscription(user_id: str, stripe_customer_id: str,
     # Update user plan
     active_plan = plan if status == "active" else "free"
     _db_exec("""
-        UPDATE memory_service.users SET plan = %s, updated_at = now() WHERE id = %s::UUID
+        UPDATE memory_service.profiles SET plan = %s, updated_at = now() WHERE id = %s::UUID
     """, (active_plan, user_id), fetch=False)
 
     # Apply appropriate limits
@@ -187,7 +256,7 @@ def _upsert_subscription(user_id: str, stripe_customer_id: str,
 def _find_user_by_stripe_customer(customer_id: str) -> str | None:
     """Find user_id by stripe_customer_id."""
     rows = _db_exec("""
-        SELECT id FROM memory_service.users WHERE stripe_customer_id = %s
+        SELECT id FROM memory_service.profiles WHERE stripe_customer_id = %s
     """, (customer_id,))
     return str(rows[0][0]) if rows else None
 
@@ -196,6 +265,8 @@ def _find_user_by_stripe_customer(customer_id: str) -> str | None:
 
 class CheckoutRequest(BaseModel):
     plan: str = "pro"
+    interval: str = "monthly"  # "monthly" or "yearly"
+    billing: str = ""  # frontend sends "annual" or "monthly" — alias for interval
 
 
 class CheckoutResponse(BaseModel):
@@ -211,8 +282,15 @@ async def create_checkout(body: CheckoutRequest = CheckoutRequest(), claims: dic
     if plan not in PLAN_CONFIG:
         raise HTTPException(400, detail=f"Invalid plan: {plan}. Must be 'pro' or 'scale'.")
 
+    # Accept both "interval" and "billing" field from frontend
+    raw_interval = body.billing or body.interval
+    interval = "yearly" if raw_interval.lower() in ("yearly", "annual") else "monthly"
+
     customer_id = _get_or_create_stripe_customer(user_id)
-    price_id = PLAN_CONFIG[plan]["price_id"]
+    price_id = PLAN_CONFIG[plan][f"price_id_{interval}"]
+
+    if not price_id:
+        raise HTTPException(400, detail=f"No {interval} price configured for {plan} plan.")
 
     session = stripe.checkout.Session.create(
         customer=customer_id,
@@ -305,7 +383,9 @@ async def stripe_webhook(request: Request):
         raise HTTPException(400, detail="Webhook error")
 
     event_type = event["type"]
-    data = event["data"]["object"]
+    # Stripe SDK v15+ returns objects, not dicts — convert for .get() compatibility
+    data_obj = event["data"]["object"]
+    data = data_obj.to_dict() if hasattr(data_obj, 'to_dict') else data_obj
     logger.info(f"Webhook received: {event_type}")
 
     try:

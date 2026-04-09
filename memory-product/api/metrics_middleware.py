@@ -68,8 +68,11 @@ def get_metrics_summary():
 
 async def metrics_middleware(request, call_next):
     """Lightweight metrics tracking middleware"""
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     start_time = time.time()
-    
+
     try:
         response = await call_next(request)
         
