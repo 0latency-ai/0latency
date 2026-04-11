@@ -6,12 +6,28 @@ import os
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
 from storage_multitenant import _db_execute, _db_execute_rows
+import posthog
 
 logger = logging.getLogger("0latency")
 
+# Initialize PostHog
+POSTHOG_API_KEY = os.getenv("POSTHOG_API_KEY", "")
+POSTHOG_HOST = "https://us.i.posthog.com"  # Direct to PostHog, not through reverse proxy
+
+if POSTHOG_API_KEY:
+    posthog.api_key = POSTHOG_API_KEY
+    posthog.host = POSTHOG_HOST
+    logger.info("PostHog initialized")
+else:
+    logger.warning("POSTHOG_API_KEY not set - PostHog tracking disabled")
+
+
 def track_event(
-    tenant_id: int,
+    tenant_id,
     event_type: str,
     metadata: Optional[Dict[str, Any]] = None
 ):
@@ -31,6 +47,117 @@ def track_event(
         logger.info(f"Tracked event: {event_type} for tenant {tenant_id}")
     except Exception as e:
         logger.error(f"Failed to track event: {e}")
+
+
+def track_posthog_event(
+    tenant_id,  # Union[str, int] - accepts UUID string or legacy int
+    event_name: str,
+    properties: Optional[Dict[str, Any]] = None,
+    distinct_id: Optional[str] = None
+):
+    """
+    Track event to PostHog
+
+    Args:
+        tenant_id: Tenant ID (UUID string or int for legacy)
+        event_name: Event name (api_key_created, first_api_call, etc.)
+        properties: Additional event properties
+        distinct_id: User identifier (defaults to tenant_id)
+    """
+    if not POSTHOG_API_KEY:
+        return
+
+    try:
+        user_id = distinct_id or f"tenant_{tenant_id}"
+        props = properties or {}
+        props["tenant_id"] = tenant_id
+
+        posthog.capture(
+            distinct_id=user_id,
+            event=event_name,
+            properties=props
+        )
+        logger.debug(f"PostHog event tracked: {event_name} for {user_id}")
+    except Exception as e:
+        logger.error(f"Failed to track PostHog event: {e}")
+
+
+def is_first_api_call(tenant_id) -> bool:
+    """Check if this is the first API call for a tenant"""
+    try:
+        result = _db_execute_rows("""
+            SELECT COUNT(*) as count FROM analytics_events
+            WHERE tenant_id = %s AND event_type = 'api_call'
+        """, (tenant_id,))
+        return result[0]['count'] == 0 if result else True
+    except Exception as e:
+        logger.error(f"Failed to check first API call: {e}")
+        return False
+
+
+def is_first_memory_stored(tenant_id) -> bool:
+    """Check if this is the first memory extraction for a tenant"""
+    try:
+        result = _db_execute_rows("""
+            SELECT COUNT(*) as count FROM analytics_events
+            WHERE tenant_id = %s
+            AND event_type = 'api_call'
+            AND metadata->>'endpoint' = '/extract'
+        """, (tenant_id,))
+        return result[0]['count'] == 0 if result else True
+    except Exception as e:
+        logger.error(f"Failed to check first memory stored: {e}")
+        return False
+
+
+def is_first_memory_recalled(tenant_id) -> bool:
+    """Check if this is the first memory recall for a tenant"""
+    try:
+        result = _db_execute_rows("""
+            SELECT COUNT(*) as count FROM analytics_events
+            WHERE tenant_id = %s
+            AND event_type = 'api_call'
+            AND metadata->>'endpoint' = '/recall'
+        """, (tenant_id,))
+        return result[0]['count'] == 0 if result else True
+    except Exception as e:
+        logger.error(f"Failed to check first memory recalled: {e}")
+        return False
+
+
+def check_activation_milestone(tenant_id) -> bool:
+    """
+    Check if tenant hit activation milestone (10 recalls in a single day)
+    Returns True if they just hit it (haven't tracked activation_event yet)
+    """
+    try:
+        # Check if activation already tracked
+        activation_check = _db_execute_rows("""
+            SELECT COUNT(*) as count FROM analytics_events
+            WHERE tenant_id = %s AND event_type = 'activation'
+        """, (tenant_id,))
+
+        if activation_check and activation_check[0]['count'] > 0:
+            return False  # Already activated
+
+        # Count recalls today
+        recall_count = _db_execute_rows("""
+            SELECT COUNT(*) as count FROM analytics_events
+            WHERE tenant_id = %s
+            AND event_type = 'api_call'
+            AND metadata->>'endpoint' = '/recall'
+            AND created_at > CURRENT_DATE
+        """, (tenant_id,))
+
+        if recall_count and recall_count[0]['count'] >= 10:
+            # Track activation in analytics_events to prevent duplicate triggers
+            track_event(tenant_id, "activation", {"recalls_today": recall_count[0]['count']})
+            return True
+
+        return False
+    except Exception as e:
+        logger.error(f"Failed to check activation milestone: {e}")
+        return False
 
 
 def get_dashboard_stats(tenant_id: Optional[int] = None) -> Dict[str, Any]:

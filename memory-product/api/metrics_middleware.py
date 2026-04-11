@@ -6,7 +6,8 @@ import sys
 import os
 import time
 import logging
-from collections import defaultdict
+import traceback
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 
 logger = logging.getLogger("zerolatency.metrics")
@@ -18,21 +19,32 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 _metrics = {
     "requests": defaultdict(int),
     "errors": defaultdict(int),
+    "error_messages": defaultdict(lambda: deque(maxlen=10)),  # Keep last 10 errors per endpoint
     "latency": defaultdict(list),
     "last_reset": datetime.now(timezone.utc)
 }
 
-def track_request(endpoint: str, status_code: int, latency_ms: int):
+def track_request(endpoint: str, status_code: int, latency_ms: int, error_msg: str = None):
     """Track request metrics (in-memory)"""
     _metrics["requests"][endpoint] += 1
     
     if status_code >= 500:
         _metrics["errors"][endpoint] += 1
+        if error_msg:
+            _metrics["error_messages"][endpoint].append({
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "message": error_msg,
+                "status_code": status_code
+            })
     
     # Keep last 100 latencies per endpoint for percentile calc
     _metrics["latency"][endpoint].append(latency_ms)
     if len(_metrics["latency"][endpoint]) > 100:
         _metrics["latency"][endpoint] = _metrics["latency"][endpoint][-100:]
+
+def get_endpoint_errors(endpoint: str):
+    """Get recent errors for a specific endpoint"""
+    return list(_metrics["error_messages"].get(endpoint, []))
 
 def get_metrics_summary():
     """Get current metrics summary"""
@@ -84,7 +96,8 @@ async def metrics_middleware(request, call_next):
         
         return response
     except Exception as e:
-        # Track error
+        # Track error with message
         latency_ms = int((time.time() - start_time) * 1000)
-        track_request(request.url.path, 500, latency_ms)
+        error_msg = f"{type(e).__name__}: {str(e)}"
+        track_request(request.url.path, 500, latency_ms, error_msg)
         raise

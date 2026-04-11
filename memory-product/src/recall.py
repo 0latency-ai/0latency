@@ -7,13 +7,262 @@ SECURITY HARDENED: Uses psycopg2 with parameterized queries via shared storage l
 import os
 import json
 import math
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
 # Use the hardened storage layer's DB and embedding infrastructure
-from storage_multitenant import _db_execute, _embed_text, set_tenant_context, _get_connection_pool
+from storage_multitenant import _db_execute, _embed_text, _embed_text_local, set_tenant_context, _get_connection_pool
 
 import psycopg2
+
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+
+# --- Sprint 5: Query Classification & BM25 Fast-Path ---
+
+def classify_query(query: str) -> dict:
+    """
+    Classify query as keyword-dominant or semantic.
+    
+    Returns: {
+        'is_keyword_dominant': bool,
+        'keywords': list[str],
+        'has_proper_nouns': bool,
+        'has_dates': bool,
+        'has_exact_terms': bool,
+        'confidence': float (0-1)
+    }
+    """
+    # Normalize
+    normalized = query.lower().strip()
+    
+    # Check for proper nouns (capitalized words at start or after punctuation)
+    proper_nouns = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', query)
+    has_proper_nouns = len(proper_nouns) > 0
+    
+    # Check for dates (YYYY-MM-DD, MM/DD/YYYY, "April 2026", etc)
+    date_patterns = [
+        r'\d{4}-\d{2}-\d{2}',  # YYYY-MM-DD
+        r'\d{1,2}/\d{1,2}/\d{2,4}',  # MM/DD/YYYY
+        r'(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}',  # Month YYYY
+        r'\d{1,2}\s+(january|february|march|april|may|june|july|august|september|october|november|december)',  # DD Month
+    ]
+    has_dates = any(re.search(pattern, normalized) for pattern in date_patterns)
+    
+    # Check for exact terms (quoted or short, specific terms)
+    # Short queries with unique terms (agent names, IDs, specific concepts)
+    words = normalized.split()
+    is_short = len(words) <= 5
+    has_exact_terms = is_short or '"' in normalized
+    
+    # Extract keywords (words that are not stop words)
+    stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they'}
+    keywords = [w for w in words if w not in stop_words and len(w) > 2]
+    
+    # Determine if keyword-dominant
+    keyword_signals = sum([has_proper_nouns, has_dates, has_exact_terms, len(keywords) > 0])
+    is_keyword_dominant = keyword_signals >= 2 or has_proper_nouns or has_dates
+    
+    # Confidence: how confident we are that BM25 will work well
+    confidence = 0.0
+    if has_proper_nouns:
+        confidence += 0.4
+    if has_dates:
+        confidence += 0.3
+    if has_exact_terms:
+        confidence += 0.2
+    if len(keywords) >= 2:
+        confidence += 0.1
+    confidence = min(1.0, confidence)
+    
+    return {
+        'is_keyword_dominant': is_keyword_dominant,
+        'keywords': keywords,
+        'has_proper_nouns': has_proper_nouns,
+        'has_dates': has_dates,
+        'has_exact_terms': has_exact_terms,
+        'confidence': confidence,
+    }
+
+
+
+def _sanitize_bm25_query(query: str) -> str:
+    """Sanitize query for BM25/tsvector search.
+    
+    Handles special characters that cause websearch_to_tsquery to fail:
+    - Hyphens in dates (2026-03-15 -> 2026 03 15)
+    - Multiple spaces in proper nouns
+    - Leading/trailing spaces
+    """
+    # Strip whitespace
+    query = query.strip()
+    
+    # Replace hyphens with spaces (for dates like 2026-03-15)
+    query = query.replace('-', ' ')
+    
+    # Replace multiple spaces with single space
+    query = re.sub(r'\s+', ' ', query)
+    
+    return query
+
+
+def _bm25_search(agent_id: str, query: str, tenant_id: str = None, limit: int = 50) -> list[dict]:
+    """
+    BM25 full-text search using PostgreSQL tsvector/tsquery.
+    Returns results in <100ms for keyword-dominant queries.
+    
+    Args:
+        agent_id: Agent ID to scope search
+        query: Query text (should be keyword-dominant)
+        tenant_id: Tenant ID for isolation
+        limit: Max results to return
+    
+    Returns: List of candidate memories {id, headline, context, ...}
+    """
+    import time as _time
+    _start = _time.time()
+    
+    _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
+    
+    try:
+        # Sanitize query to handle special characters
+        clean_query = _sanitize_bm25_query(query)
+        
+        # Use websearch_to_tsquery for better tolerance to spaces/special chars
+        # This handles "April 2026", "Sequoia Capital", etc. better than plainto_tsquery
+        rows = _db_execute("""
+            SELECT id, headline, context, full_content, memory_type,
+                   importance, access_count, reinforcement_count,
+                   created_at, superseded_at,
+                   ts_rank(search_text, websearch_to_tsquery('english', %s)) as bm25_score
+            FROM memory_service.memories
+            WHERE agent_id = %s 
+              AND tenant_id = %s::UUID
+              AND superseded_at IS NULL
+              AND search_text @@ websearch_to_tsquery('english', %s)
+            ORDER BY bm25_score DESC, importance DESC
+            LIMIT %s
+        """, (clean_query, agent_id, _tid, clean_query, limit),
+            tenant_id=_tid)
+        
+        elapsed_ms = (_time.time() - _start) * 1000
+        logger.info(f"⚡ BM25 search (sanitized: '{clean_query}') returned {len(rows) if rows else 0} results in {elapsed_ms:.1f}ms")
+        
+        candidates = {}
+        if rows:
+            for row in rows:
+                parts = row.split("|||")
+                if len(parts) >= 11:
+                    mem_id = parts[0]
+                    bm25_score = float(parts[10]) if parts[10] else 0
+                    parsed = _parse_candidate_row(parts)
+                    parsed['bm25_score'] = bm25_score
+                    candidates[mem_id] = parsed
+                    logger.debug(f"  • BM25 match: {parts[1][:40]}... score={bm25_score:.3f}")
+        
+        return list(candidates.values())
+    
+    except Exception as e:
+        elapsed_ms = (_time.time() - _start) * 1000
+        logger.error(f"❌ BM25 search failed after {elapsed_ms:.1f}ms: {e}")
+        return []
+
+
+def recall_hybrid(
+    agent_id: str,
+    conversation_context: str,
+    budget_tokens: int = 4000,
+    tenant_id: str = None,
+    bm25_threshold: float = 0.15,  # Min BM25 score to skip vector search
+) -> dict:
+    """
+    Hybrid recall: tries BM25 first, falls back to vector search.
+    
+    Sprint 5 implementation: fast-path for keyword-dominant queries.
+    """
+    import time as _time
+    _start_total = _time.time()
+    
+    _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
+    
+    # Step 1: Classify query
+    classification = classify_query(conversation_context)
+    logger.info(f"🔍 Query classification: keyword_dominant={classification['is_keyword_dominant']}, "
+                f"confidence={classification['confidence']:.2f}")
+    
+    # Step 2: Try BM25 for keyword-dominant queries
+    bm25_results = []
+    bm25_time = 0
+    max_bm25_score = 0
+    
+    if classification['is_keyword_dominant'] and classification['confidence'] > 0.3:
+        _bm25_start = _time.time()
+        bm25_results = _bm25_search(agent_id, conversation_context, tenant_id=_tid, limit=50)
+        bm25_time = (_time.time() - _bm25_start) * 1000
+        
+        if bm25_results:
+            max_bm25_score = max(r.get('bm25_score', 0) for r in bm25_results)
+            logger.info(f"✨ BM25 returned {len(bm25_results)} results, max_score={max_bm25_score:.3f}")
+            
+            # High-confidence BM25 results: skip vector search
+            if max_bm25_score > bm25_threshold:
+                logger.info(f"🚀 BM25-only result (score {max_bm25_score:.3f} > {bm25_threshold})")
+                
+                # Rank and select from BM25 results
+                context_block = ""
+                tokens_used = 0
+                for mem in bm25_results:
+                    line = f"- {mem.get('content', mem.get('text', str(mem)))}\n"
+                    tokens_used += len(line.split())
+                    if tokens_used > budget_tokens:
+                        break
+                    context_block += line
+                
+                total_time = (_time.time() - _start_total) * 1000
+                logger.info(f"📊 Hybrid recall complete (BM25-only): {total_time:.0f}ms [bm25={bm25_time:.0f}ms]")
+                
+                return {
+                    "context_block": context_block,
+                    "memories_used": len(bm25_results),
+                    "tokens_used": sum(len(m.get('content', m.get('text', ''))) // 4 for m in bm25_results),
+                    "recall_details": [{"id": m['id'], "headline": m.get('headline', m.get('content', '')[:50]), "bm25_score": m.get('bm25_score', 0)} for m in bm25_results],
+                    "_timing": {"bm25_ms": bm25_time, "total_ms": total_time},
+                }
+    
+    # Step 3: Fall back to vector search
+    logger.info(f"📍 Falling back to vector search (BM25 confidence too low)")
+    
+    _vector_start = _time.time()
+    # Use existing recall_fixed function
+    vector_result = recall_fixed(
+        agent_id=agent_id,
+        conversation_context=conversation_context,
+        budget_tokens=budget_tokens,
+        tenant_id=_tid,
+    )
+    vector_time = (_time.time() - _vector_start) * 1000
+    
+    total_time = (_time.time() - _start_total) * 1000
+    logger.info(f"📊 Hybrid recall complete (vector): {total_time:.0f}ms [bm25={bm25_time:.0f}ms, vector={vector_time:.0f}ms]")
+    
+    # Annotate with timing
+    vector_result['_timing'] = {
+        'bm25_ms': bm25_time,
+        'vector_ms': vector_time,
+        'total_ms': total_time,
+        'path': 'bm25->vector' if bm25_results else 'vector-only',
+    }
+    
+    return vector_result
+
+
+# --- End Sprint 5 ---
+
+
+
 
 
 def _estimate_tokens(text: str) -> int:
@@ -42,7 +291,7 @@ def _load_agent_config(agent_id: str, tenant_id: str = None) -> dict:
                 "semantic_weight": float(parts[2]) if parts[2] else 0.4,
                 "importance_weight": float(parts[3]) if parts[3] else 0.15,
                 "access_weight": float(parts[4]) if parts[4] else 0.1,
-                "recency_half_life_days": int(parts[5]) if parts[5] else 14,
+                "recency_half_life_days": int(parts[5]) if parts[5] else 3,
                 "identity": json.loads(parts[6]) if parts[6] and parts[6] != '{}' else {},
                 "user_profile": json.loads(parts[7]) if parts[7] and parts[7] != '{}' else {},
             }
@@ -55,7 +304,7 @@ def _load_agent_config(agent_id: str, tenant_id: str = None) -> dict:
         "semantic_weight": 0.4,
         "importance_weight": 0.15,
         "access_weight": 0.1,
-        "recency_half_life_days": 14,
+        "recency_half_life_days": 3,
         "identity": {},
         "user_profile": {},
     }
@@ -112,37 +361,44 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     # SECURITY: Use provided tenant_id for all queries
     _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
     
+    logger.info(f"🔍 _retrieve_candidates called for agent={agent_id}, tenant={_tid}")
+    logger.debug(f"📊 Embedding vector (first 5): {query_embedding[:5]}")
+    logger.debug(f"📝 Context text: {context_text[:200]}...")
+    
     candidates = {}
     embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
     
-    # Strategy 1: Semantic similarity search (top 30)
+    # Strategy 1: Semantic similarity search (top 200)
     try:
         rows = _db_execute("""
             SELECT id, headline, context, full_content, memory_type,
                    importance, access_count, reinforcement_count,
                    created_at, superseded_at,
-                   1 - (embedding <=> %s::extensions.vector) as similarity
+                   1 - (local_embedding <=> %s::extensions.vector) as similarity
             FROM memory_service.memories
             WHERE agent_id = %s AND tenant_id = %s::UUID
               AND superseded_at IS NULL
-              AND embedding IS NOT NULL
-            ORDER BY embedding <=> %s::extensions.vector
-            LIMIT 30
-        """, (embedding_str, agent_id, _tid, embedding_str), 
+              AND local_embedding IS NOT NULL
+            ORDER BY local_embedding <=> %s::extensions.vector
+            LIMIT 200
+        """, (embedding_str, agent_id, _tid, embedding_str),
             tenant_id=_tid)
         
+        logger.info(f"✅ Semantic search returned {len(rows) if rows else 0} rows")
         for row in rows:
             parts = row.split("|||")
             if len(parts) >= 11:
                 mem_id = parts[0]
                 candidates[mem_id] = _parse_candidate_row(parts)
+                similarity = float(parts[10]) if parts[10] else 0
+                logger.debug(f"  • Memory {parts[1][:50]}... similarity={similarity:.3f}")
     except Exception as e:
+        logger.error(f"❌ Semantic search failed: {e}")
         print(f"Warning: Semantic search failed: {e}")
-    
     # Strategy 2: High-importance memories (always consider)
     try:
         existing_ids = list(candidates.keys()) if candidates else ["00000000-0000-0000-0000-000000000000"]
-        
+
         rows2 = _db_execute("""
             SELECT id, headline, context, full_content, memory_type,
                    importance, access_count, reinforcement_count,
@@ -153,7 +409,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
               AND importance > 0.8
               AND id NOT IN (SELECT unnest(%s::uuid[]))
             ORDER BY importance DESC
-            LIMIT 10
+            LIMIT 50
         """, (agent_id, _tid, existing_ids),
             tenant_id=_tid)
         
@@ -208,7 +464,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                       AND ({condition_str})
                       AND id NOT IN (SELECT unnest(%s::uuid[]))
                     ORDER BY importance DESC
-                    LIMIT 15
+                    LIMIT 100
                 """  # nosec B608 — all values parameterized via %s
                 params = [agent_id, _tid] + keyword_params + [existing_ids]
                 cur.execute(query, params)
@@ -284,7 +540,8 @@ def recall_fixed(
     falls back to the global tenant context set by set_tenant_context().
     """
     import time as _time
-    
+    _start = _time.time()
+
     # Validate inputs
     if not agent_id or not isinstance(agent_id, str):
         return {"context_block": "", "memories_used": 0, "tokens_used": 1}
@@ -297,6 +554,8 @@ def recall_fixed(
     # SECURITY: Resolve tenant_id from parameter or global context
     from storage_multitenant import _current_tenant_id
     _tid = tenant_id or _current_tenant_id or "00000000-0000-0000-0000-000000000000"
+    logger.info(f"🎯 recall_fixed called: agent={agent_id}, tenant={_tid}, budget={budget_tokens}")
+    logger.debug(f"📝 Context: {conversation_context[:200]}...")
     
     # Check response cache (thread-safe) — cache key includes tenant_id for isolation
     cache_key = _hashlib.md5(f"{_tid}:{agent_id}:{conversation_context}:{budget_tokens}".encode(), usedforsecurity=False).hexdigest()
@@ -304,10 +563,16 @@ def recall_fixed(
     with _recall_cache_lock:
         if cache_key in _recall_cache:
             cached_result, cached_at = _recall_cache[cache_key]
-            if now - cached_at < _RECALL_CACHE_TTL:
+            age = now - cached_at
+            if age < _RECALL_CACHE_TTL:
+                elapsed = (_time.time() - _start) * 1000
+                logger.info(f"✅ CACHE HIT: {cache_key[:12]}... age={age:.1f}s, size={len(_recall_cache)}, elapsed={elapsed:.0f}ms")
                 return cached_result
             else:
+                logger.info(f"⏰ CACHE EXPIRED: {cache_key[:12]}... age={age:.1f}s > TTL={_RECALL_CACHE_TTL}")
                 del _recall_cache[cache_key]
+        else:
+            logger.info(f"❌ CACHE MISS: {cache_key[:12]}... size={len(_recall_cache)}")
     
     # Step 1: Load agent config
     config = _load_agent_config(agent_id, tenant_id=_tid)
@@ -316,7 +581,7 @@ def recall_fixed(
     recency_weight = config.get("recency_weight", 0.35)
     importance_weight = config.get("importance_weight", 0.15)
     access_weight = config.get("access_weight", 0.1)
-    half_life_days = config.get("recency_half_life_days", 14)
+    half_life_days = config.get("recency_half_life_days", 3)
     
     # Step 2: Always-include block
     always_block, always_tokens = _build_always_include(agent_id, tenant_id=_tid)
@@ -333,7 +598,7 @@ def recall_fixed(
     
     # Step 3: Generate query embedding
     try:
-        query_embedding = _embed_text(conversation_context[:2000])
+        query_embedding = _embed_text_local(conversation_context[:2000])
     except Exception as e:
         print(f"Embedding failed: {e}")
         return {
@@ -346,8 +611,10 @@ def recall_fixed(
     
     # Step 4: Retrieve candidates (tenant-scoped)
     candidates = _retrieve_candidates(agent_id, query_embedding, conversation_context, tenant_id=_tid)
+    logger.info(f"📦 Retrieved {len(candidates)} candidates")
     
     if not candidates:
+        logger.warning("⚠️ No candidates found - returning empty result")
         return {
             "context_block": always_block,
             "memories_used": 0,
@@ -366,6 +633,10 @@ def recall_fixed(
             
             days_since = (now - c["created_at"]).total_seconds() / 86400
             recency = math.exp(-0.693 * days_since / max(half_life_days, 0.01))
+            
+            # Boost for very recent memories (< 24 hours) — makes new memories dominate
+            if days_since < 1:
+                recency *= 2.5  # Strongly favor last 24 hours
             
             importance = c["importance"] * (1 + 0.1 * min(c["reinforcement_count"], 5))
             importance = min(importance, 1.0)
@@ -401,6 +672,9 @@ def recall_fixed(
     
     # Step 6: Rank by composite score
     scored.sort(key=lambda x: x["composite"], reverse=True)
+    logger.info(f"📊 Scored {len(scored)} memories")
+    for i, s in enumerate(scored[:5]):
+        logger.debug(f"  {i+1}. {s['headline'][:50]}... score={s['composite']:.3f}")
     
     # Step 7: Fill budget using tiered loading
     selected = []
@@ -433,6 +707,7 @@ def recall_fixed(
             tokens_used += tokens
     
     # Step 8: Format context block
+    logger.info(f"✅ Selected {len(selected)} memories, {tokens_used} tokens used")
     context_block = always_block
     if selected:
         context_block += "\n\n### Relevant Context\n"
@@ -464,8 +739,11 @@ def recall_fixed(
         if len(_recall_cache) >= _RECALL_CACHE_MAX:
             oldest = min(_recall_cache, key=lambda k: _recall_cache[k][1])
             del _recall_cache[oldest]
+            logger.info(f"🗑️ CACHE EVICT: oldest entry")
         _recall_cache[cache_key] = (result, _time.time())
-    
+        elapsed = (_time.time() - _start) * 1000
+        logger.info(f"💾 CACHE STORE: {cache_key[:12]}... size={len(_recall_cache)}, elapsed={elapsed:.0f}ms")
+
     return result
 
 
@@ -495,3 +773,306 @@ if __name__ == "__main__":
             print(f"❌ Error: {e}")
             import traceback
             traceback.print_exc()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CROSS-AGENT RECALL - Multi-Namespace Query Support
+# Added: April 1, 2026 for multi-agent orchestration
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _retrieve_candidates_cross_agent(
+    agent_ids: list[str],
+    query_embedding: list[float],
+    context_text: str,
+    tenant_id: str = None
+) -> list[dict]:
+    """Retrieve candidates from MULTIPLE agent namespaces.
+    
+    Returns candidates with source_agent field for attribution.
+    Used when primary agent search has low confidence.
+    """
+    _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
+    all_candidates = {}
+    
+    logger.info(f"🔍 Cross-agent search across {len(agent_ids)} agents: {agent_ids}")
+    
+    embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
+    
+    # Query each agent's namespace
+    for agent_id in agent_ids:
+        try:
+            # Semantic search across this agent's namespace
+            rows = _db_execute("""
+                SELECT id, headline, context, full_content, memory_type,
+                       importance, access_count, reinforcement_count,
+                       created_at, superseded_at,
+                       1 - (local_embedding <=> %s::extensions.vector) as similarity
+                FROM memory_service.memories
+                WHERE agent_id = %s AND tenant_id = %s::UUID
+                  AND superseded_at IS NULL
+                  AND local_embedding IS NOT NULL
+                ORDER BY local_embedding <=> %s::extensions.vector
+                LIMIT 10
+            """, (embedding_str, agent_id, _tid, embedding_str),
+                tenant_id=_tid)
+            
+            if rows:
+                for row in rows:
+                    parts = row.split("|||")
+                    if len(parts) >= 11:
+                        mem_id = parts[0]
+                        candidate = _parse_candidate_row(parts)
+                        candidate["source_agent"] = agent_id  # Add source attribution
+                        all_candidates[mem_id] = candidate
+                        
+                logger.info(f"  {agent_id}: {len(rows)} candidates")
+        except Exception as e:
+            logger.warning(f"  {agent_id}: search failed - {e}")
+    
+    return list(all_candidates.values())
+
+
+def recall_cross_agent(
+    primary_agent_id: str,
+    conversation_context: str,
+    budget_tokens: int = 4000,
+    agent_ids: list[str] = None,
+    tenant_id: str = None,
+) -> dict:
+    """Recall memories from multiple agent namespaces.
+    
+    Used when primary agent search returns low-confidence results.
+    Queries all agent namespaces, merges results, and attributes sources.
+    
+    Args:
+        primary_agent_id: The agent making the query (for config/always-include)
+        conversation_context: Query context
+        budget_tokens: Token budget
+        agent_ids: List of agent namespaces to search (default: all agents)
+        tenant_id: Tenant isolation
+    
+    Returns:
+        Same structure as recall_fixed, with source attribution in headlines
+    """
+    import time as _time
+    
+    # Default to all known agents if not specified
+    if not agent_ids:
+        agent_ids = ["thomas", "wall-e", "steve", "scout", "reed", "atlas", "sheila", "lance", "justin", "loop", "echo"]
+    
+    # Validate inputs
+    if not primary_agent_id or not isinstance(primary_agent_id, str):
+        return {"context_block": "", "memories_used": 0, "tokens_used": 1}
+    
+    if not conversation_context or not conversation_context.strip():
+        return {"context_block": "", "memories_used": 0, "tokens_used": 1}
+    
+    budget_tokens = max(500, min(budget_tokens, 16000))
+    
+    from storage_multitenant import _current_tenant_id
+    _tid = tenant_id or _current_tenant_id or "00000000-0000-0000-0000-000000000000"
+    
+    logger.info(f"🌐 Cross-agent recall: primary={primary_agent_id}, agents={len(agent_ids)}, budget={budget_tokens}")
+    
+    # Step 1: Load primary agent config (use their scoring weights)
+    config = _load_agent_config(primary_agent_id, tenant_id=_tid)
+    
+    semantic_weight = config.get("semantic_weight", 0.4)
+    recency_weight = config.get("recency_weight", 0.35)
+    importance_weight = config.get("importance_weight", 0.15)
+    access_weight = config.get("access_weight", 0.1)
+    half_life_days = config.get("recency_half_life_days", 3)
+    
+    # Step 2: Always-include block (primary agent's identity/profile)
+    always_block, always_tokens = _build_always_include(primary_agent_id, tenant_id=_tid)
+    remaining_budget = budget_tokens - always_tokens
+    
+    if remaining_budget <= 0:
+        return {
+            "context_block": always_block,
+            "memories_used": 0,
+            "tokens_used": always_tokens,
+            "budget_remaining": 0,
+            "recall_details": [],
+        }
+    
+    # Step 3: Generate query embedding
+    try:
+        query_embedding = _embed_text_local(conversation_context[:2000])
+    except Exception as e:
+        logger.error(f"Embedding failed: {e}")
+        return {
+            "context_block": always_block,
+            "memories_used": 0,
+            "tokens_used": always_tokens,
+            "budget_remaining": remaining_budget,
+            "recall_details": [],
+        }
+    
+    # Step 4: Retrieve candidates from ALL agent namespaces
+    candidates = _retrieve_candidates_cross_agent(agent_ids, query_embedding, conversation_context, tenant_id=_tid)
+    
+    logger.info(f"📦 Retrieved {len(candidates)} candidates from {len(agent_ids)} agents")
+    
+    if not candidates:
+        logger.warning("⚠️ No cross-agent candidates found")
+        return {
+            "context_block": always_block,
+            "memories_used": 0,
+            "tokens_used": always_tokens,
+            "budget_remaining": remaining_budget,
+            "recall_details": [],
+        }
+    
+    # Step 5: Score each candidate (same logic as recall_fixed)
+    now = datetime.now(timezone.utc)
+    scored = []
+    
+    for c in candidates:
+        try:
+            semantic_sim = c["similarity"]
+            
+            days_since = (now - c["created_at"]).total_seconds() / 86400
+            recency = math.exp(-0.693 * days_since / max(half_life_days, 0.01))
+            
+            if days_since < 1:
+                recency *= 2.5
+            
+            importance = c["importance"] * (1 + 0.1 * min(c["reinforcement_count"], 5))
+            importance = min(importance, 1.0)
+            
+            access_freq = min(c["access_count"] / 10, 1.0)
+            
+            composite = (
+                semantic_weight * semantic_sim +
+                recency_weight * recency +
+                importance_weight * importance +
+                access_weight * access_freq
+            )
+            
+            scored.append({
+                "id": c["id"],
+                "headline": c["headline"],
+                "context": c["context"],
+                "memory_type": c["memory_type"],
+                "source_agent": c["source_agent"],  # Attribution
+                "composite": composite,
+                "similarity": semantic_sim,
+                "recency": recency,
+            })
+        except Exception as e:
+            logger.warning(f"Scoring failed for {c.get('id', 'unknown')}: {e}")
+    
+    # Step 6: Rank by composite score
+    scored.sort(key=lambda x: x["composite"], reverse=True)
+    
+    logger.info(f"📊 Scored {len(scored)} cross-agent memories")
+    for i, s in enumerate(scored[:5]):
+        logger.debug(f"  {i+1}. [{s['source_agent']}] {s['headline'][:40]}... score={s['composite']:.3f}")
+    
+    # Step 7: Fill budget with source attribution
+    selected = []
+    tokens_used = 0
+    
+    for candidate in scored:
+        if remaining_budget - tokens_used <= 0:
+            break
+        
+        # Add source prefix to headline for attribution
+        source_prefix = f"[From {candidate['source_agent']}] "
+        
+        if candidate["composite"] > 0.7:
+            text = source_prefix + candidate["context"]
+            tier = "L1"
+        elif candidate["composite"] > 0.4:
+            text = source_prefix + candidate["headline"]
+            tier = "L0"
+        else:
+            continue
+        
+        tokens = _estimate_tokens(text)
+        
+        if tokens <= (remaining_budget - tokens_used):
+            selected.append({
+                "text": text,
+                "tier": tier,
+                "type": candidate["memory_type"],
+                "composite": round(candidate["composite"], 3),
+                "headline": candidate["headline"],
+                "source_agent": candidate["source_agent"],
+                "id": candidate["id"],
+            })
+            tokens_used += tokens
+    
+    # Step 8: Format context block with cross-agent section
+    logger.info(f"✅ Selected {len(selected)} cross-agent memories, {tokens_used} tokens")
+    
+    context_block = always_block
+    if selected:
+        context_block += "\n\n### Relevant Context (Cross-Agent)\n"
+        for mem in selected:
+            tier_marker = "•" if mem["tier"] == "L0" else "→"
+            context_block += f"  {tier_marker} {mem['text']}\n"
+    
+    total_tokens = always_tokens + tokens_used
+    
+    return {
+        "context_block": context_block,
+        "memories_used": len(selected),
+        "tokens_used": total_tokens,
+        "budget_remaining": budget_tokens - total_tokens,
+        "cross_agent": True,
+        "agents_queried": agent_ids,
+        "recall_details": [
+            {
+                "id": s["id"],
+                "headline": s["headline"],
+                "source_agent": s["source_agent"],
+                "type": s["type"],
+                "tier": s["tier"],
+                "composite": s["composite"],
+            }
+            for s in selected
+        ],
+    }
+
+
+def recall_with_fallback(
+    agent_id: str,
+    conversation_context: str,
+    budget_tokens: int = 4000,
+    confidence_threshold: float = 0.6,
+    tenant_id: str = None,
+) -> dict:
+    """Recall with automatic cross-agent fallback.
+    
+    1. Try primary agent namespace first
+    2. Check top result confidence
+    3. If max confidence < threshold, fall back to cross-agent search
+    
+    This is the RECOMMENDED recall method for multi-agent orchestration.
+    """
+    logger.info(f"🎯 Recall with fallback: agent={agent_id}, threshold={confidence_threshold}")
+    
+    # Step 1: Try primary agent first
+    primary_result = recall_fixed(agent_id, conversation_context, budget_tokens, tenant_id)
+    
+    # Step 2: Check confidence
+    if primary_result["recall_details"]:
+        max_confidence = max(d["composite"] for d in primary_result["recall_details"])
+        logger.info(f"📊 Primary search max confidence: {max_confidence:.3f}")
+        
+        if max_confidence >= confidence_threshold:
+            logger.info(f"✅ Primary search sufficient (confidence {max_confidence:.3f} >= {confidence_threshold})")
+            return primary_result
+    
+    # Step 3: Fall back to cross-agent search
+    logger.info(f"⚠️ Primary search low confidence - falling back to cross-agent")
+    cross_result = recall_cross_agent(agent_id, conversation_context, budget_tokens, tenant_id=tenant_id)
+    
+    return cross_result
+
+
+# Alias for backwards compatibility
+recall = recall_fixed
+

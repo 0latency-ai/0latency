@@ -20,9 +20,17 @@ EXTRACTION_MODEL = os.environ.get("EXTRACTION_MODEL", "gemini-2.0-flash")
 
 # Lazy env reads — resolved at call time, not import time.
 # This is critical for systemd/uvicorn workers where env may be set after module import.
-def _google_key(): return os.environ.get("GOOGLE_API_KEY", "")
-def _anthropic_key(): return os.environ.get("ANTHROPIC_API_KEY", "")
-def _openai_key(): return os.environ.get("OPENAI_API_KEY", "")
+def _google_key():
+    key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    return key.strip('"'"'"'"') if key else ""
+
+def _anthropic_key():
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    return key.strip('"'"'"'"') if key else ""
+
+def _openai_key():
+    key = os.environ.get("OPENAI_API_KEY")
+    return key.strip('"'"'"'"') if key else ""
 
 # Extraction prompt — the core of Phase 1
 EXTRACTION_PROMPT = """You are a memory extraction system. Your job is to analyze a conversation exchange between a human and an AI agent, and extract structured memories worth preserving.
@@ -194,20 +202,21 @@ def _call_model(prompt: str) -> str:
         try:
             return _call_gemini(prompt)
         except Exception as e:
-            print(f"Gemini failed ({e}), trying fallback...")
+            import logging; logging.getLogger("extraction").error(f"Gemini failed: {e}, trying fallback...")
     
     if _anthropic_key():
         try:
             return _call_anthropic(prompt)
         except Exception as e:
-            print(f"Anthropic failed ({e}), trying fallback...")
+            import logging; logging.getLogger("extraction").error(f"Anthropic failed: {e}, trying fallback...")
     
     if _openai_key():
         try:
             return _call_openai(prompt)
         except Exception as e:
-            print(f"OpenAI failed ({e})")
+            import logging; logging.getLogger("extraction").error(f"OpenAI failed: {e}")
     
+    import logging; logger = logging.getLogger("extraction"); logger.error(f"DEBUG: google={bool(_google_key())}, anthropic={bool(_anthropic_key())}, openai={bool(_openai_key())}")
     raise RuntimeError("No extraction model available. Set GOOGLE_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.")
 
 
@@ -223,6 +232,7 @@ def extract_memories(
     session_key: Optional[str] = None,
     turn_id: Optional[str] = None,
     existing_context: str = "",
+    conversation_context: str = "",
     recent_turns: Optional[list[tuple[str, str]]] = None,
 ) -> list[dict]:
     """
@@ -254,8 +264,13 @@ def extract_memories(
         recent_context = "\n\n".join(parts)
     
     # Build the prompt
+    # If custom conversation_context provided, enhance the existing_context with it
+    enhanced_context = existing_context or "(no existing context)"
+    if conversation_context:
+        enhanced_context = f"{conversation_context}\n\n--- Recent Memory Headlines ---\n{existing_context or '(none)'}"
+    
     prompt = EXTRACTION_PROMPT.format(
-        existing_context=existing_context or "(no existing context)",
+        existing_context=enhanced_context,
         recent_context=recent_context,
         human_message=human_message,
         agent_message=agent_message,

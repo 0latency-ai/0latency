@@ -29,14 +29,14 @@ API_BASE = os.environ.get("API_BASE_URL", "https://api.0latency.ai")
 
 PLAN_CONFIG = {
     "pro": {
-        "price_id": "price_1TDuCcIrmwNR1eAGLmGkaGSV",
+        "price_id": "price_1TH4vgIrmwNR1eAGsp8Qr5IZ",  # $29/month
         "product_id": "prod_UCIoPEsjrxIGI5",
         "memory_limit": 50000,
         "rate_limit_rpm": 60,
         "agent_limit": 5,
     },
     "scale": {
-        "price_id": "price_1TDuVLIrmwNR1eAGkNetOd0b",
+        "price_id": "price_1TDuVLIrmwNR1eAGkNetOd0b",  # $99/month
         "product_id": "prod_UCJ7s3gpULhV9O",
         "memory_limit": -1,  # unlimited
         "rate_limit_rpm": 120,
@@ -220,10 +220,12 @@ async def create_checkout(body: CheckoutRequest = CheckoutRequest(), claims: dic
         line_items=[{"price": price_id, "quantity": 1}],
         success_url=f"{SITE_BASE}/checkout-success.html",
         cancel_url=f"{SITE_BASE}/pricing?checkout=cancelled",
+        allow_promotion_codes=True,
         metadata={"user_id": user_id, "plan": plan},
+        subscription_data={"metadata": {"user_id": user_id, "plan": plan}},
     )
 
-    logger.info(f"Checkout session created: {session.id} for user {user_id} plan={plan}")
+    logger.info(f"Checkout session created: {session.id} for user {user_id} plan={plan} customer={customer_id}")
     return CheckoutResponse(checkout_url=session.url)
 
 
@@ -277,7 +279,8 @@ async def create_portal(claims: dict = Depends(require_jwt)):
 
     session = stripe.billing_portal.Session.create(
         customer=customer_id,
-        return_url=f"{SITE_BASE}/dashboard",
+        return_url=f"{SITE_BASE}/billing.html",
+        configuration="bpc_1TH528IrmwNR1eAG8K8KQ2z8",  # Portal config with subscription updates enabled
     )
 
     logger.info(f"Portal session created for user {user_id}")
@@ -336,35 +339,56 @@ def _handle_checkout_completed(session):
     """Activate subscription after successful checkout."""
     customer_id = session.get("customer")
     subscription_id = session.get("subscription")
-    user_id = session.get("metadata", {}).get("user_id")
+    user_id_from_meta = session.get("metadata", {}).get("user_id")
     plan = session.get("metadata", {}).get("plan", "pro")
 
+    logger.info(f"[CHECKOUT DEBUG] customer_id={customer_id} sub={subscription_id} "
+                f"metadata_user_id={user_id_from_meta} metadata_plan={plan}")
+
+    user_id = user_id_from_meta
     if not user_id:
         user_id = _find_user_by_stripe_customer(customer_id)
+        logger.info(f"[CHECKOUT DEBUG] Looked up user by stripe_customer: {user_id}")
 
     if not user_id:
         logger.error(f"checkout.session.completed: no user found for customer {customer_id}")
         return
 
+    # Ensure stripe_customer_id is linked to this user (idempotent)
+    _db_exec("""
+        UPDATE memory_service.users SET stripe_customer_id = %s
+        WHERE id = %s::UUID AND (stripe_customer_id IS NULL OR stripe_customer_id = '')
+    """, (customer_id, user_id), fetch=False)
+
+    # Resolve plan from subscription price if not in metadata
+    if plan not in PLAN_CONFIG and subscription_id:
+        plan = _resolve_plan_from_subscription(subscription_id)
+        logger.info(f"[CHECKOUT DEBUG] Resolved plan from price: {plan}")
+
+    period_start = None
+    period_end = None
     if subscription_id:
-        sub = stripe.Subscription.retrieve(subscription_id)
-        period_start = datetime.fromtimestamp(sub.current_period_start, tz=timezone.utc) if sub.current_period_start else None
-        period_end = datetime.fromtimestamp(sub.current_period_end, tz=timezone.utc) if sub.current_period_end else None
+        try:
+            sub = stripe.Subscription.retrieve(subscription_id)
+            ps = sub.get("current_period_start")
+            pe = sub.get("current_period_end")
+            period_start = datetime.fromtimestamp(ps, tz=timezone.utc) if ps else None
+            period_end = datetime.fromtimestamp(pe, tz=timezone.utc) if pe else None
+        except Exception as e:
+            logger.warning(f"Could not retrieve subscription periods: {e}")
 
-        # Resolve plan from subscription price if not in metadata
-        if plan not in PLAN_CONFIG:
-            plan = _resolve_plan_from_subscription(subscription_id)
+    # Update plan on users table
+    _db_exec("""
+        UPDATE memory_service.users SET plan = %s WHERE id = %s::UUID
+    """, (plan, user_id), fetch=False)
 
-        _upsert_subscription(
-            user_id=user_id,
-            stripe_customer_id=customer_id,
-            stripe_subscription_id=subscription_id,
-            plan=plan,
-            status="active",
-            period_start=period_start,
-            period_end=period_end,
-        )
+    # Also update tenants table (dashboard reads plan from tenants via API key)
+    _db_exec("""
+        UPDATE memory_service.tenants SET plan = %s
+        WHERE id = (SELECT tenant_id FROM memory_service.users WHERE id = %s::UUID)
+    """, (plan, user_id), fetch=False)
 
+    logger.info(f"[CHECKOUT DEBUG] Plan UPDATE executed: user={user_id} plan={plan} (users + tenants)")
     logger.info(f"Checkout completed: user={user_id} sub={subscription_id} plan={plan}")
 
 
@@ -374,16 +398,30 @@ def _handle_subscription_change(subscription):
     subscription_id = subscription.get("id")
     status = subscription.get("status", "active")
 
+    # Try stripe_customer_id lookup first, fall back to subscription metadata
     user_id = _find_user_by_stripe_customer(customer_id)
     if not user_id:
-        logger.error(f"subscription change: no user for customer {customer_id}")
+        user_id = subscription.get("metadata", {}).get("user_id")
+    if not user_id:
+        logger.warning(f"subscription change: no user for customer {customer_id}, skipping")
+        return
+
+    # Verify user actually exists before inserting (prevents FK violation)
+    user_exists = _db_exec(
+        "SELECT 1 FROM memory_service.users WHERE id = %s::UUID",
+        (user_id,)
+    )
+    if not user_exists:
+        logger.error(f"subscription change: user_id {user_id} not found in users table")
         return
 
     # Determine plan from price
     plan = _resolve_plan_from_subscription(subscription_id)
 
-    period_start = datetime.fromtimestamp(subscription["current_period_start"], tz=timezone.utc) if subscription.get("current_period_start") else None
-    period_end = datetime.fromtimestamp(subscription["current_period_end"], tz=timezone.utc) if subscription.get("current_period_end") else None
+    ps = subscription.get("current_period_start")
+    pe = subscription.get("current_period_end")
+    period_start = datetime.fromtimestamp(ps, tz=timezone.utc) if ps else None
+    period_end = datetime.fromtimestamp(pe, tz=timezone.utc) if pe else None
 
     _upsert_subscription(
         user_id=user_id,
@@ -431,8 +469,10 @@ def _handle_invoice_paid(invoice):
         return
 
     sub = stripe.Subscription.retrieve(subscription_id)
-    period_start = datetime.fromtimestamp(sub.current_period_start, tz=timezone.utc) if sub.current_period_start else None
-    period_end = datetime.fromtimestamp(sub.current_period_end, tz=timezone.utc) if sub.current_period_end else None
+    ps = sub.get("current_period_start")
+    pe = sub.get("current_period_end")
+    period_start = datetime.fromtimestamp(ps, tz=timezone.utc) if ps else None
+    period_end = datetime.fromtimestamp(pe, tz=timezone.utc) if pe else None
 
     plan = _resolve_plan_from_subscription(subscription_id)
 

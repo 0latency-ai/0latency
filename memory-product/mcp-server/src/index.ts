@@ -393,13 +393,17 @@ server.tool(
     turn_id: z.string().max(256).optional().describe("Optional unique turn identifier"),
   },
   async ({ agent_id, human_message, agent_message, session_key, turn_id }) => {
+    // Format content as required by the API
+    const content = `Human: ${human_message}
+
+Agent: ${agent_message}`;
+    
     const result = await api({
       method: "POST",
-      path: "/memories/extract",
+      path: "/memories",
       body: {
         agent_id,
-        human_message,
-        agent_message,
+        content,
         ...(session_key && { session_key }),
         ...(turn_id && { turn_id }),
       },
@@ -572,6 +576,29 @@ server.tool(
   }
 );
 
+
+// ── memory_feedback ────────────────────────────────────────────────────────
+
+server.tool(
+  "memory_feedback",
+  "Submit feedback on recalled memories. Helps 0Latency learn which memories are useful vs ignored. This powers self-improving importance scores.",
+  {
+    agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
+    memory_id: z.string().uuid().optional().describe("UUID of specific memory (required for used/ignored/contradicted feedback)"),
+    feedback_type: z.enum(["used", "ignored", "contradicted", "miss"]).describe("Feedback type: used (helpful), ignored (not helpful), contradicted (wrong), miss (needed info not found)"),
+    context: z.string().max(1000).optional().describe("Context for why memory was used/ignored, or what was missing (required for miss type)"),
+  },
+  async ({ agent_id, memory_id, feedback_type, context }) => {
+    const result = await api({
+      method: "POST",
+      path: "/feedback",
+      body: { agent_id, memory_id, feedback_type, context },
+    });
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  }
+);
 // ── memory_search ───────────────────────────────────────────────────────────
 
 server.tool(

@@ -1,3 +1,5 @@
+from api.analytics import track_posthog_event
+from api.email_service import email_service
 """
 Zero Latency Auth Module
 GitHub OAuth + Google OAuth + Email/Password + JWT + Email Verification
@@ -185,11 +187,19 @@ def _verify_token(token: str) -> Optional[str]:
 
 def create_jwt(user: dict) -> str:
     """Create a JWT token for a user."""
+    # Always read plan fresh from DB (not from cached user dict)
+    plan = user.get("plan", "free")
+    try:
+        rows = _db_exec("SELECT plan FROM memory_service.users WHERE id = %s::UUID", (str(user["id"]),))
+        if rows and rows[0][0]:
+            plan = rows[0][0]
+    except Exception:
+        pass  # fall back to dict value
     payload = {
         "sub": str(user["id"]),
         "email": user.get("email", ""),
         "name": user.get("name", ""),
-        "plan": user.get("plan", "free"),
+        "plan": plan,
         "iat": datetime.now(timezone.utc),
         "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRY_HOURS),
     }
@@ -427,15 +437,35 @@ async def github_callback(code: str = Query(...), state: str = Query(...)):
                 github_id=github_id,
             )
             is_new = True
-            api_key = user.get("api_key")
+            # Fetch API key from tenants table for ALL users
+    api_key = None
+    if user.get("tenant_id"):
+        try:
+            print(f"DEBUG: Fetching API key for tenant_id={user['tenant_id']}")
+            tenant_rows = _db_exec(
+                "SELECT api_key_live FROM memory_service.tenants WHERE id = %s::UUID",
+                (user["tenant_id"],)
+            )
+            print(f"DEBUG: Query returned {len(tenant_rows) if tenant_rows else 0} rows")
+            if tenant_rows:
+                print(f"DEBUG: Row data: {tenant_rows[0]}")
+                api_key = tenant_rows[0][0]
+                print(f"DEBUG: Extracted api_key={'PRESENT' if api_key else 'NULL'}")
+        except Exception as e:
+            print(f"DEBUG: Exception fetching API key: {e}")
+            pass
     
     token = create_jwt(user)
     
-    # Redirect to dashboard with token
+    # Always include API key in redirect for dashboard auto-load
     if is_new and api_key:
         redirect_url = f"{SITE_BASE}/login.html?token={token}&new=1&key={api_key}"
+    elif api_key:
+        redirect_url = f"{SITE_BASE}/login.html?token={token}&key={api_key}"
     else:
         redirect_url = f"{SITE_BASE}/login.html?token={token}"
+    
+    print(f"DEBUG GitHub: user_id={user.get('id')}, tenant_id={user.get('tenant_id')}, api_key={'PRESENT' if api_key else 'MISSING'}, redirect={redirect_url}")
     
     response = RedirectResponse(redirect_url)
     response.set_cookie(
@@ -527,14 +557,45 @@ async def google_callback(code: str = Query(...), state: str = Query(...)):
                 google_id=google_id,
             )
             is_new = True
-            api_key = user.get("api_key")
+            # Fetch API key from tenants table
+    api_key = None
+    if user.get("tenant_id"):
+        try:
+            tenant_rows = _db_exec(
+                "SELECT api_key_live FROM memory_service.tenants WHERE id = %s::UUID",
+                (user["tenant_id"],)
+            )
+            if tenant_rows:
+                api_key = tenant_rows[0][0]
+        except Exception:
+            pass
+
+    # Auto-generate API key if tenant has none
+    if not api_key and user.get('tenant_id'):
+        try:
+            api_key = 'zl_live_' + secrets.token_urlsafe(24)[:32]
+            api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+            _db_exec("""
+                UPDATE memory_service.tenants
+                SET api_key_live = %s, api_key_hash = %s
+                WHERE id = %s::UUID
+            """, (api_key, api_key_hash, user['tenant_id']), fetch=False)
+            logger.info(f'Auto-generated API key for tenant {user["tenant_id"]}')
+        except Exception as e:
+            logger.error(f'Failed to auto-generate API key: {e}')
+            api_key = None
     
     token = create_jwt(user)
     
+    # Always include API key in redirect for dashboard auto-load
     if is_new and api_key:
         redirect_url = f"{SITE_BASE}/login.html?token={token}&new=1&key={api_key}"
+    elif api_key:
+        redirect_url = f"{SITE_BASE}/login.html?token={token}&key={api_key}"
     else:
         redirect_url = f"{SITE_BASE}/login.html?token={token}"
+    
+    print(f"DEBUG GitHub: user_id={user.get('id')}, tenant_id={user.get('tenant_id')}, api_key={'PRESENT' if api_key else 'MISSING'}, redirect={redirect_url}")
     
     response = RedirectResponse(redirect_url)
     response.set_cookie(
@@ -598,6 +659,15 @@ async def email_register(req: EmailRegisterRequest, request: Request):
     # TODO: Wire up actual email sending via Cloudflare or SES
     
     token = create_jwt(user)
+
+    # Send welcome email with API key and quickstart link
+    if user and user.get("email") and user.get("api_key"):
+        email_service.send_welcome_email(
+            email=user["email"],
+            name=user.get("name", user["email"].split("@")[0]),
+            api_key=user["api_key"],
+            tenant_id=str(user.get("tenant_id", user.get("id", "")))
+        )
     return AuthResponse(
         token=token,
         user={
@@ -690,6 +760,34 @@ async def email_login(req: EmailLoginRequest):
     # Check verification status — allow login but include warning
     email_verified = user.get("email_verified", False)
     
+    # Fetch API key from tenants table
+    api_key = None
+    if user.get("tenant_id"):
+        try:
+            tenant_rows = _db_exec(
+                "SELECT api_key_live FROM memory_service.tenants WHERE id = %s::UUID",
+                (user["tenant_id"],)
+            )
+            if tenant_rows:
+                api_key = tenant_rows[0][0]
+        except Exception:
+            pass
+
+    # Auto-generate API key if tenant has none
+    if not api_key and user.get('tenant_id'):
+        try:
+            api_key = 'zl_live_' + secrets.token_urlsafe(24)[:32]
+            api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+            _db_exec("""
+                UPDATE memory_service.tenants
+                SET api_key_live = %s, api_key_hash = %s
+                WHERE id = %s::UUID
+            """, (api_key, api_key_hash, user['tenant_id']), fetch=False)
+            logger.info(f'Auto-generated API key for tenant {user["tenant_id"]}')
+        except Exception as e:
+            logger.error(f'Failed to auto-generate API key: {e}')
+            api_key = None
+    
     token = create_jwt(user)
     return AuthResponse(
         token=token,
@@ -701,10 +799,18 @@ async def email_login(req: EmailLoginRequest):
             "tenant_id": user["tenant_id"],
             "email_verified": email_verified,
         },
+        api_key=api_key,
     )
 
 
 # ─── Current User ───────────────────────────────────────────────────────────
+
+
+@router.post("/login", response_model=AuthResponse)
+async def login(req: EmailLoginRequest):
+    """Login with email and password. Alias for /email/login."""
+    return await email_login(req)
+
 
 @router.get("/me")
 async def get_current_user(claims: dict = Depends(require_jwt)):
@@ -765,6 +871,16 @@ async def regenerate_api_key(claims: dict = Depends(require_jwt)):
         UPDATE memory_service.tenants SET api_key_hash = %s, api_key_live = %s WHERE id = %s::UUID
     """, (new_hash, new_key, tenant_id), fetch=False)
     
+    
+    # Track API key creation
+    track_posthog_event(
+        tenant_id=int(tenant_id),
+        event_name="api_key_created",
+        properties={
+            "method": "regenerate",
+            "email": claims.get("email")
+        }
+    )
     return {"api_key": new_key, "message": "New API key generated. Old key is immediately invalid."}
 
 # ========== SIMPLE EMAIL/PASSWORD AUTH ==========
@@ -796,6 +912,14 @@ async def simple_signup_endpoint(req: SimpleSignupRequest):
     """Simple email/password signup."""
     try:
         result = auth_module.create_user(req.email, req.password)
+        # Send welcome email with API key and quickstart link
+        if result and result.get("email") and result.get("api_key"):
+            email_service.send_welcome_email(
+                email=result["email"],
+                name=result.get("name", result["email"].split("@")[0]),
+                api_key=result["api_key"],
+                tenant_id=str(result.get("tenant_id", ""))
+            )
         return SimpleSignupResponse(
             email=result['email'],
             tenant_id=result['tenant_id'],
