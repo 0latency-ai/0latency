@@ -1,0 +1,43 @@
+# Sheila Research Notes - March 27, 2026
+
+## Data Sources Attempted:
+1. IndieHackers - SUCCESS (scraped homepage)
+2. Hacker News - SUCCESS (scraped homepage)  
+3. Reddit r/startups - BLOCKED (403)
+4. Reddit r/Entrepreneur - BLOCKED (403)
+5. Coursera Entrepreneurship - SUCCESS
+6. Udemy - BLOCKED (403)
+7. YC Library - PARTIAL (minimal content extracted)
+8. TechCrunch EdTech - PARTIAL
+9. Crunchbase - NO DATA
+
+## IndieHackers Insights:
+- Focus on bootstrapped/indie businesses
+- Popular topics: Chrome extensions (1.3K installs in 5 weeks), AppSumo launches ($90K), autonomous businesses ($500K/mo)
+- Community actively discussing: early user acquisition, finding first customers, API tools, business acquisition due diligence
+- Pain point: "How are you finding consistent users or clients early on?" (12 upvotes, 80 comments)
+
+## Hacker News Insights:
+- Tech-focused audience
+- AI agents on VPS discussion active
+- Interest in deployment automation tools
+- Self-improving agents (HyperAgents from Facebook Research)
+
+## Coursera Competitive Intel:
+- Offers entrepreneurship degrees (iMBA, MS Management)
+- Focus areas: Social entrepreneurship, global business strategy, digital transformation
+- High production value, university partnerships
+- Price point: Degree programs (expensive), individual courses (~$49-79/course or subscription)
+
+## Market Gaps Observed:
+1. No clear "startup education for first-time founders" curriculum platform
+2. Community-driven vs structured learning divide
+3. Free resources abundant but fragmented
+4. Premium offerings either too academic (Coursera) or too generic (Udemy)
+
+## Questions for HubSpot Analysis:
+1. What industries/roles are the 1,158 warm contacts in?
+2. When was last contact? (2020-2021 era = 4-5 years cold)
+3. Which segments had highest engagement rates?
+4. Any patterns in the 228 customers vs 206 SQLs?
+

@@ -193,12 +193,16 @@ def recall_hybrid(
     logger.info(f"🔍 Query classification: keyword_dominant={classification['is_keyword_dominant']}, "
                 f"confidence={classification['confidence']:.2f}")
     
+    # Capture upfront decision before running searches
+    ran_bm25 = classification['is_keyword_dominant'] and classification['confidence'] > 0.6
+    
     # Step 2: Try BM25 for keyword-dominant queries
     bm25_results = []
     bm25_time = 0
     max_bm25_score = 0
     
-    if classification['is_keyword_dominant'] and classification['confidence'] > 0.3:
+    # 0.6 chosen empirically — see Checkpoint 5 prep, BM25 was running on weak signals and wasting ~280ms with zero recall contribution.
+    if classification['is_keyword_dominant'] and classification['confidence'] > 0.6:
         _bm25_start = _time.time()
         bm25_results = _bm25_search(agent_id, conversation_context, tenant_id=_tid, limit=50)
         bm25_time = (_time.time() - _bm25_start) * 1000
@@ -253,7 +257,8 @@ def recall_hybrid(
         'bm25_ms': bm25_time,
         'vector_ms': vector_time,
         'total_ms': total_time,
-        'path': 'bm25->vector' if bm25_results else 'vector-only',
+        'path': 'bm25+vector' if ran_bm25 else 'vector-only',
+        'bm25_returned_results': bool(bm25_results) if ran_bm25 else None,
     }
     
     return vector_result
@@ -310,13 +315,14 @@ def _load_agent_config(agent_id: str, tenant_id: str = None) -> dict:
     }
 
 
-def _build_always_include(agent_id: str, tenant_id: str = None) -> tuple[str, int]:
+def _build_always_include(agent_id: str, tenant_id: str = None, config: dict = None) -> tuple[str, int]:
     """Build the always-included context block (identity, profile, last handoff, active corrections)."""
     # Use provided tenant_id or fall back to global context
     _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
     blocks = []
     
-    config = _load_agent_config(agent_id, tenant_id=_tid)
+    if config is None:
+        config = _load_agent_config(agent_id, tenant_id=_tid)
     
     if config.get("identity"):
         blocks.append(f"### Agent Identity\n{json.dumps(config['identity'], indent=2)}")
@@ -575,7 +581,10 @@ def recall_fixed(
             logger.info(f"❌ CACHE MISS: {cache_key[:12]}... size={len(_recall_cache)}")
     
     # Step 1: Load agent config
+    _config_t0 = _time.time()
     config = _load_agent_config(agent_id, tenant_id=_tid)
+    _config_t1 = _time.time()
+    _config_ms = (_config_t1 - _config_t0) * 1000
     
     semantic_weight = config.get("semantic_weight", 0.4)
     recency_weight = config.get("recency_weight", 0.35)
@@ -584,7 +593,10 @@ def recall_fixed(
     half_life_days = config.get("recency_half_life_days", 3)
     
     # Step 2: Always-include block
-    always_block, always_tokens = _build_always_include(agent_id, tenant_id=_tid)
+    _always_t0 = _time.time()
+    always_block, always_tokens = _build_always_include(agent_id, tenant_id=_tid, config=config)
+    _always_t1 = _time.time()
+    _always_ms = (_always_t1 - _always_t0) * 1000
     remaining_budget = budget_tokens - always_tokens
     
     if remaining_budget <= 0:
@@ -598,7 +610,10 @@ def recall_fixed(
     
     # Step 3: Generate query embedding
     try:
+        _embed_t0 = _time.time()
         query_embedding = _embed_text_local(conversation_context[:2000])
+        _embed_t1 = _time.time()
+        _embed_ms = (_embed_t1 - _embed_t0) * 1000
     except Exception as e:
         print(f"Embedding failed: {e}")
         return {
@@ -610,7 +625,10 @@ def recall_fixed(
         }
     
     # Step 4: Retrieve candidates (tenant-scoped)
+    _search_t0 = _time.time()
     candidates = _retrieve_candidates(agent_id, query_embedding, conversation_context, tenant_id=_tid)
+    _search_t1 = _time.time()
+    _search_ms = (_search_t1 - _search_t0) * 1000
     logger.info(f"📦 Retrieved {len(candidates)} candidates")
     
     if not candidates:
@@ -734,6 +752,11 @@ def recall_fixed(
         ],
     }
     
+    # Log per-phase timing
+    _score_ms = (_time.time() - _search_t1) * 1000
+    _total_recall_ms = (_time.time() - _start) * 1000
+    logger.info(f"[RECALL SPLIT] config={_config_ms:.0f}ms always_include={_always_ms:.0f}ms embed={_embed_ms:.0f}ms search={_search_ms:.0f}ms score={_score_ms:.0f}ms total={_total_recall_ms:.0f}ms")
+
     # Cache the response (thread-safe)
     with _recall_cache_lock:
         if len(_recall_cache) >= _RECALL_CACHE_MAX:
@@ -884,7 +907,7 @@ def recall_cross_agent(
     half_life_days = config.get("recency_half_life_days", 3)
     
     # Step 2: Always-include block (primary agent's identity/profile)
-    always_block, always_tokens = _build_always_include(primary_agent_id, tenant_id=_tid)
+    always_block, always_tokens = _build_always_include(primary_agent_id, tenant_id=_tid, config=config)
     remaining_budget = budget_tokens - always_tokens
     
     if remaining_budget <= 0:

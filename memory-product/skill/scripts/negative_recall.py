@@ -20,7 +20,7 @@ from typing import Optional
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 DB_CONN = os.environ.get("MEMORY_DB_CONN", "")
 
 
@@ -35,23 +35,29 @@ def _db_execute(query: str) -> list:
     return [line for line in result.stdout.strip().split("\n") if line]
 
 
-def _call_gemini(prompt: str) -> str:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+def _call_llm(prompt: str) -> str:
+    """OpenAI replacement for Gemini calls."""
+    url = "https://api.openai.com/v1/chat/completions"
     resp = requests.post(
         url,
-        params={"key": GOOGLE_API_KEY},
+        headers={
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json"
+        },
         json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.1,
-                "maxOutputTokens": 2048,
-                "responseMimeType": "application/json"
-            }
+            "model": "gpt-4o-mini",
+            "temperature": 0.1,
+            "max_tokens": 2048,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": "You extract topics and analyze gaps in memory. Respond with valid JSON only."},
+                {"role": "user", "content": prompt}
+            ]
         },
         timeout=30
     )
     resp.raise_for_status()
-    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    return resp.json()["choices"][0]["message"]["content"]
 
 
 def update_topic_coverage(agent_id: str, memories: list[dict]):
@@ -126,7 +132,7 @@ Examples of topics: "college education", "family members", "health insurance", "
 
 JSON array:"""
         
-        raw = _call_gemini(prompt)
+        raw = _call_llm(prompt)
         cleaned = raw.strip()
         if cleaned.startswith("```"):
             cleaned = cleaned.split("\n", 1)[1].rsplit("```", 1)[0]

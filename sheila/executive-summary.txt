@@ -1,0 +1,71 @@
+SHEILA BASELINE SWEEP - EXECUTIVE SUMMARY
+===========================================
+Date: March 27, 2026 00:03 UTC
+Coverage: 30-day market scan
+Contact Base: 1,158 warm Startup Smartup contacts (from 6,211 total HubSpot)
+
+KEY FINDINGS:
+-------------
+
+✅ OPPORTUNITY EXISTS
+- Gap between free/fragmented (YC, IndieHackers) and expensive/academic (Coursera)
+- Founders actively seeking practical "first 10 customers" curriculum
+- No clear market leader in structured startup education for practitioners
+
+🎯 TOP RECONNECT PRIORITIES:
+1. Former Customers (228) - 15-20% reactivation = $700-$3.5K immediate
+2. SQLs (206) - 8-12% conversion = $320-$2K
+3. Accelerator Partners (50-100) - 1-2 deals = $400-$2K/year recurring
+4. Universities (30-50) - 1-3 schools = $1K-$12K/year
+5. Corporate (100-150) - Long-term, high-value, slow close
+
+💡 FOUNDER PAIN POINTS (from community intel):
+- "How do I find my first 10 customers?" (80 comments - massive demand)
+- AppSumo vs real customers confusion
+- AI-augmented business operations
+- Acquisition entrepreneurship (buying vs building)
+- Micro-SaaS / Chrome extension growth
+
+🏆 COMPETITIVE LANDSCAPE:
+- YC Startup School: FREE, high-quality, major threat
+- Coursera: $49-79/course, $15K-40K degrees, too academic
+- General Assembly: $3K-15K, tech-focused, not pure entrepreneurship
+- NO new disruptive entrants in March 2026
+
+📊 RECOMMENDED APPROACH:
+Phase 1 (NOW): Reconnect with top 50 former customers
+  → Goal: 10-15 reactivations = $200-750 MRR baseline
+  
+Phase 2 (Q2): Full reactivation campaign (228+206 contacts)
+  → Goal: $2K-5K reactivated ARR
+  
+Phase 3 (Q3): Decide on Startup Smartup 2.0
+  → YES if reactivation >15% + partnerships close
+  → NO if market has moved on → harvest mode or shut down
+
+💰 REVENUE POTENTIAL:
+Conservative: $5K-10K year-one (reactivation only)
+Moderate: $20K-40K year-one (reactivation + partnerships)
+Aggressive: $50K-100K year-one (full rebuild + content marketing)
+
+⚠️ RISKS:
+- 4-5 years cold = high email bounce/unsubscribe rate
+- YC Startup School is FREE and excellent
+- Founder attention spans shorter in 2026 (AI tools everywhere)
+- Justin's bandwidth constrained by PFL Academy focus
+
+🎬 IMMEDIATE ACTION ITEMS:
+1. Audit HubSpot contacts (segment, enrich, prioritize)
+2. Draft "We're Back" email sequence for top 50 customers
+3. Competitive audit: What does YC teach that we don't?
+4. Build 1 high-value content piece (lead magnet test)
+5. Reach out to 5 accelerators with partnership pitch
+
+BOTTOM LINE:
+There IS life in Startup Smartup, but it's not a slam dunk. Test with low-risk reactivation first. If that works, explore partnerships. Only rebuild if both succeed. Worst case: harvest $5K-10K and shut down. Best case: $50K-100K recurring business.
+
+The data supports cautious optimism + rapid testing.
+
+---
+Full report: /root/.openclaw/workspace/sheila/baseline-report.md
+Research notes: /root/.openclaw/workspace/sheila/research-notes.txt

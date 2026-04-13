@@ -1,0 +1,126 @@
+SCOUT BASELINE INTELLIGENCE — 30-DAY SWEEP
+Generated: 2026-03-27 00:04 UTC
+
+=============================================================
+IMMEDIATE ACTION REQUIRED (Next 7 Days)
+=============================================================
+
+1. STEPHANIE HARTMAN (Colorado CDE) — Follow-up ASAP
+   - Call scheduled March 24 (outcome unknown)
+   - Highest-value lead: state-level adoption potential
+   - Colorado TAM: $1.1M (ICAP moat applies here)
+
+2. ESC REGION 11 RFP (Texas) — Respond or No-Go by EOW
+   - RFP #26-04-31: Professional Development & Educational Services
+   - Active supplier questions (as of March 25)
+   - Download packet, assess fit, decide response strategy
+
+3. OKLAHOMA CUSTOMER AUDIT — Revenue Verification
+   - Mustang PS: Determine tier (unknown)
+   - Muldrow PS: In records but not in platform (why?)
+   - Current confirmed ARR: $4,000 (Dale + Clinton only)
+
+=============================================================
+TOP 10 OPPORTUNITIES (By Priority)
+=============================================================
+
+1. Stephanie Hartman (Colorado CDE) — State adoption | HIGH
+2. ESC Region 11 RFP (Texas) — ESC network entry | MEDIUM-HIGH
+3. Kentucky Curriculum Rebuild — Unblocks $720K TAM | HIGH
+4. Oklahoma Expansion — Mustang/Muldrow audit + case study | MEDIUM
+5. Jump$tart Partnership (California) — Blocked market entry | MEDIUM
+6. CEE Endorsement — National credibility | MEDIUM-LOW
+7. [No additional warm leads identified in 30-day scan]
+
+Current Pipeline: THIN. Outbound prospecting is primary motion.
+Inbound: Minimal (no RFPs beyond ESC, no DOE inquiries, no prospect replies).
+
+=============================================================
+MARKET INTELLIGENCE
+=============================================================
+
+COMPETITOR LANDSCAPE:
+- NGPF: 140K teachers, 5M students/year, 100% FREE
+  * Financial Literacy Month Conference: April 11, 2026
+  * Positioning: "Everything free, teacher community"
+  * Threat Level: HIGH (free vs. $16-20/student)
+
+- EverFi: 21K schools, sponsor-funded, 100% FREE
+  * Focus: Elementary (K-5), minimal overlap with PFL Academy
+  * Threat Level: LOW (different market segment)
+
+POLICY TAILWINDS:
+- 36 states w/ mandates, 34 deployment-ready
+- Tier 1: Colorado (HB25-1192, ICAP), Kentucky (HB 342, 1.0 credit), Texas (HB 27)
+- Total TAM: $42M+ at $16/student
+
+PRICING REALITY:
+- PFL Academy competing against FREE (NGPF, EverFi)
+- Value prop MUST be differentiation (ICAP, scaffolding, platform depth)
+- NOT content volume (NGPF wins that battle)
+
+=============================================================
+TEACHER PAIN POINTS (Inferred — Reddit Blocked)
+=============================================================
+
+1. "I don't have time to build curriculum" — PRIMARY
+2. "Free resources don't align to state standards" — COMMON
+3. "Need ICAP coverage too" (Colorado-specific) — MOAT
+4. "How do I differentiate for IEPs?" — UNIVERSAL
+5. "District won't pay for curriculum" — THE OBJECTION
+
+Counter: ROI messaging (teacher time = $, compliance risk, ICAP moat)
+
+=============================================================
+STRATEGIC RECOMMENDATIONS
+=============================================================
+
+CONTENT TO CREATE (Next 30 Days):
+1. "Why Free Isn't Free" one-pager (teacher time ROI)
+2. Oklahoma case study (Dale/Clinton implementation)
+3. Colorado ICAP alignment doc (Standard 15 walkthrough)
+4. Kentucky 1.0 credit pathway overview (post-Denis build)
+5. Implementation vs. Content positioning (platform depth argument)
+
+PARTNERSHIPS TO EXPLORE (Next 60 Days):
+1. Jump$tart (California market entry)
+2. CEE (national credibility)
+3. ESC Network (Texas — pending RFP outcome)
+4. State teacher associations (CO/KY endorsements)
+
+INFRASTRUCTURE GAPS:
+- No systematic state procurement monitoring (manual email only)
+- Reddit/educator forums blocked (403 errors)
+- No competitor activity tracker
+- No policy change RSS/alerts
+
+Build Priority: After 0Latency launch stabilizes (per Intelligence V2 plan)
+
+=============================================================
+SCAN LIMITATIONS
+=============================================================
+
+BLOCKED/FAILED:
+- Reddit (403 on all educator communities)
+- K12Dive (Cloudflare block)
+- DuckDuckGo/Google search scraping (no output)
+- State DOE site-specific searches (failed)
+
+WORKED:
+- Direct URL fetches (NGPF, EverFi, state DOE homepages)
+- Internal file analysis (MEMORY.md, email scan logs)
+- Competitor homepage intelligence
+
+LESSON: Intelligence V2 framework needed for real-time market monitoring.
+Current tools insufficient. Recommend browser automation (bypass blocks).
+
+=============================================================
+NEXT BASELINE SWEEP
+=============================================================
+
+Recommended: Monthly (unless major policy change triggers ad-hoc scan)
+Focus: State procurement, Reddit pain points, competitor launches
+
+=============================================================
+
+Full report: /root/.openclaw/workspace/scout/baseline-report.md

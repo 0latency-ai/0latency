@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.0latency-ai/0latency",
+  "title": "0Latency Memory",
+  "description": "Persistent memory layer for AI agents. Sub-100ms recall, semantic search, knowledge graphs.",
+  "homepage": "https://0latency.ai",
+  "version": "1.0.1",
+  "remotes": [
+    {
+      "type": "sse",
+      "url": "https://mcp.0latency.ai/mcp?key={api_key}",
+      "variables": {
+        "api_key": {
+          "description": "Your 0Latency API key (starts with zl_live_ or zl_test_)",
+          "isRequired": true,
+          "isSecret": true
+        }
+      }
+    }
+  ]
+}

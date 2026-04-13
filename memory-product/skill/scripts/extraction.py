@@ -3,7 +3,7 @@ Extraction Layer — Agent Memory Service
 Phase 1: Automatically extract structured memories from conversation turns.
 
 This module processes raw conversation exchanges and outputs typed, tiered memory objects.
-Uses Gemini Flash 2.0 by default (10x cheaper than Haiku, sufficient for structured extraction).
+Uses GPT-4o-mini by default (fast, cheap, sufficient for structured extraction).
 """
 
 import json
@@ -16,8 +16,7 @@ import requests
 
 # --- Configuration ---
 
-EXTRACTION_MODEL = os.environ.get("EXTRACTION_MODEL", "gemini-2.0-flash")
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+EXTRACTION_MODEL = os.environ.get("EXTRACTION_MODEL", "gpt-4o-mini")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
@@ -99,35 +98,13 @@ Agent: {agent_message}
 Extract memories as JSON array:"""
 
 
-def _call_gemini(prompt: str) -> str:
-    """Call Gemini Flash 2.0 API."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{EXTRACTION_MODEL}:generateContent"
-    headers = {"Content-Type": "application/json"}
-    params = {"key": GOOGLE_API_KEY}
-    
-    body = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.1,  # Low temp for structured extraction
-            "maxOutputTokens": 4096,
-            "responseMimeType": "application/json"
-        }
-    }
-    
-    resp = requests.post(url, headers=headers, params=params, json=body, timeout=30)
-    resp.raise_for_status()
-    
-    result = resp.json()
-    text = result["candidates"][0]["content"]["parts"][0]["text"]
-    return text
-
-
 def _call_anthropic(prompt: str) -> str:
     """Call Anthropic (Haiku) as fallback."""
     url = "https://api.anthropic.com/v1/messages"
     headers = {
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "prompt-caching-2024-07-31",
         "content-type": "application/json"
     }
     
@@ -135,6 +112,13 @@ def _call_anthropic(prompt: str) -> str:
         "model": "claude-3-5-haiku-latest",
         "max_tokens": 4096,
         "temperature": 0.1,
+        "system": [
+            {
+                "type": "text",
+                "text": "You are a memory extraction system. Extract structured memories from conversations. Always respond with valid JSON.",
+                "cache_control": {"type": "ephemeral"}
+            }
+        ],
         "messages": [{"role": "user", "content": prompt}]
     }
     
@@ -162,6 +146,7 @@ def _call_openai(prompt: str) -> str:
             {"role": "system", "content": "You extract structured memories from conversations. Always respond with valid JSON."},
             {"role": "user", "content": prompt}
         ]
+        # Note: OpenAI prompt caching is automatic for prompts >1024 tokens (no explicit flag needed)
     }
     
     resp = requests.post(url, headers=headers, json=body, timeout=30)
@@ -173,27 +158,19 @@ def _call_openai(prompt: str) -> str:
 
 def _call_model(prompt: str) -> str:
     """Call the configured extraction model with fallback chain."""
-    model = EXTRACTION_MODEL.lower()
-    
-    if "gemini" in model and GOOGLE_API_KEY:
+    if OPENAI_API_KEY:
         try:
-            return _call_gemini(prompt)
+            return _call_openai(prompt)
         except Exception as e:
-            print(f"Gemini failed ({e}), trying fallback...")
+            print(f"OpenAI failed ({e}), trying Anthropic fallback...")
     
     if ANTHROPIC_API_KEY:
         try:
             return _call_anthropic(prompt)
         except Exception as e:
-            print(f"Anthropic failed ({e}), trying fallback...")
+            print(f"Anthropic failed ({e})")
     
-    if OPENAI_API_KEY:
-        try:
-            return _call_openai(prompt)
-        except Exception as e:
-            print(f"OpenAI failed ({e})")
-    
-    raise RuntimeError("No extraction model available. Set GOOGLE_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.")
+    raise RuntimeError("No extraction model available. Set OPENAI_API_KEY or ANTHROPIC_API_KEY.")
 
 
 def _generate_id(content: str, timestamp: str) -> str:

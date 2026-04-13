@@ -1,0 +1,59 @@
+PHASE 4-6 IMPLEMENTATION BRIEF FOR CLAUDE CODE
+==============================================
+
+OBJECTIVE:
+Implement memory consolidation system per PHASE4-6-CONSTITUTION.md
+
+FILES TO CREATE:
+1. /root/.openclaw/workspace/memory-product/src/consolidation/merger.py
+2. /root/.openclaw/workspace/memory-product/src/consolidation/weekly_report.py
+
+CONSTITUTION:
+/root/.openclaw/workspace/PHASE4-6-CONSTITUTION.md
+
+KEY CONSTRAINTS:
+- §1: P90 gate (threshold engine) — no interpolation, exact decision table
+- §2: Archive-before-action loop — STEP 1-5 in exact order, STEP 3 verification is non-negotiable
+- §2.3: DUPLICATE and UPDATE merge types (no CONTRADICTION auto-merge)
+- §2.4: LLM merge prompt exact text, one shot per pair, no retries
+- §3: Restore function for archived memories
+- §4: Cross-agent propagation queuing only (not execution)
+- §6: Cold-start — classification only until feedback >= 50
+- §9: Run verification checklist, all 6 checks must PASS
+
+DATABASE:
+Schema: memory_service
+Tables: memories, memory_archive, consolidation_queue, recall_feedback, recall_telemetry
+Connection: postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres
+
+LLM:
+openai, gpt-4o-mini, OPENAI_API_KEY from env (source /root/.bashrc if needed)
+
+LOGGING:
+/root/logs/merger-{YYYY-MM-DD}.log
+/root/logs/weekly-report-{YYYY-MM-DD}.log
+
+CRON (add these 3, NOT importance_adjuster):
+*/30 * * * * cd /root/.openclaw/workspace/memory-product && /usr/bin/python3 -m src.consolidation.classifier >> /root/logs/classifier-cron.log 2>&1
+0 * * * * cd /root/.openclaw/workspace/memory-product && /usr/bin/python3 -m src.consolidation.merger >> /root/logs/merger-cron.log 2>&1
+0 6 * * 1 cd /root/.openclaw/workspace/memory-product && /usr/bin/python3 -m src.consolidation.weekly_report >> /root/logs/weekly-report-cron.log 2>&1
+
+VERIFICATION (§9):
+After files written, run all 6 checks:
+1. Archive table has > 0 entries: SELECT COUNT(*) FROM memory_service.memory_archive
+2. Merger log shows MERGED lines: cat /root/logs/merger-$(date +%Y-%m-%d).log | grep MERGED
+3. Restore works: pick one archive_id, round-trip it
+4. Kill switch works: CONSOLIDATION_ENABLED=false python3 -m src.consolidation.merger (log shows kill_switch=active, 0 merges)
+5. Integrity check: SELECT ... FROM consolidation_queue ... must return 0 rows
+6. No identity memories touched: SELECT COUNT(*) FROM memory_service.memory_archive ... must return 0
+
+REPORT:
+PASS/FAIL for each check, don't stop on failure. Run all 6.
+Do NOT declare complete until all 6 pass.
+
+DO NOT:
+- Modify classifier.py, importance_adjuster.py, report.py, schema
+- Add importance_adjuster cron
+- Implement weighted scoring (that's Phase 7)
+- Retry failed LLM calls
+- Modify classifier prompt if P90 < 0.85 (halt and report instead)

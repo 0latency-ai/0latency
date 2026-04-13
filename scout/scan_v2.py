@@ -1,0 +1,210 @@
+#!/usr/bin/env python3
+"""
+Scout - PFL Academy Intelligence Scanner v2 (Orchestration Edition)
+Now stores findings in scout namespace + writes lead briefs to Shea
+"""
+import requests
+import json
+from datetime import datetime
+
+ZEROLATENCY_API_KEY = open('/root/.openclaw/workspace/THOMAS_API_KEY.txt').read().strip()
+
+def store_to_namespace(headline, content, importance=0.6):
+    """Store finding in Scout's namespace"""
+    try:
+        response = requests.post(
+            'https://api.0latency.ai/extract',
+            headers={
+                'X-API-Key': ZEROLATENCY_API_KEY,
+                'Content-Type': 'application/json'
+            },
+            json={
+                'agent_id': 'scout',
+                'human_message': f"New PFL Academy lead: {headline}",
+                'agent_message': content
+            },
+            timeout=30
+        )
+        return response.status_code == 200
+    except Exception as e:
+        print(f"Namespace storage error: {e}")
+        return False
+
+def write_lead_brief(lead):
+    """Write lead brief to Shea's workspace"""
+    timestamp = datetime.utcnow().strftime('%Y%m%d-%H%M%S')
+    state = lead.get('state', 'unknown').lower()
+    contact = lead.get('contact', 'general').replace(' ', '-').lower()
+    filename = f"/root/.openclaw/workspace/shea/leads-pending/{timestamp}-{state}-{contact}.md"
+    
+    with open(filename, 'w') as f:
+        f.write(f"""## Lead Brief
+
+**State:** {lead.get('state', 'N/A')}
+**Contact:** {lead.get('contact', 'TBD')}
+**Email:** {lead.get('email', 'TBD - needs research')}
+**Found:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}
+
+### Context
+{lead.get('context', 'Financial literacy discussion or opportunity identified.')}
+
+### Standards Alignment
+{lead.get('standards', 'TBD - Shea must verify correct state standards before sending')}
+
+**CRITICAL:** NEVER reference Oklahoma Standard 15 unless state is Oklahoma.
+
+### Suggested Email
+{lead.get('suggested_email', '[Shea: Draft personalized outreach based on context]')}
+
+### Send Priority
+{lead.get('priority', 'NORMAL')}
+
+### Approval Required
+{lead.get('approval', 'Thomas')}
+
+---
+**Status:** pending_validation
+**Assigned To:** shea
+**ZeroBounce Status:** not_validated
+""")
+    return filename
+
+def scan_reddit_teachers():
+    """Scan r/teachers for financial literacy discussions"""
+    leads = []
+    try:
+        url = "https://www.reddit.com/r/teachers/search.json?q=financial+literacy+OR+economics+OR+personal+finance&restrict_sr=1&sort=new&limit=15"
+        headers = {'User-Agent': 'Scout PFL Intelligence/2.0'}
+        r = requests.get(url, headers=headers, timeout=10)
+        
+        if r.status_code == 200:
+            data = r.json()
+            for post in data.get('data', {}).get('children', []):
+                p = post['data']
+                
+                # Look for curriculum, resources, teaching posts
+                if any(kw in p['title'].lower() or kw in p.get('selftext', '').lower() 
+                       for kw in ['curriculum', 'lesson', 'resource', 'teach', 'class']):
+                    
+                    lead = {
+                        'source': 'r/teachers',
+                        'title': p['title'],
+                        'url': f"https://reddit.com{p['permalink']}",
+                        'author': p['author'],
+                        'score': p['score'],
+                        'type': 'community_engagement',
+                        'contact': f"u/{p['author']}",
+                        'context': f"Teacher discussing financial literacy on Reddit: {p['title'][:100]}",
+                        'priority': 'HIGH' if p['score'] > 20 else 'NORMAL',
+                        'standards': 'TBD - determine state from post context'
+                    }
+                    
+                    # Store to namespace
+                    content = f"""
+Source: r/teachers
+Author: u/{p['author']}
+Post: {p['title']}
+URL: {lead['url']}
+Score: {p['score']} points
+Context: Teacher seeking financial literacy resources or discussing curriculum
+Opportunity Type: Community engagement / resource sharing
+"""
+                    store_to_namespace(f"r/teachers — {p['title'][:60]}", content, 0.6)
+                    
+                    # Only write lead brief if high engagement
+                    if p['score'] > 20:
+                        brief_file = write_lead_brief(lead)
+                        print(f"  → Lead brief: {brief_file}")
+                        leads.append(lead)
+    
+    except Exception as e:
+        print(f"Reddit r/teachers error: {e}")
+    
+    return leads
+
+def check_email_alerts():
+    """Check if email monitoring flagged anything"""
+    alerts = []
+    try:
+        with open('/root/scripts/email_alerts_pending.txt', 'r') as f:
+            content = f.read().strip()
+            if content and content != 'NO_NEW_ALERTS':
+                alerts.append({
+                    'source': 'Email Monitor',
+                    'title': 'New email alerts detected',
+                    'url': '/root/scripts/email_alerts_pending.txt',
+                    'type': 'email_alert'
+                })
+                
+                # Store to namespace
+                store_to_namespace(
+                    "Email Alert — PFL Academy Responses",
+                    f"Email monitoring system flagged new messages. Check {'/root/scripts/email_alerts_pending.txt'} for details.",
+                    0.8
+                )
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"Email check error: {e}")
+    
+    return alerts
+
+def write_alerts(all_findings):
+    """Write summary for Thomas"""
+    timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+    
+    with open('/root/.openclaw/workspace/scout/alerts-pending.txt', 'w') as f:
+        f.write(f"=== Scout Intelligence Scan - {timestamp} ===\n\n")
+        
+        leads = [f for f in all_findings if f.get('type') == 'community_engagement']
+        email_alerts = [f for f in all_findings if f.get('type') == 'email_alert']
+        
+        if not all_findings:
+            f.write("NO_NEW_ALERTS\n")
+            f.write("No new PFL Academy opportunities detected since last scan.\n")
+            f.write("\n--- Stored to Namespace ---\n")
+            f.write("0 new memories (no findings)\n")
+            return
+        
+        if email_alerts:
+            f.write("🚨 EMAIL ALERTS:\n")
+            for a in email_alerts:
+                f.write(f"- Check {a['url']} for details\n\n")
+        
+        if leads:
+            f.write("COMMUNITY ENGAGEMENT OPPORTUNITIES:\n")
+            for lead in leads[:5]:
+                f.write(f"- r/teachers: {lead['title']}\n")
+                f.write(f"  {lead['url']} (by u/{lead['author']}, {lead['score']} points)\n")
+                f.write(f"  → Could engage with PFL Academy resources\n")
+                if lead.get('score', 0) > 20:
+                    f.write(f"  ✓ Lead brief written for Shea\n")
+                f.write("\n")
+        
+        f.write("\n--- Stored to Namespace ---\n")
+        f.write(f"{len(all_findings)} findings stored in scout namespace\n")
+        f.write(f"{len([l for l in leads if l.get('score', 0) > 20])} lead briefs written for Shea\n")
+        
+        f.write("\n--- NEEDS WEB_SEARCH (Thomas) ---\n")
+        f.write("State DOE monitoring (CO, KY, TX, FL) requires web_search tool.\n")
+        f.write("Thomas: Run targeted searches for:\n")
+        f.write("- Colorado DOE procurement + RFPs\n")
+        f.write("- Kentucky Dept of Education financial literacy initiatives\n")
+        f.write("- Texas TEA curriculum updates\n")
+        f.write("- Florida DOE ed-tech contracts\n")
+
+def main():
+    print(f"Scout scan starting: {datetime.utcnow()}")
+    
+    all_findings = []
+    all_findings.extend(scan_reddit_teachers())
+    all_findings.extend(check_email_alerts())
+    
+    write_alerts(all_findings)
+    
+    print(f"Found {len(all_findings)} opportunities")
+    print(f"  Stored to scout namespace: {len(all_findings)} memories")
+    print(f"  Lead briefs for Shea: {len([f for f in all_findings if f.get('score', 0) > 20])}")
+
+if __name__ == '__main__':
+    main()

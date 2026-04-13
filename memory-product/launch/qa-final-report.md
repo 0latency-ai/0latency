@@ -82,7 +82,7 @@
 | Technical Accuracy | ✅ Pass | API examples verified |
 | Code Examples | ✅ Pass | Python, JS, cURL tested |
 | Copy Buttons | ✅ Pass | Work on all code blocks |
-| Pricing Accuracy | ⚠️ **Verify** | Free: 100 mem, Pro: $19/mo, 50K mem |
+| Pricing Accuracy | ⚠️ **Verify** | Free: 10K mem, Pro: $29/mo 100K mem, Scale: $89/mo 1M mem |
 | Contact Info | ✅ Pass | support@0latency.ai, legal@0latency.ai |
 
 **Grammar/Spelling Issues:**
@@ -133,8 +133,9 @@ curl https://api.0latency.ai/health
 **Pricing Details:**
 | Tier | Price | Memories | Agents | Features |
 |---|---|---|---|---|
-| Free | $0 | 100 | 1 | Basic recall only |
-| Pro | $19/mo | 50,000 | 5 | Full features |
+| Free | $0 | 10,000 | 3 | Basic recall |
+| Pro | $29/mo | 100,000 | 10 | Full features |
+| Scale | $89/mo | 1,000,000 | Unlimited | Graph + enterprise features |
 
 **CTAs:**
 - "Start Free" → /login.html (signup flow) ✅

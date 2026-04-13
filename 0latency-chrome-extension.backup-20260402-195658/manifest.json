@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "0Latency Memory Capture",
+  "version": "0.1.0",
+  "description": "Automatically capture conversations from ChatGPT, Claude, and Gemini to your 0Latency memory graph",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://api.0latency.ai/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chat.openai.com/*"],
+      "js": ["content/observer.js", "platforms/chatgpt.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": ["content/observer.js", "platforms/claude.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://gemini.google.com/*"],
+      "js": ["content/observer.js", "platforms/gemini.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

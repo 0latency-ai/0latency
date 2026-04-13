@@ -1,0 +1,13 @@
+=== Lance Pending Approvals - 2026-04-01 08:25 UTC ===
+
+16 draft responses awaiting approval.
+
+Drafts location: /root/.openclaw/workspace/lance/drafts
+
+Review each draft and either:
+- Approve: Move from drafts/ to approved/ (Lance will send)
+- Reject: Add rejection reason to Lance's namespace for learning
+- Modify: Edit draft, Lance will send modified version
+
+Critical items: 1
+High priority: 15

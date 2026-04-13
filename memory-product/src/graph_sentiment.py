@@ -545,11 +545,11 @@ def run_graph_sentiment_pipeline(
                                 INSERT INTO memory_service.entity_index 
                                     (tenant_id, agent_id, entity, memory_id)
                                 VALUES (%s::UUID, %s, %s, %s)
-                                ON CONFLICT DO NOTHING
+                                ON CONFLICT (agent_id, entity, memory_id) DO NOTHING
                             """, (tenant_id, agent_id, entity["text"], mem_id),
                                 tenant_id=tenant_id, fetch_results=False)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning(f"entity_index upsert failed: {e}")
                 except Exception as e:
                     logger.debug(f"Entity upsert failed for {entity['text']}: {e}")
             

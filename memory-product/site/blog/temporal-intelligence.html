@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temporal Intelligence: Why Your AI Agent's Memory Should Decay Like a Human's | 0Latency</title>
+    <meta name="description" content="Learn how temporal memory decay and access reinforcement make AI agents smarter. 0Latency's half-life model keeps relevant memories fresh while fading stale ones — just like the human brain.">
+    <meta name="keywords" content="AI agent memory decay, temporal memory, memory reinforcement, AI memory management">
+    <link rel="canonical" href="https://0latency.ai/blog/temporal-intelligence.html">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Temporal Intelligence: Why Your AI Agent's Memory Should Decay Like a Human's">
+    <meta property="og:description" content="Learn how temporal memory decay and access reinforcement make AI agents smarter with 0Latency's half-life model.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://0latency.ai/blog/temporal-intelligence.html">
+    <meta property="og:site_name" content="0Latency">
+    <meta property="og:image" content="https://0latency.ai/logos/0latency-og.png">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Temporal Intelligence: Why Your AI Agent's Memory Should Decay Like a Human's">
+    <meta name="twitter:description" content="Learn how temporal memory decay and access reinforcement make AI agents smarter with 0Latency's half-life model.">
+    <meta name="twitter:image" content="https://0latency.ai/logos/0latency-og.png">
+
+    <!-- JSON-LD -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "BlogPosting",
+        "headline": "Temporal Intelligence: Why Your AI Agent's Memory Should Decay Like a Human's",
+        "description": "Learn how temporal memory decay and access reinforcement make AI agents smarter with 0Latency's half-life model.",
+        "author": {
+            "@type": "Organization",
+            "name": "0Latency"
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "0Latency",
+            "logo": {
+                "@type": "ImageObject",
+                "url": "https://0latency.ai/logos/0latency-logo-complete.svg"
+            }
+        },
+        "datePublished": "2026-03-30",
+        "dateModified": "2026-03-30",
+        "mainEntityOfPage": "https://0latency.ai/blog/temporal-intelligence.html",
+        "keywords": "AI agent memory decay, temporal memory, memory reinforcement"
+    }
+    </script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a1a; background: #ffffff; line-height: 1.8; }
+        a { color: #f97316; }
+        article { max-width: 760px; margin: 0 auto; padding: 3rem 2rem 4rem; }
+        article h1 { font-size: 2.4rem; line-height: 1.2; margin-bottom: 1rem; color: #1a1a1a; }
+        .meta { color: #6b7280; font-size: 0.9rem; margin-bottom: 2.5rem; }
+        article h2 { font-size: 1.5rem; margin: 2.5rem 0 1rem; color: #1a1a1a; }
+        article h3 { font-size: 1.2rem; margin: 2rem 0 0.75rem; color: #1a1a1a; }
+        article p { margin-bottom: 1.25rem; color: #374151; }
+        article ul, article ol { margin-bottom: 1.25rem; padding-left: 1.5rem; color: #374151; }
+        article li { margin-bottom: 0.5rem; }
+        pre { background: #f8f9fa; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.25rem; overflow-x: auto; margin-bottom: 1.5rem; font-size: 0.88rem; line-height: 1.6; }
+        code { font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; font-size: 0.88rem; }
+        p code { background: #f3f4f6; padding: 0.15rem 0.4rem; border-radius: 4px; }
+        .callout { background: #fff7ed; border-left: 4px solid #f97316; padding: 1.25rem 1.5rem; border-radius: 0 8px 8px 0; margin-bottom: 1.5rem; }
+        .callout p { margin-bottom: 0; }
+        .comparison-table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; }
+        .comparison-table th, .comparison-table td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        .comparison-table th { background: #f8f9fa; font-weight: 600; color: #1a1a1a; }
+        .comparison-table td { color: #374151; }
+        .cta-box { background: #f8f9fa; border: 2px solid #f97316; border-radius: 12px; padding: 2.5rem; text-align: center; margin: 3rem 0 2rem; }
+        .cta-box h3 { margin-bottom: 0.75rem; }
+        .cta-box p { color: #6b7280; margin-bottom: 1.25rem; }
+        .cta-box a { display: inline-block; background: #f97316; color: white; padding: 0.75rem 2rem; border-radius: 8px; text-decoration: none; font-weight: 600; }
+        .faq { margin-top: 3rem; }
+        .faq h2 { margin-bottom: 1.5rem; }
+        .faq-item { border-bottom: 1px solid #e5e7eb; padding: 1.25rem 0; }
+        .faq-item h3 { font-size: 1.05rem; margin-bottom: 0.5rem; }
+        .faq-item p { margin-bottom: 0; color: #374151; }
+        footer { background: #f8f9fa; border-top: 1px solid #e5e7eb; margin-top: 2rem; }
+    </style>
+</head>
+<body>
+
+<header style="border-bottom:1px solid #e5e7eb;padding:1rem 0;background:#f8f9fa;position:sticky;top:0;z-index:100;">
+    <div style="max-width:1200px;margin:0 auto;padding:0 2rem;display:flex;justify-content:space-between;align-items:center;">
+        <a href="/"><img src="/logos/0latency-logo-complete.svg" alt="0Latency" style="height:96px;"></a>
+        <nav style="display:flex;align-items:center;gap:2rem;">
+            <a href="/pricing.html" style="color:#6b7280;text-decoration:none;font-size:0.95rem;">Pricing</a>
+            <a href="/docs/" style="color:#6b7280;text-decoration:none;font-size:0.95rem;">Docs</a>
+            <a href="/integrations/" style="color:#6b7280;text-decoration:none;font-size:0.95rem;">Integrations</a>
+            <a href="/blog/" style="color:#6b7280;text-decoration:none;font-size:0.95rem;">Blog</a>
+            <a href="/login.html" style="color:#6b7280;text-decoration:none;font-size:0.95rem;">Login</a>
+            <a href="/login.html" style="background:#f97316;color:white;padding:0.5rem 1.25rem;border-radius:6px;font-weight:600;text-decoration:none;">Get API Key</a>
+        </nav>
+    </div>
+</header>
+
+<article>
+    <p style="color:#f97316;font-weight:600;font-size:0.9rem;margin-bottom:0.5rem;">ENGINEERING</p>
+    <h1>Temporal Intelligence: Why Your AI Agent's Memory Should Decay Like a Human's</h1>
+    <p class="meta">March 30, 2026 · 9 min read</p>
+
+    <p>Your brain doesn't store every memory with equal weight. A conversation from five minutes ago feels vivid and accessible. A conversation from five years ago? It's fuzzy at best — unless something kept reinforcing it.</p>
+
+    <p>Most AI memory systems ignore this entirely. They treat a fact stored five months ago with the same importance as one stored five seconds ago. The result? Agents that surface outdated preferences, reference stale context, and burn tokens on memories that stopped being relevant long ago.</p>
+
+    <p>At <a href="/">0Latency</a>, we built temporal intelligence directly into the memory layer. Every memory has a half-life. Every access reinforces it. The result is an agent that naturally prioritizes what matters <em>right now</em> — just like you do.</p>
+
+    <h2>The Problem With Flat Memory</h2>
+
+    <p>Consider a simple example. Your AI agent assists a user named Sarah. Six months ago, Sarah mentioned she was planning a trip to Tokyo. Last week, she mentioned she just got back from Tokyo and is now focused on a project deadline.</p>
+
+    <p>In a flat memory system — the kind used by most memory providers — both facts have equal retrieval weight. When Sarah asks "What should I focus on today?", the agent might surface the Tokyo travel planning memory alongside the project deadline. It wastes context tokens and confuses the response.</p>
+
+    <p>This isn't a theoretical problem. In production systems with thousands of memories per user, flat retrieval means your agent is constantly wading through a swamp of irrelevant context. The <a href="/blog/context-budget-management.html">cost in tokens alone</a> is staggering — but the cost in response quality is worse.</p>
+
+    <h2>How Human Memory Actually Works</h2>
+
+    <p>Cognitive scientists have studied memory decay for over a century, starting with Hermann Ebbinghaus's forgetting curve in 1885. The core insight is simple: memories decay exponentially over time, but each time you recall a memory, it gets reinforced and decays more slowly going forward.</p>
+
+    <p>This creates a natural prioritization system:</p>
+
+    <ul>
+        <li><strong>Frequently accessed memories</strong> stay strong — they're clearly important</li>
+        <li><strong>Recently created memories</strong> start with high relevance</li>
+        <li><strong>Old, untouched memories</strong> fade — they're probably not needed</li>
+        <li><strong>Old but regularly accessed memories</strong> remain strong — they're core knowledge</li>
+    </ul>
+
+    <p>This is exactly the model 0Latency implements. We call it <strong>temporal scoring</strong>.</p>
+
+    <h2>The Half-Life Decay Model</h2>
+
+    <p>Every memory in 0Latency has a temporal score between 0 and 1. The score is calculated using an exponential decay function with access reinforcement:</p>
+
+    <pre><code># Temporal score formula
+score = base_strength * (0.5 ^ (time_elapsed / half_life))
+
+# Where:
+#   base_strength increases with each access (reinforcement)
+#   time_elapsed = hours since last access
+#   half_life = configurable decay rate (default: 168 hours / 7 days)</code></pre>
+
+    <p>The default half-life of 7 days means that an unreinforced memory loses half its temporal score every week. After a month, it's at ~6% of its original strength. After two months, it's effectively zero.</p>
+
+    <p>But here's where it gets interesting: <strong>every time your agent retrieves a memory, the base strength increases and the clock resets</strong>. A memory accessed daily will maintain a high temporal score indefinitely. This is access reinforcement — the same mechanism your brain uses.</p>
+
+    <h2>Temporal Scoring in Practice</h2>
+
+    <p>Here's how you use temporal scoring with the 0Latency API:</p>
+
+    <h3>Python</h3>
+
+    <pre><code>import requests
+
+API_KEY = "your-api-key"
+BASE_URL = "https://api.0latency.ai/v1"
+
+# Store a memory — temporal scoring is automatic
+response = requests.post(f"{BASE_URL}/memory", headers={
+    "X-API-Key": API_KEY,
+    "Content-Type": "application/json"
+}, json={
+    "agent_id": "support-agent",
+    "content": "Sarah is focused on the Q2 project deadline",
+    "metadata": {
+        "user_id": "sarah-123",
+        "category": "priorities"
+    }
+})
+
+# Retrieve memories — temporal scoring is applied automatically
+# Recent and frequently-accessed memories rank higher
+results = requests.post(f"{BASE_URL}/memory/search", headers={
+    "X-API-Key": API_KEY,
+    "Content-Type": "application/json"
+}, json={
+    "agent_id": "support-agent",
+    "query": "What is Sarah working on?",
+    "user_id": "sarah-123",
+    "limit": 5
+    # temporal_weight is applied by default (0.3)
+})
+
+for memory in results.json()["memories"]:
+    print(f"Score: {memory['score']:.3f} | "
+          f"Temporal: {memory['temporal_score']:.3f} | "
+          f"{memory['content']}")</code></pre>
+
+    <h3>JavaScript</h3>
+
+    <pre><code>const API_KEY = "your-api-key";
+const BASE_URL = "https://api.0latency.ai/v1";
+
+// Store a memory
+await fetch(`${BASE_URL}/memory`, {
+  method: "POST",
+  headers: {
+    "X-API-Key": API_KEY,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    agent_id: "support-agent",
+    content: "Sarah is focused on the Q2 project deadline",
+    metadata: { user_id: "sarah-123", category: "priorities" }
+  })
+});
+
+// Search with temporal scoring (applied by default)
+const results = await fetch(`${BASE_URL}/memory/search`, {
+  method: "POST",
+  headers: {
+    "X-API-Key": API_KEY,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    agent_id: "support-agent",
+    query: "What is Sarah working on?",
+    user_id: "sarah-123",
+    limit: 5
+  })
+});
+
+const { memories } = await results.json();
+memories.forEach(m =>
+  console.log(`Score: ${m.score.toFixed(3)} | Temporal: ${m.temporal_score.toFixed(3)} | ${m.content}`)
+);</code></pre>
+
+    <div class="callout">
+        <p><strong>How scoring works:</strong> The final retrieval score is a weighted blend of semantic similarity (how relevant the memory is to the query) and temporal score (how fresh/reinforced it is). By default, temporal weight is 0.3 — meaning 30% of the score comes from recency/reinforcement. You can tune this per query.</p>
+    </div>
+
+    <h2>Configuring Decay Behavior</h2>
+
+    <p>Different use cases need different decay rates. A customer support agent might need memories to stay fresh for weeks, while a trading bot needs aggressive decay measured in hours.</p>
+
+    <pre><code># Configure half-life per agent
+requests.patch(f"{BASE_URL}/agents/support-agent", headers={
+    "X-API-Key": API_KEY,
+    "Content-Type": "application/json"
+}, json={
+    "memory_config": {
+        "half_life_hours": 336,    # 2 weeks — support context stays longer
+        "temporal_weight": 0.4,    # Weight recency more heavily
+        "reinforce_on_read": True  # Each retrieval reinforces the memory
+    }
+})</code></pre>
+
+    <h2>How This Compares to Competitors</h2>
+
+    <p>Let's be direct about what other memory providers offer in terms of temporal intelligence:</p>
+
+    <table class="comparison-table">
+        <thead>
+            <tr>
+                <th>Feature</th>
+                <th>0Latency</th>
+                <th>Mem0</th>
+                <th>Zep</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Temporal decay model</td>
+                <td>✅ Half-life with reinforcement</td>
+                <td>❌ No decay</td>
+                <td>⚠️ Basic recency bias</td>
+            </tr>
+            <tr>
+                <td>Access reinforcement</td>
+                <td>✅ Automatic on every read</td>
+                <td>❌ Not available</td>
+                <td>❌ Not available</td>
+            </tr>
+            <tr>
+                <td>Configurable half-life</td>
+                <td>✅ Per-agent configuration</td>
+                <td>❌ N/A</td>
+                <td>❌ N/A</td>
+            </tr>
+            <tr>
+                <td>Temporal + semantic blend</td>
+                <td>✅ Weighted scoring</td>
+                <td>❌ Semantic only</td>
+                <td>⚠️ Limited</td>
+            </tr>
+            <tr>
+                <td>Memory importance preservation</td>
+                <td>✅ P0-P2 priority tiers</td>
+                <td>❌ Flat</td>
+                <td>⚠️ Manual tags</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <p>Mem0 stores memories with semantic search but treats all memories as equally current. Zep has some recency awareness, but it's a simple timestamp sort — not a decay model, and definitely not reinforcement learning. Neither system understands that a memory accessed 50 times should persist longer than one accessed once.</p>
+
+    <h2>Priority Tiers: When Memories Shouldn't Decay</h2>
+
+    <p>Not every memory should fade. A user's name, their core preferences, critical business rules — these need to persist indefinitely. That's why 0Latency supports priority tiers alongside temporal scoring:</p>
+
+    <ul>
+        <li><strong>P0 (Critical):</strong> Never decays. User identity, core preferences, compliance rules.</li>
+        <li><strong>P1 (Important):</strong> Slow decay (4x half-life). Key project context, ongoing relationships.</li>
+        <li><strong>P2 (Standard):</strong> Normal decay. Conversational context, temporary preferences.</li>
+    </ul>
+
+    <p>This maps directly to our <a href="/blog/context-budget-management.html">L0/L1/L2 context budget system</a>, ensuring that critical memories are always loaded first, while transient context competes on relevance and freshness.</p>
+
+    <h2>Real-World Impact: Dogfooding with Thomas</h2>
+
+    <p>In our own testing with Thomas (our AI Chief of Staff running on 0Latency), enabling temporal scoring immediately improved recall quality. The agent stopped surfacing outdated pricing ($15/student from two weeks ago instead of current $20/student) and stale project context. Frequently-accessed memories like active task lists stayed ranked high, while one-off conversations from weeks ago naturally faded.</p>
+
+    <p>Read the full story in our <a href="/case-study-thomas.html">Thomas case study</a>.</p>
+
+    <h2>Implementation Details</h2>
+
+    <p>Under the hood, temporal scoring happens at query time — not as a background job. When you search memories, 0Latency:</p>
+
+    <ol>
+        <li>Performs semantic search using vector similarity (pgvector)</li>
+        <li>Calculates temporal scores for each candidate memory</li>
+        <li>Blends the scores using configurable weights</li>
+        <li>Updates access timestamps for reinforcement (if enabled)</li>
+        <li>Returns results ranked by the blended score</li>
+    </ol>
+
+    <p>The entire process completes in under 100ms. There's no cron job decaying your memories in the background — the decay is mathematical, computed on the fly. This means zero maintenance and perfectly deterministic behavior.</p>
+
+    <h2>Getting Started</h2>
+
+    <p>Temporal scoring is enabled by default on all <a href="/pricing.html">0Latency plans</a>, including the free tier. You don't need to configure anything — just store and search memories, and temporal intelligence handles the rest.</p>
+
+    <p>For advanced use cases, you can:</p>
+
+    <ul>
+        <li>Adjust <code>half_life_hours</code> per agent</li>
+        <li>Change <code>temporal_weight</code> per query</li>
+        <li>Disable reinforcement for read-only scenarios</li>
+        <li>Set priority tiers to protect critical memories from decay</li>
+    </ul>
+
+    <p>Check out the <a href="/docs/">full documentation</a> for configuration details and API reference.</p>
+
+    <div class="cta-box">
+        <h3>Ready to give your agent a memory that thinks?</h3>
+        <p>Start with 10,000 free memories. Temporal scoring included on every plan.</p>
+        <a href="/login.html">Get Your Free API Key →</a>
+    </div>
+
+    <div class="faq">
+        <h2>Frequently Asked Questions</h2>
+
+        <div class="faq-item">
+            <h3>Does temporal decay delete my memories?</h3>
+            <p>No. Temporal decay only affects retrieval ranking. All memories are stored permanently. A memory with a low temporal score simply ranks lower in search results — it's never deleted unless you explicitly remove it.</p>
+        </div>
+
+        <div class="faq-item">
+            <h3>Can I disable temporal scoring?</h3>
+            <p>Yes. Set <code>temporal_weight: 0</code> in your query to use pure semantic search. You can also disable it at the agent level. However, we recommend keeping it enabled — most developers see immediate improvements in retrieval quality.</p>
+        </div>
+
+        <div class="faq-item">
+            <h3>What's the default half-life?</h3>
+            <p>168 hours (7 days). This works well for most conversational AI use cases. Customer support agents often benefit from longer half-lives (14-30 days), while real-time applications might use shorter ones (24-48 hours).</p>
+        </div>
+
+        <div class="faq-item">
+            <h3>How does reinforcement work exactly?</h3>
+            <p>Every time a memory is returned in a search result, its <code>base_strength</code> increases by a small increment and its <code>last_accessed</code> timestamp resets. This means frequently relevant memories stay strong indefinitely, while rarely-accessed memories naturally fade. You can disable this with <code>reinforce_on_read: false</code>.</p>
+        </div>
+
+        <div class="faq-item">
+            <h3>Is temporal scoring available on the free plan?</h3>
+            <p>Yes. Temporal scoring is a core feature available on all plans, including the free tier with 10,000 memories and 3 agents. There's no feature gating on memory intelligence — we believe every agent deserves smart retrieval.</p>
+        </div>
+    </div>
+</article>
+
+<footer style="background:#f8f9fa;border-top:1px solid #e5e7eb;margin-top:2rem;">
+    <div style="max-width:1100px;margin:0 auto;padding:3.5rem 2rem 2rem;display:grid;grid-template-columns:2fr 1fr 1fr;gap:3rem;">
+        <div>
+            <div style="margin-bottom:1rem;"><img src="/logos/0latency-logo-complete.svg" alt="0Latency" style="height:96px;"></div>
+            <p style="color:#6b7280;font-size:0.9rem;line-height:1.7;max-width:300px;margin-bottom:1.25rem;">Persistent memory layer for AI agents. Sub-100ms recall, zero configuration. Your agent remembers everything.</p>
+            <p style="font-style:italic;color:#9ca3af;font-size:0.85rem;">Zero latency. Elegance.</p>
+        </div>
+        <div>
+            <h4 style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Product</h4>
+            <div style="display:flex;flex-direction:column;gap:0.6rem;">
+                <a href="/pricing.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Pricing</a>
+                <a href="/docs/" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Docs</a>
+                <a href="/case-study-thomas.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Case Study</a>
+                <a href="/blog/" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Blog</a>
+                <a href="/support.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Support</a>
+            </div>
+        </div>
+        <div>
+            <h4 style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Resources</h4>
+            <div style="display:flex;flex-direction:column;gap:0.6rem;">
+                <a href="https://github.com/0latency-ai/0latency" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">GitHub</a>
+                <a href="/privacy.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Privacy</a>
+                <a href="/terms.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Terms</a>
+            </div>
+        </div>
+    </div>
+    <div style="max-width:1100px;margin:0 auto;padding:1.5rem 2rem;border-top:1px solid #e5e7eb;text-align:center;">
+        <p style="color:#9ca3af;font-size:0.8rem;">&copy; 2026 0Latency. All rights reserved.</p>
+    </div>
+</footer>
+
+</body>
+</html>

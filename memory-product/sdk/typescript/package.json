@@ -1,6 +1,6 @@
 {
   "name": "zerolatency",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TypeScript SDK for Zero Latency Memory API — structured memory for AI agents",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -36,7 +36,7 @@
   "homepage": "https://0latency.ai",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jghiglia2380/0Latency"
+    "url": "git+https://github.com/jghiglia2380/0Latency.git"
   },
   "engines": {
     "node": ">=18.0.0"

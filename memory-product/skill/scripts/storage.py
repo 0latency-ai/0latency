@@ -19,7 +19,6 @@ SUPABASE_URL = os.environ.get("MEMORY_SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("MEMORY_SUPABASE_KEY", "")
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
 
 DB_CONN = os.environ.get("MEMORY_DB_CONN", "")
 
@@ -27,27 +26,7 @@ DB_CONN = os.environ.get("MEMORY_DB_CONN", "")
 def _embed_text(text: str) -> list[float]:
     """Generate embedding for text using configured model."""
     
-    # Try Google first (cheaper)
-    if GOOGLE_API_KEY:
-        try:
-            model_name = "gemini-embedding-001"
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:embedContent"
-            resp = requests.post(
-                url,
-                params={"key": GOOGLE_API_KEY},
-                json={
-                    "model": f"models/{model_name}",
-                    "content": {"parts": [{"text": text}]},
-                    "outputDimensionality": 768
-                },
-                timeout=15
-            )
-            resp.raise_for_status()
-            return resp.json()["embedding"]["values"]
-        except Exception as e:
-            print(f"Google embedding failed: {e}")
-    
-    # Fallback to OpenAI
+    # OpenAI embeddings (primary)
     if OPENAI_API_KEY:
         try:
             resp = requests.post(

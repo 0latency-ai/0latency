@@ -3,16 +3,16 @@ requires = ["setuptools>=45", "wheel", "setuptools-scm>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "zero-latency"
-version = "0.1.0"
-description = "Python SDK for the 0Latency agent memory API"
+name = "zerolatency"
+version = "0.2.0"
+description = "Python SDK for the 0Latency agent memory API with drop-in wrappers for Anthropic, OpenAI, and Gemini"
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
     {name = "0Latency", email = "justin@0latency.ai"}
 ]
-keywords = ["ai", "memory", "agents", "llm", "machine-learning"]
+keywords = ["ai", "memory", "agents", "llm", "machine-learning", "anthropic", "openai", "gemini", "claude", "gpt"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -28,6 +28,9 @@ classifiers = [
 
 dependencies = [
     "requests>=2.25.0",
+    "anthropic>=0.18.0",
+    "openai>=1.0.0",
+    "google-generativeai>=0.3.0",
 ]
 
 [project.optional-dependencies]
@@ -41,3 +44,9 @@ dev = [
 Homepage = "https://0latency.ai"
 Documentation = "https://docs.0latency.ai"
 Repository = "https://github.com/0latency/python-sdk"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

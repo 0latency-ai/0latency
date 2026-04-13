@@ -1,0 +1,45 @@
+thresholds:
+  bug_auto_approve_confidence: 1.00
+  pr_auto_approve_confidence: 1.00
+  build_share_always_manual: true
+
+rewards:
+  bug_report: "pro-3mo"
+  pull_request: "scale-6mo"
+  build_share: "scale-12mo"
+
+stripe:
+  api_key: ${STRIPE_API_KEY}
+  product_ids:
+    pro_3mo: "98z2tugt"
+    scale_6mo: "ZNquPtOG"
+    scale_12mo: "mpH90XFZ"
+
+github:
+  webhook_secret: ${GITHUB_WEBHOOK_SECRET}
+
+database:
+  host: ${DB_HOST:localhost}
+  port: ${DB_PORT:5432}
+  name: ${DB_NAME:0latency}
+  user: ${DB_USER:postgres}
+  password: ${DB_PASSWORD}
+
+zerolatency:
+  api_key: ${ZEROLATENCY_API_KEY}
+  api_url: "https://api.0latency.ai/v1"
+
+mission_control:
+  api_url: ${MISSION_CONTROL_URL}
+  api_key: ${MISSION_CONTROL_API_KEY}
+
+server:
+  host: "0.0.0.0"
+  port: 8765
+  webhook_path: "/contribution-review"
+
+email:
+  microsoft_tenant_id: ${MICROSOFT_TENANT_ID}
+  microsoft_client_id: ${MICROSOFT_CLIENT_ID}
+  microsoft_client_secret: ${MICROSOFT_CLIENT_SECRET}
+  from_address: ${EMAIL_FROM:support@0latency.ai}

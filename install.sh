@@ -12,6 +12,10 @@ ok()    { printf "${GREEN}✔${RESET} %s\n" "$*"; }
 warn()  { printf "${YELLOW}⚠${RESET} %s\n" "$*"; }
 fail()  { printf "${RED}✖${RESET} %s\n" "$*"; exit 1; }
 
+# ── 0. Ensure we can read from terminal ──────────────────────────────
+# When run as `curl ... | bash`, stdin is the script itself.
+# We read from /dev/tty directly in all prompts below.
+
 # ── 1. Check for Node.js >= 18 ──────────────────────────────────────
 if ! command -v node &>/dev/null; then
   fail "Node.js is not installed. Install it from https://nodejs.org (v18+) and re-run this script."
@@ -35,13 +39,8 @@ echo ""
 printf "${BOLD}0Latency MCP Server Installer${RESET}\n"
 printf "Give Claude Desktop persistent long-term memory.\n\n"
 
-# When piped from curl, stdin is the script itself — reattach to terminal
-if [ ! -t 0 ]; then
-  exec 0</dev/tty || fail "Cannot read input. Run the script directly: bash install.sh"
-fi
-
 printf "Do you have a 0Latency API key? (y/n): "
-read -r HAS_KEY
+read -r HAS_KEY </dev/tty || fail "Cannot read input. Download and run directly: curl -fsSL https://0latency.ai/install.sh -o /tmp/install.sh && bash /tmp/install.sh"
 
 if [[ ! "$HAS_KEY" =~ ^[Yy] ]]; then
   info "Opening 0Latency signup page…"
@@ -52,7 +51,7 @@ if [[ ! "$HAS_KEY" =~ ^[Yy] ]]; then
 fi
 
 printf "API key: "
-read -r API_KEY
+read -r API_KEY </dev/tty || fail "Cannot read input."
 
 if [ -z "$API_KEY" ]; then
   fail "No API key provided. Re-run when you have one."

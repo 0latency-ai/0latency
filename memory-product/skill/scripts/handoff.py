@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import requests
 from storage import _db_execute, DB_CONN as DB_URL
 
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 # --- Prompts ---
 
@@ -127,7 +127,7 @@ def detect_state_change(human_message: str, agent_message: str, recent_turns: li
     )
     
     try:
-        result = _call_gemini(prompt)
+        result = _call_llm(prompt)
         # Parse JSON from response
         data = _extract_json(result)
         return data
@@ -171,7 +171,7 @@ def generate_handoff(agent_id: str, session_key: str, recent_turns: list,
     )
     
     try:
-        result = _call_gemini(prompt)
+        result = _call_llm(prompt)
         data = _extract_json(result)
         return data
     except Exception as e:
@@ -329,23 +329,25 @@ def get_latest_handoff(agent_id: str) -> Optional[dict]:
         conn.close()
 
 
-def _call_gemini(prompt: str) -> str:
-    """Call Gemini Flash for extraction."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GOOGLE_API_KEY}"
-    
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.1,
-            "maxOutputTokens": 2000,
-        }
+def _call_llm(prompt: str) -> str:
+    """Call OpenAI for extraction (replaces Gemini)."""
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json"
     }
-    
-    resp = requests.post(url, json=payload, timeout=30)
+    body = {
+        "model": "gpt-4o-mini",
+        "temperature": 0.1,
+        "max_tokens": 2000,
+        "messages": [
+            {"role": "system", "content": "You are a conversation state analyzer. Respond with valid JSON only."},
+            {"role": "user", "content": prompt}
+        ]
+    }
+    resp = requests.post(url, headers=headers, json=body, timeout=30)
     resp.raise_for_status()
-    data = resp.json()
-    
-    return data["candidates"][0]["content"]["parts"][0]["text"]
+    return resp.json()["choices"][0]["message"]["content"]
 
 
 def _extract_json(text: str) -> dict:

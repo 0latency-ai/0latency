@@ -1,10 +1,8 @@
-# Show HN: 0Latency – Cross-platform memory consolidation (like Auto Dream, for any AI)
-
-**Update:** Anthropic just shipped Auto Dream — memory consolidation built into Claude Code. It's great if you only use Claude Code. I built the cross-platform version that works everywhere.
+# Show HN: 0Latency – One memory layer for every AI platform
 
 **The problem:** Every AI session starts from zero. You give context, the agent builds something great, session ends. Next time: "I don't have access to that information." You're re-explaining the same codebase, the same preferences, the same bugs you've already hit.
 
-Auto Dream solves this for Claude Code users. But what if you use GPT? Cursor? Custom agents? That's where 0Latency comes in.
+Some platforms are adding their own memory features, but they only work within that one tool. If you use multiple AI platforms (and most of us do), you need a universal layer. That's 0Latency.
 
 **What I built:**
 
@@ -78,7 +76,7 @@ curl "https://api.0latency.ai/memories?agent_id=my-agent&limit=10" \
 **Pricing:**
 
 - Free: 10K memories
-- Pro: 100K memories, $19/mo
+- Pro: 100K memories, $29/mo
 - Scale: 1M memories + graph features, $89/mo (64% cheaper than Mem0's equivalent tier)
 
 **What's different:**

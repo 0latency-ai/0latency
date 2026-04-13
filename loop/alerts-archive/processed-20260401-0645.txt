@@ -1,0 +1,49 @@
+=== Loop Intelligence Scan 2026-04-01T06:08:40.232241 ===
+
+🚨 CRITICAL PRIORITY:
+- [HN] Show HN: RunAgent; Multi-Framework Agent Deployment and Rust,Go,JS SDKs(+others)
+  https://news.ycombinator.com/item?id=44594835 (score: 6)
+
+- [HN] Sandboxed or bare metal? Statistics and study on AI agent deployment
+  https://news.ycombinator.com/item?id=47181880 (score: 6)
+
+- [HN] Show HN: Quick AI Agent Deployment with Flowise and Qdrant
+  https://news.ycombinator.com/item?id=41766152 (score: 4)
+
+HIGH PRIORITY:
+- [HN] Supabase MCP can leak your entire SQL database
+  https://news.ycombinator.com/item?id=44502318 (score: 848)
+
+- [HN] MCP: An (Accidentally) Universal Plugin System
+  https://news.ycombinator.com/item?id=44404905 (score: 808)
+
+- [HN] OpenAI adds MCP support to Agents SDK
+  https://news.ycombinator.com/item?id=43485566 (score: 807)
+
+- [HN] Claude Skills are awesome, maybe a bigger deal than MCP
+  https://news.ycombinator.com/item?id=45619537 (score: 738)
+
+- [HN] The “S” in MCP Stands for Security
+  https://news.ycombinator.com/item?id=43600192 (score: 730)
+
+MEDIUM PRIORITY:
+- [HN] Show HN: Orloj – agent infrastructure as code (YAML and GitOps)
+  https://news.ycombinator.com/item?id=47526813
+
+- [HN] System Initiative Adds AI Agents to Infrastructure Automation Platform
+  https://news.ycombinator.com/item?id=45040986
+
+- [HN] Show HN: Gensee – Free AI Agent Optimization and Deployment
+  https://news.ycombinator.com/item?id=44749564
+
+- [HN] Show HN: Upsonic: An AI agent framework with client-server architecture
+  https://news.ycombinator.com/item?id=42974193
+
+- [HN] Cognosys AI founder's view on LLM agents deployment, evals, & debugging
+  https://news.ycombinator.com/item?id=37308905
+
+
+--- Scan Summary ---
+Total alerts: 60
+Critical: 4, High: 42, Medium: 14
+Sources: Reddit (0), HN (60), YouTube (0)

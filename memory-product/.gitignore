@@ -27,3 +27,5 @@ Thumbs.db
 
 # Logs
 *.log
+0latency-registry/.mcpregistry_github_token
+*.mcpregistry_github_token

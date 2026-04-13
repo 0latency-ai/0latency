@@ -1,0 +1,140 @@
+LOOP INTELLIGENCE REPORT - 2026-03-26 23:54 UTC
+
+=== SCAN PARAMETERS ===
+- Reddit /r/ClaudeCode: BLOCKED (403 - network policy)
+- Hacker News: SUCCESS (16 memory layer projects found in last 90 days)
+- Time window: Last 24 hours + recent high-value targets
+
+=== HIGH PRIORITY ===
+
+1. **Memori for Claude Code (Rust implementation)**
+   - URL: https://news.ycombinator.com/item?id=47223089
+   - Author: architsingh15
+   - Posted: Mar 2, 2026 (22 days ago, still active discussion)
+   - Engagement: 2 comments, 1 point
+   - Why: Author explicitly addresses Claude Code session amnesia. Built Rust+Python hybrid search solution. Active in comments discussing design tradeoffs. PERFECT demographic - technical founder solving exact problem 0Latency addresses.
+   - Pain points mentioned: "Every Claude Code session starts from zero", decay scoring, auto-dedup, hybrid search complexity
+   - Draft comment:
+     ```
+     Nice work on the hybrid search + decay model! The auto-dedup at 0.92 similarity is clever.
+     
+     I'm working on 0Latency (0latency.ai) - similar problem space but API-first. We handle the entity extraction, graph relationships, and sentiment analysis automatically so agents don't need to manage embeddings/dedup logic.
+     
+     One thing we found: the decay scoring gets tricky when you have collaborative multi-agent contexts. Curious if you've tested Memori across multiple Claude instances sharing state? We're seeing demand for "team memory" where Agent A's learnings are immediately available to Agent B.
+     
+     The SQLite+FTS5 approach is solid for single-agent. If you hit scale issues or want to compare approaches, happy to chat.
+     ```
+
+2. **TraceMem - Decision trace memory layer**
+   - URL: https://news.ycombinator.com/item?id=46594366
+   - Author: tommihip
+   - Posted: Jan 12, 2026
+   - Engagement: 15 points, 1 comment
+   - Why: Focused on "why decisions were made" - authority/reasoning persistence. Different angle (audit/governance) but overlapping use case. 15 points = decent visibility.
+   - Unique angle: "Decision context as system of record, not monitoring data"
+   - Draft comment:
+     ```
+     The "why behind decisions" angle is underrated. Most memory layers focus on facts/retrieval, but decision authority + reasoning traces are critical for production agents.
+     
+     At 0Latency we're tackling adjacent space - persistent entity graphs + relationships for agent memory. One thing we're experimenting with: connecting decisions to the entity graph so you can answer "who approved X" or "what context led to decision Y".
+     
+     Have you thought about how TraceMem handles conflicting decisions over time? E.g., Agent makes decision X at T1, then contradictory decision Y at T2 - how does the trace reconcile that?
+     
+     Really interesting work. The durable context approach maps well to compliance/audit use cases.
+     ```
+
+3. **Rice - State machine + memory for AI agents**
+   - URL: https://news.ycombinator.com/item?id=46540413
+   - Author: aperi
+   - Posted: Jan 8, 2026
+   - Engagement: 0 comments, 1 point, LOOKING FOR BETA TESTERS
+   - Why: Explicitly seeking beta testers. Combines state management + memory. No comments = opportunity to be first responder. Different architecture (state machine focus) but complementary.
+   - Claims: "60% reduction in context consumption"
+   - Draft comment:
+     ```
+     State management + memory is the right split. Most frameworks conflate them.
+     
+     Question on the shared state approach: how do you handle conflicts when parallel agents write to the same state? Message passing has overhead but avoids race conditions.
+     
+     We're building 0Latency (0latency.ai) - memory-as-a-service for agents. We handle the long-term entity graph/relationships, but state management is deliberately out of scope. I think there's a clean integration here: Rice for ephemeral state, 0Latency for persistent facts/entities.
+     
+     Would be interested in beta testing if you're open to exploring that integration. The 60% context reduction claim is compelling - curious how much of that is from state vs. memory optimization.
+     ```
+
+=== MEDIUM PRIORITY ===
+
+4. **MemoryKit (Python, weekend project)**
+   - URL: https://news.ycombinator.com/item?id=47195240
+   - Author: memorykit
+   - Posted: Feb 28, 2026
+   - Engagement: 0 comments
+   - Why: Weekend side project, early stage, seeking feedback. Author open to input.
+
+5. **Epitome (open-source shared memory layer)**
+   - URL: https://news.ycombinator.com/item?id=47075157
+   - Author: joshgpurvis
+   - Posted: Feb 19, 2026
+   - Engagement: 3 comments, 3 points
+   - Why: Some community discussion, shared memory angle relevant
+
+6. **OpenSink (control + memory layer)**
+   - URL: https://news.ycombinator.com/item?id=46959703
+   - Author: dan_lupashku
+   - Posted: Feb 10, 2026
+   - Engagement: 0 comments (shows 1 child but likely deleted)
+   - Why: Includes OpenClaw skills, broad control plane approach
+
+=== COMPETITIVE INTELLIGENCE ===
+
+**Market saturation signal:** 16+ memory layer projects launched in last 90 days on HN alone. Common patterns:
+- SQLite + embeddings (local-first)
+- Hybrid search (FTS + vector)
+- MCP integration
+- "Agents forget everything" as primary pain point
+
+**Differentiation opportunities for 0Latency:**
+1. **Managed service vs. self-hosted** - most are libraries/OSS
+2. **Enterprise features** (entity extraction, graph, sentiment) vs. basic vector search
+3. **Multi-agent collaboration** - most focus on single-agent persistence
+4. **API-first** - no embedding management, no local DB setup
+
+**Positioning gaps:**
+- None emphasize cross-platform memory (Claude + Cursor + custom agents)
+- Weak on relationship extraction - mostly flat key-value or vector retrieval
+- No one highlighting compliance/audit angle (except TraceMem)
+
+=== REDDIT SCAN STATUS ===
+- /r/ClaudeCode: BLOCKED (Reddit requires login/API credentials)
+- Recommendation: Set up Reddit API access or authenticated scraping for future scans
+- Alternative: Monitor via RSS feeds or third-party Reddit APIs
+
+=== NEXT ACTIONS ===
+
+**Immediate (next 24h):**
+1. Engage on architsingh15's Memori post (HIGH - technical founder, active discussion)
+2. Comment on TraceMem (MEDIUM - different angle but relevant audience)
+3. Monitor Rice post for any activity (beta tester opportunity)
+
+**Short-term (next week):**
+1. Set up Reddit API access for r/ClaudeCode monitoring
+2. Create HN search alert for "agent memory", "Claude Code memory"
+3. Engage on 2-3 medium priority posts with lighter touch
+
+**Content opportunities:**
+- Write comparison post: "Memory Layers for AI Agents in 2026: Managed vs. Self-Hosted"
+- Technical deep-dive: "Entity Graphs vs. Vector Search for Agent Memory"
+- Case study: "How 0Latency handles multi-agent memory synchronization"
+
+=== SUMMARY ===
+
+Market is HOT for agent memory solutions (16 projects in 90 days). Primary pain: session amnesia in Claude Code and similar agents. Most solutions are local-first, OSS, single-agent focused. 0Latency's differentiation: managed service, enterprise entity extraction, multi-agent graph, zero infrastructure.
+
+Top engagement opportunity: architsingh15's Memori discussion (recent, technical, active). Recommend thoughtful technical comment highlighting complementary approach, not direct competition.
+
+Reddit access blocked - need auth for r/ClaudeCode monitoring. HN providing sufficient signal for now.
+
+---
+END REPORT
+Scan duration: ~90 seconds
+Sources: HN Algolia API (16 results analyzed)
+Next scan: Recommend 24-48h interval for HN, daily for Reddit once access restored

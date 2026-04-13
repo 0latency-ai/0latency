@@ -1,13 +1,11 @@
 # X/Twitter Launch Thread
 
 **Tweet 1 (Hook):**
-Anthropic just shipped Auto Dream — memory consolidation for Claude Code.
+Your AI agents forget everything between sessions.
 
-Great if you only use Claude.
+I built a universal memory layer that works with Claude, GPT, Cursor, any agent framework.
 
-I built the cross-platform version.
-
-Works with Claude, GPT, Cursor, any agent framework. Not locked to one tool.
+One memory layer. Every AI platform. Not locked to one tool.
 
 Ships today.
 
@@ -26,16 +24,15 @@ You're not building on top of previous work. You're re-explaining the same codeb
 
 ---
 
-**Tweet 3 (Auto Dream vs 0Latency):**
-Auto Dream: Built into Claude Code. Works great if that's your only tool.
+**Tweet 3 (Why universal?):**
+Platform-specific memory locks you in. 0Latency is a universal API:
 
-0Latency: Cross-platform API.
 • Works with Claude, GPT, Cursor, custom agents
 • Not locked to one vendor
 • API access (integrate anywhere)
 • Self-hosting option (Enterprise)
 
-Think of us as "Auto Dream for everyone else."
+One memory layer. Every AI platform.
 
 ---
 
@@ -81,7 +78,7 @@ Your memory follows you. Not locked to one platform.
 
 **Tweet 7 (Pricing / CTA):**
 **Free tier:** 10K memories
-**Pro:** 100K memories, $19/mo
+**Pro:** 100K memories, $29/mo
 **Scale:** 1M memories + graph features, $89/mo
 
 (64% cheaper than Mem0 for comparable features)

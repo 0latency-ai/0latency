@@ -448,6 +448,7 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
     if mem_id:
         try:
             from graph import extract_relationships_from_memory
+            memory["id"] = mem_id  # Overwrite temp dedup hash with real DB UUID
             extract_relationships_from_memory(memory, memory['agent_id'], tenant_id=current_tenant)
         except Exception as e:
             print(f"  ⚠ Graph extraction failed (non-fatal): {e}")
@@ -718,7 +719,7 @@ def _index_entities(agent_id: str, memory_id: str, entities: list[str], tenant_i
             _db_execute("""
                 INSERT INTO memory_service.entity_index (tenant_id, agent_id, entity, memory_id)
                 VALUES (%s::UUID, %s, %s, %s)
-                ON CONFLICT (tenant_id, agent_id, entity, memory_id) DO NOTHING
+                ON CONFLICT (agent_id, entity, memory_id) DO NOTHING
             """, (tenant_id, agent_id, entity_clean, memory_id), tenant_id=tenant_id, fetch_results=False)
         except Exception:
             pass  # Skip duplicates silently

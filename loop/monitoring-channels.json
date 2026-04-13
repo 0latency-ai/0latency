@@ -1,0 +1,84 @@
+{
+  "youtube_channels": [
+    {
+      "name": "Nate Herk",
+      "channel_id": "@NateHerk",
+      "priority": "HIGH",
+      "keywords": ["AI jobs", "AI skills", "agents", "multi-agent", "memory", "LLM"]
+    },
+    {
+      "name": "AI Revolution",
+      "channel_id": "@AIRevolutionX",
+      "priority": "HIGH",
+      "keywords": ["AI agents", "memory", "self-learning", "optimization"]
+    },
+    {
+      "name": "Greg Isenberg",
+      "channel_id": "@GregIsenberg",
+      "priority": "CRITICAL",
+      "keywords": ["AI companies", "zero-person", "agents", "startups", "business"]
+    },
+    {
+      "name": "Matt Wolfe",
+      "channel_id": "@mreflow",
+      "priority": "HIGH",
+      "keywords": ["AI tools", "OpenClaw", "Claude", "agents"]
+    },
+    {
+      "name": "AI Jason",
+      "channel_id": "@AIJasonZ",
+      "priority": "MEDIUM",
+      "keywords": ["AI agents", "automation", "productivity"]
+    },
+    {
+      "name": "Swyx",
+      "channel_id": "@swyx",
+      "priority": "HIGH",
+      "keywords": ["AI engineering", "latent space", "agents", "memory"]
+    },
+    {
+      "name": "Anthropic",
+      "channel_id": "@AnthropicAI",
+      "priority": "CRITICAL",
+      "keywords": ["Claude", "MCP", "computer use", "agents"]
+    },
+    {
+      "name": "OpenAI",
+      "channel_id": "@OpenAI",
+      "priority": "HIGH",
+      "keywords": ["GPT", "agents", "memory", "optimization"]
+    }
+  ],
+  "reddit_subreddits": [
+    "r/ClaudeAI",
+    "r/ClaudeCode", 
+    "r/AI_Agents",
+    "r/LocalLLaMA",
+    "r/OpenAI",
+    "r/MachineLearning"
+  ],
+  "twitter_keywords": [
+    "#aiagents",
+    "#MCP",
+    "OpenClaw optimization",
+    "Claude memory",
+    "agent memory",
+    "token optimization",
+    "AI cost savings"
+  ],
+  "hackernews_keywords": [
+    "memory",
+    "agents",
+    "MCP",
+    "OpenClaw",
+    "Claude",
+    "cost optimization",
+    "token savings"
+  ],
+  "scan_frequency": "every 2 hours",
+  "alert_threshold": {
+    "HIGH": "Telegram alert within 30 minutes",
+    "MEDIUM": "Daily digest",
+    "LOW": "Weekly summary"
+  }
+}

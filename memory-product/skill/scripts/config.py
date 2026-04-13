@@ -22,8 +22,8 @@ def get_db_conn() -> str:
 def get_db_password() -> str:
     return _optional_env("MEMORY_DB_PASSWORD")
 
-def get_google_api_key() -> str:
-    return _require_env("GOOGLE_API_KEY")
+def get_openai_api_key() -> str:
+    return _require_env("OPENAI_API_KEY")
 
 def get_supabase_url() -> str:
     return _optional_env("MEMORY_SUPABASE_URL")

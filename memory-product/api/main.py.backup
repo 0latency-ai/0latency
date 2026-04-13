@@ -1,0 +1,1892 @@
+"""
+Zero Latency Memory API — Phase B  
+FastAPI REST endpoints for multi-tenant agent memory with real authentication.
+"""
+import os
+import sys
+import time
+
+# Load .env file for environment variables (Stripe keys, etc.)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+import hashlib
+import uuid
+import logging
+from datetime import datetime, timezone
+from typing import Optional
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+
+# Structured logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='{"time":"%(asctime)s","level":"%(levelname)s","msg":"%(message)s"}',
+    datefmt='%Y-%m-%dT%H:%M:%S'
+)
+logger = logging.getLogger("zerolatency")
+
+# Add src/ to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+from extraction import extract_memories
+from storage_multitenant import (
+    store_memory, store_memories, set_tenant_context, 
+    get_tenant_by_api_key, create_tenant, track_api_usage,
+    _db_execute_rows,
+)
+from recall import recall_fixed as recall
+from graph import (
+    get_entity_subgraph, list_entities, get_entity_memories, 
+    find_path, upsert_entity, add_relationship,
+)
+from versioning import snapshot_version, get_history
+from webhooks import register_webhook, list_webhooks, delete_webhook, trigger_event
+from criteria import (
+    create_criteria as _create_criteria, list_criteria as _list_criteria,
+    delete_criteria as _delete_criteria,
+)
+from schemas import (
+    create_schema as _create_schema, list_schemas as _list_schemas,
+    delete_schema as _delete_schema, get_schema,
+)
+from org_memory import (
+    create_organization, add_tenant_to_org, get_tenant_org,
+    store_org_memory, recall_org_memories, list_org_memories,
+    delete_org_memory, promote_to_org,
+)
+
+# Monitoring & Error Tracking
+try:
+    from api.monitoring import track_critical_errors
+except ImportError:
+    # If monitoring not available, create pass-through decorator
+    def track_critical_errors(func):
+        return func
+
+# --- App ---
+app = FastAPI(
+    title="Zero Latency Memory API",
+    version="0.1.0",
+    description="Structured memory extraction, storage, and recall for AI agents.",
+)
+
+_CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "https://164.90.156.169,https://0latency.ai,https://www.0latency.ai,https://api.0latency.ai,http://localhost:3000").split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_CORS_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True,
+)
+
+# --- Auth Module ---
+
+# Warm embedding cache on startup
+from storage_multitenant import warm_embedding_cache
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup."""
+    warm_embedding_cache()
+
+from api.auth import router as auth_router
+app.include_router(auth_router)
+
+# --- Billing Module ---
+from api.billing import router as billing_router
+app.include_router(billing_router)
+
+# --- Security Module (secret scanning) ---
+from api.security import router as security_router, check_for_secrets
+app.include_router(security_router)
+
+@app.middleware("http")
+async def request_logging(request: Request, call_next):
+    """Log every request with ID, tenant, endpoint, latency."""
+    request_id = str(uuid.uuid4())[:8]
+    start = time.time()
+    response = await call_next(request)
+    latency_ms = int((time.time() - start) * 1000)
+    tenant_id = getattr(request.state, "tenant_id", "anon") if hasattr(request, "state") else "anon"
+    logger.info(f"req={request_id} method={request.method} path={request.url.path} status={response.status_code} latency={latency_ms}ms tenant={tenant_id}")
+    response.headers["X-Request-ID"] = request_id
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
+
+# --- Security & Observability Middleware ---
+try:
+    from api.middleware_security import security_middleware
+    app.middleware("http")(security_middleware)
+    logger.info("Security middleware enabled")
+except ImportError as e:
+    logger.warning(f"Security middleware not available: {e}")
+
+try:
+    from api.metrics_middleware import metrics_middleware
+    app.middleware("http")(metrics_middleware)
+    logger.info("Metrics middleware enabled")
+except ImportError as e:
+    logger.warning(f"Metrics middleware not available: {e}")
+
+# --- Configuration ---
+def _admin_key(): return os.environ.get("MEMORY_ADMIN_KEY", "")
+
+# --- Rate Limiting (Redis-backed, survives restarts) ---
+import redis as _redis
+
+_redis_client = None
+
+def _get_redis():
+    global _redis_client
+    if _redis_client is None:
+        try:
+            _redis_url = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+            _redis_client = _redis.from_url(_redis_url, decode_responses=True, socket_timeout=2)
+            _redis_client.ping()
+        except Exception:
+            _redis_client = None
+    return _redis_client
+
+def _check_rate_limit(tenant_id: str, rate_limit_rpm: int):
+    """Check if tenant has exceeded their rate limit. Redis-backed with in-memory fallback."""
+    from fastapi.responses import JSONResponse
+    r = _get_redis()
+    if r:
+        try:
+            key = f"rl:{tenant_id}"
+            count = r.incr(key)
+            if count == 1:
+                r.expire(key, 60)
+            if count > rate_limit_rpm:
+                ttl = max(r.ttl(key), 1)
+                logger.warning(f"rate_limit_hit tenant={tenant_id} plan_rpm={rate_limit_rpm} count={count} retry_after={ttl}")
+                raise HTTPException(
+                    status_code=429,
+                    detail={
+                        "error": "rate_limit_exceeded",
+                        "message": f"Rate limit exceeded ({rate_limit_rpm} requests/min). Retry after {ttl}s.",
+                        "limit": rate_limit_rpm,
+                        "retry_after": ttl,
+                    },
+                    headers={"Retry-After": str(ttl)},
+                )
+            return
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.debug(f"Redis rate-limit unavailable, falling back to in-memory: {e}")
+    
+    # In-memory fallback if Redis unavailable
+    now = time.time()
+    window = _rate_limits_fallback.setdefault(tenant_id, [])
+    _rate_limits_fallback[tenant_id] = [t for t in window if now - t < 60]
+    if len(_rate_limits_fallback[tenant_id]) >= rate_limit_rpm:
+        logger.warning(f"rate_limit_hit tenant={tenant_id} plan_rpm={rate_limit_rpm} (in-memory fallback)")
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "rate_limit_exceeded",
+                "message": f"Rate limit exceeded ({rate_limit_rpm} requests/min). Retry after 60s.",
+                "limit": rate_limit_rpm,
+                "retry_after": 60,
+            },
+            headers={"Retry-After": "60"},
+        )
+    _rate_limits_fallback[tenant_id].append(now)
+
+_rate_limits_fallback: dict[str, list[float]] = {}
+
+# --- Auth ---
+# Tenant auth cache — avoids DB lookup on every request
+_tenant_cache: dict[str, tuple[dict, float]] = {}
+_TENANT_CACHE_TTL = 30  # 30 seconds
+
+async def require_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
+    """Multi-tenant auth via API key header with cached validation."""
+    if not x_api_key or not x_api_key.startswith("zl_live_") or len(x_api_key) != 40:
+        raise HTTPException(401, detail="Invalid API key format")
+    
+    api_key_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
+    now = time.time()
+    
+    # Check for cross-worker cache invalidation
+    _check_cache_bust()
+    
+    # Check cache first
+    if api_key_hash in _tenant_cache:
+        cached_tenant, cached_at = _tenant_cache[api_key_hash]
+        if now - cached_at < _TENANT_CACHE_TTL:
+            if not cached_tenant["active"]:
+                raise HTTPException(401, detail="Account suspended")
+            _check_rate_limit(cached_tenant["id"], cached_tenant["rate_limit_rpm"])
+            set_tenant_context(cached_tenant["id"])
+            return cached_tenant
+        else:
+            del _tenant_cache[api_key_hash]
+    
+    # DB lookup
+    tenant = get_tenant_by_api_key(api_key_hash)
+    if not tenant:
+        raise HTTPException(401, detail="Invalid API key")
+    
+    if not tenant["active"]:
+        raise HTTPException(401, detail="Account suspended")
+    
+    # Cache it
+    _tenant_cache[api_key_hash] = (tenant, now)
+    
+    _check_rate_limit(tenant["id"], tenant["rate_limit_rpm"])
+    set_tenant_context(tenant["id"])
+    return tenant
+
+def _invalidate_tenant_cache(tenant_id: str = None):
+    """Clear tenant cache after key rotation/revocation.
+    Also sets a Redis flag so other workers know to clear their cache."""
+    _tenant_cache.clear()
+    try:
+        r = _get_redis()
+        if r:
+            # Signal all workers to clear cache
+            r.set("zl:cache_bust", str(time.time()), ex=60)
+    except Exception as e:
+        logger.debug(f"Redis cache-bust signal failed: {e}")
+
+def _check_cache_bust():
+    """Check if another worker invalidated the cache."""
+    try:
+        r = _get_redis()
+        if r:
+            bust_time = r.get("zl:cache_bust")
+            if bust_time:
+                bust_ts = float(bust_time)
+                for key in list(_tenant_cache.keys()):
+                    _, cached_at = _tenant_cache[key]
+                    if cached_at < bust_ts:
+                        del _tenant_cache[key]
+    except Exception as e:
+        logger.debug(f"Redis cache-bust check failed: {e}")
+
+async def require_admin_key(request: Request, x_admin_key: str = Header(..., alias="X-Admin-Key")):
+    """Admin authentication for tenant management. Restricted to localhost."""
+    # IP allowlist: admin endpoints only accessible from localhost
+    client_ip = request.client.host if request.client else "unknown"
+    allowed_ips = {"127.0.0.1", "::1", "localhost"}
+    if client_ip not in allowed_ips:
+        raise HTTPException(403, detail="Admin endpoints are only accessible from localhost")
+    
+    if not _admin_key():
+        raise HTTPException(500, detail="Admin endpoint not configured")
+    
+    if x_admin_key != _admin_key():
+        raise HTTPException(401, detail="Invalid admin key")
+    
+    return True
+
+# --- Models ---
+from fastapi.responses import HTMLResponse
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard(request: Request, tenant=Depends(require_api_key)):
+    """Tenant dashboard UI (requires API key)."""
+    dashboard_path = os.path.join(os.path.dirname(__file__), "dashboard.html")
+    with open(dashboard_path) as f:
+        return HTMLResponse(content=f.read())
+
+
+class SeedFact(BaseModel):
+    text: str = Field(..., min_length=1, max_length=5000)
+    category: Optional[str] = Field(None, max_length=64)
+    importance: float = Field(default=0.5, ge=0.0, le=1.0)
+
+class SeedRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    facts: list[SeedFact] = Field(..., min_length=1, max_length=500)
+
+class SeedResponse(BaseModel):
+    memories_stored: int
+    memory_ids: list[str]
+
+
+class ExtractRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    human_message: str = Field(..., min_length=1, max_length=50000)
+    agent_message: str = Field(..., min_length=1, max_length=50000)
+    session_key: Optional[str] = Field(None, max_length=256)
+    turn_id: Optional[str] = Field(None, max_length=256)
+
+class AsyncExtractRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    content: str = Field(..., min_length=1, max_length=100000)
+    session_key: Optional[str] = Field(None, max_length=256)
+
+class ExtractResponse(BaseModel):
+    memories_stored: int
+    memory_ids: list[str]
+    entities_extracted: int = 0
+    relationships_created: int = 0
+    sentiment_analyzed: bool = False
+    tier_features_used: list[str] = []
+
+class RecallRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    conversation_context: str = Field(..., min_length=1, max_length=50000)
+    budget_tokens: int = Field(default=4000, ge=500, le=16000)
+    dynamic_budget: bool = False
+
+class RecallResponse(BaseModel):
+    context_block: str
+    memories_used: int
+    tokens_used: int
+
+class MemoryItem(BaseModel):
+    id: str
+    headline: str
+    memory_type: str
+    importance: float
+    created_at: str
+
+class CreateTenantRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=256)
+    plan: str = Field(default="free", pattern="^(free|pro|enterprise)$")
+
+class CreateTenantResponse(BaseModel):
+    tenant_id: str
+    name: str
+    api_key: str
+    plan: str
+    created_at: str
+    memory_limit: int
+    rate_limit_rpm: int
+
+class TenantInfo(BaseModel):
+    id: str
+    name: str
+    plan: str
+    memory_limit: int
+    rate_limit_rpm: int
+    api_calls_count: int
+
+class HealthResponse(BaseModel):
+    status: str
+    version: str
+    timestamp: str
+    memories_total: Optional[int] = None
+    db_pool: Optional[dict] = None
+    redis: Optional[str] = None
+
+# --- Endpoints ---
+@app.post("/extract", response_model=ExtractResponse)
+@track_critical_errors
+async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_api_key)):
+    """Extract memories from a conversation turn."""
+    # Secret scanning — reject if secrets detected in inbound content
+    check_for_secrets(req.human_message, "human_message")
+    check_for_secrets(req.agent_message, "agent_message")
+    
+    start_time = time.time()
+    try:
+        # Enforce memory limit
+        count_rows = _db_execute_rows("""
+            SELECT COUNT(*) FROM memory_service.memories
+            WHERE tenant_id = %s::UUID AND superseded_at IS NULL
+        """, (tenant["id"],), tenant_id=tenant["id"])
+        current_count = int(count_rows[0][0]) if count_rows else 0
+        if current_count >= tenant["memory_limit"]:
+            raise HTTPException(429, detail=f"Memory limit reached ({tenant['memory_limit']}). Upgrade plan or delete old memories.")
+        
+        # Fetch recent headlines for dedup context
+        existing_context = ""
+        try:
+            recent = _db_execute_rows("""
+                SELECT headline FROM memory_service.memories
+                WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+                ORDER BY created_at DESC LIMIT 20
+            """, (req.agent_id, tenant["id"]), tenant_id=tenant["id"])
+            if recent:
+                existing_context = "\n".join(f"- {row[0]}" for row in recent)
+        except Exception as e:
+            logger.warning(f"Failed to load existing context for dedup: {e}")
+        
+        memories = extract_memories(
+            human_message=req.human_message,
+            agent_message=req.agent_message,
+            agent_id=req.agent_id,
+            session_key=req.session_key,
+            turn_id=req.turn_id,
+            existing_context=existing_context,
+        )
+        if not memories:
+            response = ExtractResponse(memories_stored=0, memory_ids=[])
+        else:
+            ids = store_memories(memories, tenant["id"])
+            
+            # Tier-based auto-enablement of premium features
+            entities_extracted = 0
+            relationships_created = 0
+            sentiment_analyzed = False
+            tier_features_used = []
+            
+            if tenant.get("plan") in ["pro", "scale", "enterprise"]:
+                try:
+                    # Auto-extract entities and build graph for paid tiers
+                    from src.graph import extract_relationships_from_memory
+                    
+                    for i, memory_id in enumerate(ids):
+                        # Get the memory object that was stored
+                        memory_dict = memories[i] if i < len(memories) else None
+                        if not memory_dict:
+                            continue
+                        
+                        # Add the ID to the memory dict for relationship extraction
+                        memory_dict["id"] = memory_id
+                        
+                        # Extract entities and relationships using existing graph function
+                        extract_relationships_from_memory(memory_dict, req.agent_id, tenant_id=tenant["id"])
+                        
+                        # Count entities for response
+                        entity_count = len(memory_dict.get("entities", []))
+                        entities_extracted += entity_count
+                        
+                        # Count relationships (rough estimate: n*(n-1)/2 for n entities)
+                        if entity_count >= 2:
+                            relationships_created += (entity_count * (entity_count - 1)) // 2
+                    
+                    if entities_extracted > 0:
+                        tier_features_used.append("entity_extraction")
+                    if relationships_created > 0:
+                        tier_features_used.append("graph_relationships")
+                    
+                    # Sentiment is already extracted in extract_memories()
+                    # Just flag that it was used for paid tiers
+                    sentiment_analyzed = True
+                    tier_features_used.append("sentiment_analysis")
+                    
+                except Exception as e:
+                    logger.warning(f"Tier features auto-enablement failed (non-critical): {e}")
+            
+            response = ExtractResponse(
+                memories_stored=len(ids), 
+                memory_ids=ids,
+                entities_extracted=entities_extracted,
+                relationships_created=relationships_created,
+                sentiment_analyzed=sentiment_analyzed,
+                tier_features_used=list(set(tier_features_used))  # dedup
+            )
+        
+        # Track usage
+        response_time = int((time.time() - start_time) * 1000)
+        track_api_usage(tenant["id"], "/extract", 
+                       tokens_used=len(req.human_message + req.agent_message), 
+                       response_time_ms=response_time)
+        
+        return response
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions (429, 401, etc.) as-is
+    except Exception as e:
+        track_api_usage(tenant["id"], "/extract", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
+        raise HTTPException(500, detail="Extraction failed. Please check your input and try again.")
+
+
+@app.post("/memories/seed", response_model=SeedResponse)
+@track_critical_errors
+async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key)):
+    """Seed memories directly from raw facts, bypassing the extraction pipeline.
+    
+    Use this to bulk-load known facts, preferences, or context into an agent's
+    memory without requiring conversation-format input. Each fact becomes a
+    memory with its own embedding.
+    """
+    start_time = time.time()
+    try:
+        # Secret scanning on each fact
+        for i, fact in enumerate(req.facts):
+            check_for_secrets(fact.text, f"facts[{i}].text")
+
+        # Enforce memory limit
+        count_rows = _db_execute_rows("""
+            SELECT COUNT(*) FROM memory_service.memories
+            WHERE tenant_id = %s::UUID AND superseded_at IS NULL
+        """, (tenant["id"],), tenant_id=tenant["id"])
+        current_count = int(count_rows[0][0]) if count_rows else 0
+        remaining = tenant["memory_limit"] - current_count
+        if remaining <= 0:
+            raise HTTPException(429, detail=f"Memory limit reached ({tenant['memory_limit']}). Upgrade plan or delete old memories.")
+        if len(req.facts) > remaining:
+            raise HTTPException(429, detail=f"Would exceed memory limit. {remaining} slots remaining, {len(req.facts)} facts submitted.")
+
+        # Build memory dicts from facts and store them
+        memories = []
+        for fact in req.facts:
+            categories = [fact.category] if fact.category else []
+            memories.append({
+                "agent_id": req.agent_id,
+                "headline": fact.text,
+                "context": fact.text,
+                "full_content": fact.text,
+                "memory_type": fact.category or "fact",
+                "importance": fact.importance,
+                "confidence": 0.9,
+                "entities": [],
+                "categories": categories,
+                "scope": "/",
+                "source_session": "seed",
+                "source_turn": None,
+                "metadata": {"source": "seed_api"},
+            })
+
+        ids = store_memories(memories, tenant["id"])
+        response = SeedResponse(memories_stored=len(ids), memory_ids=ids)
+
+        # Track usage
+        response_time = int((time.time() - start_time) * 1000)
+        track_api_usage(tenant["id"], "/memories/seed",
+                       tokens_used=sum(len(f.text) for f in req.facts),
+                       response_time_ms=response_time)
+
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        track_api_usage(tenant["id"], "/memories/seed",
+                       response_time_ms=int((time.time() - start_time) * 1000),
+                       status_code=500)
+        logger.error(f"Seed endpoint failed: {e}")
+        raise HTTPException(500, detail="Seed failed. Please check your input and try again.")
+
+
+# --- Async Extraction Job Store (in-memory for now, Redis-backed in production) ---
+_extract_jobs: dict[str, dict] = {}
+
+@app.post("/memories/extract", status_code=202)
+async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depends(require_api_key)):
+    """Async memory extraction. Accepts instantly (202), processes in background.
+    
+    This is the preferred extraction path. Recall is always sync and fast.
+    Extraction accepts instantly and processes in the background.
+    Partial results beat blocking.
+    """
+    # Secret scanning — reject if secrets detected in inbound content
+    check_for_secrets(req.content, "content")
+    
+    import threading
+    
+    job_id = str(uuid.uuid4())
+    _extract_jobs[job_id] = {
+        "status": "accepted",
+        "tenant_id": tenant["id"],
+        "agent_id": req.agent_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "memories_stored": 0,
+        "memory_ids": [],
+    }
+    
+    def _process_extraction():
+        try:
+            # Split content into human/agent turns or treat as raw content
+            memories = extract_memories(
+                human_message=req.content,
+                agent_message="",
+                agent_id=req.agent_id,
+                session_key=req.session_key,
+            )
+            if memories:
+                ids = store_memories(memories, tenant["id"])
+                _extract_jobs[job_id].update({
+                    "status": "complete",
+                    "memories_stored": len(ids),
+                    "memory_ids": ids,
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                })
+            else:
+                _extract_jobs[job_id].update({
+                    "status": "complete",
+                    "memories_stored": 0,
+                    "memory_ids": [],
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                })
+            
+            track_api_usage(tenant["id"], "/memories/extract", 
+                           tokens_used=len(req.content), response_time_ms=0)
+        except Exception as e:
+            logger.error(f"Async extraction failed for job {job_id}: {e}")
+            _extract_jobs[job_id].update({
+                "status": "failed",
+                "error": "extraction_failed",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            })
+    
+    thread = threading.Thread(target=_process_extraction, daemon=True)
+    thread.start()
+    
+    return {"job_id": job_id, "status": "accepted"}
+
+
+@app.get("/memories/extract/{job_id}")
+async def get_extract_job(job_id: str, tenant: dict = Depends(require_api_key)):
+    """Check status of an async extraction job."""
+    job = _extract_jobs.get(job_id)
+    if not job:
+        raise HTTPException(404, detail="Job not found")
+    if job["tenant_id"] != tenant["id"]:
+        raise HTTPException(404, detail="Job not found")
+    return {k: v for k, v in job.items() if k != "tenant_id"}
+
+
+@app.post("/recall", response_model=RecallResponse)
+@track_critical_errors
+async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api_key)):
+    """Recall relevant memories for a conversation context."""
+    start_time = time.time()
+    try:
+        result = recall(
+            agent_id=req.agent_id,
+            conversation_context=req.conversation_context,
+            budget_tokens=req.budget_tokens,
+            # dynamic_budget=req.dynamic_budget,  # TODO: add to recall_fixed
+        )
+        response = RecallResponse(
+            context_block=result["context_block"],
+            memories_used=result["memories_used"],
+            tokens_used=result["tokens_used"],
+        )
+        
+        # Track usage
+        response_time = int((time.time() - start_time) * 1000)
+        track_api_usage(tenant["id"], "/recall", 
+                       tokens_used=result["tokens_used"], 
+                       response_time_ms=response_time)
+        
+        return response
+    except Exception as e:
+        track_api_usage(tenant["id"], "/recall", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
+        raise HTTPException(500, detail="Recall failed. Please check your input and try again.")
+
+
+@app.get("/memories", response_model=list[MemoryItem])
+async def list_memories(
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    memory_type: Optional[str] = Query(None, max_length=32),
+    tenant: dict = Depends(require_api_key),
+):
+    """List memories for an agent with pagination."""
+    start_time = time.time()
+    try:
+        tenant_id = tenant["id"]
+        
+        if memory_type:
+            rows = _db_execute_rows("""
+                SELECT id, headline, memory_type, importance, created_at
+                FROM memory_service.memories
+                WHERE agent_id = %s AND tenant_id = %s AND superseded_at IS NULL AND memory_type = %s
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+            """, (agent_id, tenant_id, memory_type, limit, offset), tenant_id=tenant_id)
+        else:
+            rows = _db_execute_rows("""
+                SELECT id, headline, memory_type, importance, created_at
+                FROM memory_service.memories
+                WHERE agent_id = %s AND tenant_id = %s AND superseded_at IS NULL
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+            """, (agent_id, tenant_id, limit, offset), tenant_id=tenant_id)
+        
+        items = []
+        for row in (rows or []):
+            items.append(MemoryItem(
+                id=str(row[0]),
+                headline=str(row[1]),
+                memory_type=str(row[2]),
+                importance=float(row[3]) if row[3] is not None else 0.5,
+                created_at=str(row[4]),
+            ))
+        
+        # Track usage
+        response_time = int((time.time() - start_time) * 1000)
+        track_api_usage(tenant["id"], "/memories", response_time_ms=response_time)
+        
+        return items
+    except Exception as e:
+        track_api_usage(tenant["id"], "/memories", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
+        raise HTTPException(500, detail="Failed to list memories. Please try again.")
+
+
+@app.delete("/memories/{memory_id}")
+async def delete_memory(memory_id: str, tenant: dict = Depends(require_api_key)):
+    """Delete a specific memory. Tenant-isolated."""
+    try:
+        rows = _db_execute_rows("""
+            DELETE FROM memory_service.memories
+            WHERE id = %s::UUID AND tenant_id = %s::UUID
+            RETURNING id
+        """, (memory_id, tenant["id"]), tenant_id=tenant["id"])
+        if not rows:
+            raise HTTPException(404, detail="Memory not found")
+        
+        # Clean up entity index and edges
+        _db_execute_rows("""
+            DELETE FROM memory_service.entity_index WHERE memory_id = %s
+        """, (memory_id,), tenant_id=tenant["id"], fetch_results=False)
+        _db_execute_rows("""
+            DELETE FROM memory_service.memory_edges 
+            WHERE source_memory_id = %s OR target_memory_id = %s
+        """, (memory_id, memory_id), tenant_id=tenant["id"], fetch_results=False)
+        
+        # Audit log
+        _db_execute_rows("""
+            INSERT INTO memory_service.memory_audit_log (tenant_id, agent_id, action, memory_id, details)
+            VALUES (%s::UUID, 'api', 'delete', %s, '{"source":"api"}'::jsonb)
+        """, (tenant["id"], memory_id), tenant_id=tenant["id"], fetch_results=False)
+        
+        logger.info(f"Memory deleted: {memory_id} tenant={tenant['id']}")
+        return {"deleted": memory_id}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(500, detail="Failed to delete memory.")
+
+
+@app.get("/memories/search")
+async def search_memories(
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    q: str = Query(..., min_length=1, max_length=500),
+    limit: int = Query(20, ge=1, le=100),
+    tenant: dict = Depends(require_api_key),
+):
+    """Search memories by keyword. Tenant-isolated."""
+    try:
+        pattern = f"%{q}%"
+        rows = _db_execute_rows("""
+            SELECT id, headline, memory_type, importance, created_at, context
+            FROM memory_service.memories
+            WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+              AND (headline ILIKE %s OR context ILIKE %s)
+            ORDER BY importance DESC, created_at DESC
+            LIMIT %s
+        """, (agent_id, tenant["id"], pattern, pattern, limit), tenant_id=tenant["id"])
+        
+        results = []
+        for row in (rows or []):
+            results.append({
+                "id": str(row[0]),
+                "headline": str(row[1]),
+                "memory_type": str(row[2]),
+                "importance": float(row[3]) if row[3] is not None else 0.5,
+                "created_at": str(row[4]),
+                "context": str(row[5]) if row[5] else "",
+            })
+        return results
+    except Exception:
+        raise HTTPException(500, detail="Search failed.")
+
+
+class BatchExtractItem(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    human_message: str = Field(..., min_length=1, max_length=50000)
+    agent_message: str = Field(..., min_length=1, max_length=50000)
+    session_key: Optional[str] = Field(None, max_length=256)
+    turn_id: Optional[str] = Field(None, max_length=256)
+
+class BatchExtractRequest(BaseModel):
+    turns: list[BatchExtractItem] = Field(..., min_length=1, max_length=50)
+
+@app.post("/extract/batch")
+async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require_api_key)):
+    """Extract memories from multiple conversation turns in one request."""
+    # Secret scanning — reject entire batch if any turn contains secrets
+    for i, turn in enumerate(req.turns):
+        check_for_secrets(turn.human_message, f"turns[{i}].human_message")
+        check_for_secrets(turn.agent_message, f"turns[{i}].agent_message")
+    
+    start_time = time.time()
+    total_stored = 0
+    all_ids = []
+    errors = []
+    
+    for i, turn in enumerate(req.turns):
+        try:
+            memories = extract_memories(
+                human_message=turn.human_message,
+                agent_message=turn.agent_message,
+                agent_id=turn.agent_id,
+                session_key=turn.session_key,
+                turn_id=turn.turn_id,
+            )
+            if memories:
+                ids = store_memories(memories, tenant["id"])
+                total_stored += len(ids)
+                all_ids.extend(ids)
+        except Exception as e:
+            errors.append({"turn": i, "error": "extraction failed"})
+    
+    response_time = int((time.time() - start_time) * 1000)
+    track_api_usage(tenant["id"], "/extract/batch", 
+                   tokens_used=sum(len(t.human_message + t.agent_message) for t in req.turns),
+                   response_time_ms=response_time)
+    
+    return {
+        "turns_processed": len(req.turns),
+        "memories_stored": total_stored,
+        "memory_ids": all_ids,
+        "errors": errors if errors else None,
+    }
+
+
+# === BULK IMPORT & THREAD IMPORT ENDPOINTS ===
+
+class BulkImportRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    content: str = Field(..., min_length=1, max_length=204800)  # 200KB
+    source: Optional[str] = Field(None, max_length=256)
+
+class ConversationTurn(BaseModel):
+    role: str = Field(..., pattern="^(human|assistant|user|system)$")
+    content: str = Field(..., min_length=1, max_length=100000)
+
+class ThreadImportRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    conversation: list[ConversationTurn] = Field(..., min_length=1, max_length=500)
+    source: Optional[str] = Field(None, max_length=256)
+
+
+def _chunk_text(text: str, chunk_size: int = 2000, overlap: int = 200) -> list[str]:
+    """Split text into overlapping chunks of ~chunk_size characters."""
+    if len(text) <= chunk_size:
+        return [text]
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        # Try to break at a sentence or paragraph boundary
+        if end < len(text):
+            # Look for paragraph break first
+            para_break = text.rfind("\n\n", start + chunk_size // 2, end + 200)
+            if para_break > start:
+                end = para_break
+            else:
+                # Look for sentence break
+                for sep in [". ", ".\n", "! ", "? ", "\n"]:
+                    sent_break = text.rfind(sep, start + chunk_size // 2, end + 100)
+                    if sent_break > start:
+                        end = sent_break + len(sep)
+                        break
+        chunks.append(text[start:end].strip())
+        start = end - overlap  # overlap for context continuity
+        if start >= len(text):
+            break
+    return [c for c in chunks if c]  # filter empty
+
+
+@app.post("/memories/import")
+@track_critical_errors
+async def bulk_import_endpoint(req: BulkImportRequest, tenant: dict = Depends(require_api_key)):
+    """Bulk import: accepts a large text document, chunks it, extracts memories from each chunk.
+    
+    Use this to import project briefs, wiki pages, documentation, or any large text block.
+    Content is chunked into ~2000 char segments with overlap, and each chunk is run through
+    the extraction pipeline.
+    """
+    # Secret scanning on full content
+    check_for_secrets(req.content, "content")
+    
+    start_time = time.time()
+    
+    # Enforce memory limit
+    count_rows = _db_execute_rows("""
+        SELECT COUNT(*) FROM memory_service.memories
+        WHERE tenant_id = %s::UUID AND superseded_at IS NULL
+    """, (tenant["id"],), tenant_id=tenant["id"])
+    current_count = int(count_rows[0][0]) if count_rows else 0
+    if current_count >= tenant["memory_limit"]:
+        raise HTTPException(429, detail=f"Memory limit reached ({tenant['memory_limit']}). Upgrade plan or delete old memories.")
+    
+    # Chunk the content
+    chunks = _chunk_text(req.content)
+    
+    total_stored = 0
+    all_ids = []
+    
+    # Fetch recent headlines for dedup context
+    existing_context = ""
+    try:
+        recent = _db_execute_rows("""
+            SELECT headline FROM memory_service.memories
+            WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+            ORDER BY created_at DESC LIMIT 30
+        """, (req.agent_id, tenant["id"]), tenant_id=tenant["id"])
+        if recent:
+            existing_context = "\n".join(f"- {row[0]}" for row in recent)
+    except Exception as e:
+        logger.warning(f"Failed to load existing context for dedup: {e}")
+    
+    for chunk in chunks:
+        # Check memory limit per chunk to avoid overshooting
+        if current_count + total_stored >= tenant["memory_limit"]:
+            logger.warning(f"Memory limit reached during import for tenant {tenant['id']}")
+            break
+        
+        try:
+            memories = extract_memories(
+                human_message=chunk,
+                agent_message="",
+                agent_id=req.agent_id,
+                session_key=req.source or "bulk-import",
+                existing_context=existing_context,
+            )
+            if memories:
+                ids = store_memories(memories, tenant["id"])
+                total_stored += len(ids)
+                all_ids.extend(ids)
+                # Update dedup context with new headlines
+                for mem in memories:
+                    existing_context += f"\n- {mem['headline']}"
+        except Exception as e:
+            logger.error(f"Chunk extraction failed during import: {e}")
+    
+    response_time = int((time.time() - start_time) * 1000)
+    track_api_usage(tenant["id"], "/memories/import",
+                   tokens_used=len(req.content),
+                   response_time_ms=response_time)
+    
+    return {
+        "memories_stored": total_stored,
+        "memory_ids": all_ids,
+        "chunks_processed": len(chunks),
+    }
+
+
+@app.post("/memories/import-thread")
+async def thread_import_endpoint(req: ThreadImportRequest, tenant: dict = Depends(require_api_key)):
+    """Thread import: accepts a conversation export and extracts memories from each turn pair.
+    
+    Use this to import Claude Desktop exports, ChatGPT exports, or any conversation in
+    [{role, content}] format. Human+assistant messages are paired and each pair is processed
+    through the extraction pipeline.
+    """
+    # Secret scanning on all content
+    for i, turn in enumerate(req.conversation):
+        check_for_secrets(turn.content, f"conversation[{i}].content")
+    
+    start_time = time.time()
+    
+    # Enforce memory limit
+    count_rows = _db_execute_rows("""
+        SELECT COUNT(*) FROM memory_service.memories
+        WHERE tenant_id = %s::UUID AND superseded_at IS NULL
+    """, (tenant["id"],), tenant_id=tenant["id"])
+    current_count = int(count_rows[0][0]) if count_rows else 0
+    if current_count >= tenant["memory_limit"]:
+        raise HTTPException(429, detail=f"Memory limit reached ({tenant['memory_limit']}). Upgrade plan or delete old memories.")
+    
+    # Pair human+assistant turns
+    turns_processed = 0
+    total_stored = 0
+    all_ids = []
+    
+    # Fetch recent headlines for dedup context
+    existing_context = ""
+    try:
+        recent = _db_execute_rows("""
+            SELECT headline FROM memory_service.memories
+            WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+            ORDER BY created_at DESC LIMIT 30
+        """, (req.agent_id, tenant["id"]), tenant_id=tenant["id"])
+        if recent:
+            existing_context = "\n".join(f"- {row[0]}" for row in recent)
+    except Exception as e:
+        logger.warning(f"Failed to load existing context for dedup: {e}")
+    
+    # Build turn pairs: collect consecutive human/assistant pairs
+    i = 0
+    recent_pairs: list[tuple[str, str]] = []
+    while i < len(req.conversation):
+        human_msg = ""
+        assistant_msg = ""
+        
+        # Collect human message(s)
+        if req.conversation[i].role in ("human", "user"):
+            human_msg = req.conversation[i].content
+            i += 1
+            # Check if next is assistant
+            if i < len(req.conversation) and req.conversation[i].role == "assistant":
+                assistant_msg = req.conversation[i].content
+                i += 1
+        elif req.conversation[i].role == "assistant":
+            # Standalone assistant message — use as agent_message with empty human
+            assistant_msg = req.conversation[i].content
+            i += 1
+        else:
+            # Skip system messages
+            i += 1
+            continue
+        
+        if not human_msg and not assistant_msg:
+            continue
+        
+        # Check memory limit per turn
+        if current_count + total_stored >= tenant["memory_limit"]:
+            logger.warning(f"Memory limit reached during thread import for tenant {tenant['id']}")
+            break
+        
+        try:
+            memories = extract_memories(
+                human_message=human_msg,
+                agent_message=assistant_msg,
+                agent_id=req.agent_id,
+                session_key=req.source or "thread-import",
+                existing_context=existing_context,
+                recent_turns=recent_pairs[-4:] if recent_pairs else None,
+            )
+            if memories:
+                ids = store_memories(memories, tenant["id"])
+                total_stored += len(ids)
+                all_ids.extend(ids)
+                for mem in memories:
+                    existing_context += f"\n- {mem['headline']}"
+        except Exception as e:
+            logger.error(f"Turn extraction failed during thread import: {e}")
+        
+        recent_pairs.append((human_msg, assistant_msg))
+        turns_processed += 1
+    
+    response_time = int((time.time() - start_time) * 1000)
+    track_api_usage(tenant["id"], "/memories/import-thread",
+                   tokens_used=sum(len(t.content) for t in req.conversation),
+                   response_time_ms=response_time)
+    
+    return {
+        "memories_stored": total_stored,
+        "memory_ids": all_ids,
+        "turns_processed": turns_processed,
+    }
+
+
+@app.get("/memories/export")
+async def export_memories(
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    tenant: dict = Depends(require_api_key),
+):
+    """Export all memories for an agent as JSON. For data portability and GDPR compliance."""
+    rows = _db_execute_rows("""
+        SELECT id, headline, context, full_content, memory_type, 
+               importance, confidence, entities, project, categories, scope,
+               created_at, reinforcement_count, access_count
+        FROM memory_service.memories
+        WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+        ORDER BY created_at ASC
+    """, (agent_id, tenant["id"]), tenant_id=tenant["id"])
+    
+    memories = []
+    for row in rows:
+        memories.append({
+            "id": str(row[0]),
+            "headline": str(row[1]),
+            "context": str(row[2]) if row[2] else "",
+            "full_content": str(row[3]) if row[3] else "",
+            "memory_type": str(row[4]),
+            "importance": float(row[5]) if row[5] is not None else 0.5,
+            "confidence": float(row[6]) if row[6] is not None else 0.8,
+            "entities": list(row[7]) if row[7] else [],
+            "project": str(row[8]) if row[8] else None,
+            "categories": list(row[9]) if row[9] else [],
+            "scope": str(row[10]) if row[10] else "/",
+            "created_at": str(row[11]),
+            "reinforcement_count": int(row[12]) if row[12] else 0,
+            "access_count": int(row[13]) if row[13] else 0,
+        })
+    
+    track_api_usage(tenant["id"], "/memories/export", response_time_ms=0)
+    
+    return {
+        "agent_id": agent_id,
+        "tenant_id": tenant["id"],
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "total_memories": len(memories),
+        "memories": memories,
+    }
+
+
+# === PUBLIC DEMO ENDPOINT (no auth, rate-limited by IP) ===
+
+class DemoExtractRequest(BaseModel):
+    content: str = Field(..., min_length=10, max_length=2000)
+
+def _check_demo_rate_limit(client_ip: str, max_per_hour: int = 5):
+    """Rate limit demo endpoint by IP: max_per_hour requests per hour."""
+    r = _get_redis()
+    if r:
+        try:
+            key = f"demo_rl:{client_ip}"
+            count = r.incr(key)
+            if count == 1:
+                r.expire(key, 3600)
+            if count > max_per_hour:
+                ttl = max(r.ttl(key), 1)
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Demo rate limit exceeded ({max_per_hour} requests/hour). Try again in {ttl}s.",
+                    headers={"Retry-After": str(ttl)},
+                )
+            return
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+    # In-memory fallback
+    now = time.time()
+    window = _demo_rate_limits.setdefault(client_ip, [])
+    _demo_rate_limits[client_ip] = [t for t in window if now - t < 3600]
+    if len(_demo_rate_limits[client_ip]) >= max_per_hour:
+        raise HTTPException(429, detail=f"Demo rate limit exceeded ({max_per_hour} requests/hour). Try again later.")
+    _demo_rate_limits[client_ip].append(now)
+
+_demo_rate_limits: dict[str, list[float]] = {}
+
+@app.post("/demo/extract")
+async def demo_extract_endpoint(req: DemoExtractRequest, request: Request):
+    """Public demo endpoint — extracts memories from text without authentication.
+    Rate limited to 5 requests per IP per hour. Max 2000 chars input.
+    """
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else "unknown")
+    _check_demo_rate_limit(client_ip)
+    
+    start_time = time.time()
+    try:
+        memories = extract_memories(
+            human_message=req.content,
+            agent_message="",
+            agent_id="demo",
+            session_key="demo-playground",
+        )
+        
+        results = []
+        for mem in (memories or []):
+            results.append({
+                "text": mem.get("headline", ""),
+                "category": mem.get("memory_type", "fact"),
+                "importance": round(mem.get("importance", 0.5), 2),
+                "entities": mem.get("entities", []),
+            })
+        
+        latency_ms = int((time.time() - start_time) * 1000)
+        logger.info(f"demo_extract ip={client_ip} memories={len(results)} latency={latency_ms}ms")
+        
+        return {
+            "memories": results,
+            "count": len(results),
+            "latency_ms": latency_ms,
+        }
+    except Exception as e:
+        logger.error(f"Demo extraction failed: {e}")
+        raise HTTPException(500, detail="Extraction failed. Please try again.")
+
+
+@app.get("/health", response_model=HealthResponse)
+async def health_check():
+    """Health check — no auth required. Verifies DB connectivity and pool status."""
+    try:
+        from storage_multitenant import _get_connection_pool
+        
+        rows = _db_execute_rows(
+            "SELECT COUNT(*) FROM memory_service.memories WHERE superseded_at IS NULL",
+            tenant_id="00000000-0000-0000-0000-000000000000"
+        )
+        total = int(rows[0][0]) if rows else 0
+        
+        # Pool stats
+        pool_info = {}
+        try:
+            pool = _get_connection_pool()
+            pool_info = {
+                "pool_min": pool.minconn,
+                "pool_max": pool.maxconn,
+            }
+        except Exception as e:
+            logger.debug(f"Pool info unavailable: {e}")
+        
+        # Redis status
+        redis_ok = False
+        try:
+            r = _get_redis()
+            if r:
+                redis_ok = r.ping()
+        except Exception as e:
+            logger.debug(f"Redis health check failed: {e}")
+        
+        return {
+            "status": "ok",
+            "version": "0.1.0",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "memories_total": total,
+            "db_pool": pool_info,
+            "redis": "connected" if redis_ok else "unavailable",
+        }
+    except Exception:
+        return {
+            "status": "degraded",
+            "version": "0.1.0",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "memories_total": None,
+            "db_pool": {},
+            "redis": "unknown",
+        }
+
+
+@app.get("/metrics")
+async def metrics_endpoint():
+    """Performance metrics — no auth required. Shows request rates, latency percentiles, error rates."""
+    try:
+        from api.metrics_middleware import get_metrics_summary
+        return get_metrics_summary()
+    except Exception as e:
+        return {"error": "Metrics not available", "detail": str(e)}
+
+
+@app.get("/observability/anomalies")
+async def anomalies_endpoint(
+    hours: int = Query(24, ge=1, le=168),
+    severity: Optional[str] = Query(None, regex="^(low|medium|high|critical)$")
+):
+    """Recent anomalies detected by statistical analysis. Public endpoint for status page."""
+    try:
+        from observability import get_recent_anomalies
+        return {
+            "anomalies": get_recent_anomalies(hours=hours, severity=severity),
+            "hours": hours,
+            "severity_filter": severity
+        }
+    except Exception as e:
+        return {"error": "Anomaly detection not available", "detail": str(e)}
+
+
+@app.get("/observability/anomalies/summary")
+async def anomalies_summary_endpoint():
+    """Summary of recent anomaly detection activity. Public endpoint."""
+    try:
+        from observability import get_anomaly_summary
+        return get_anomaly_summary()
+    except Exception as e:
+        return {"error": "Anomaly detection not available", "detail": str(e)}
+
+
+@app.get("/observability/errors/stats")
+async def error_stats_endpoint(hours: int = Query(24, ge=1, le=168)):
+    """Error statistics for monitoring. Public endpoint."""
+    try:
+        from observability import get_error_stats
+        return get_error_stats(hours=hours)
+    except Exception as e:
+        return {"error": "Error tracking not available", "detail": str(e)}
+
+
+# === GRAPH MEMORY ENDPOINTS ===
+
+@app.get("/graph/entity")
+async def graph_entity_endpoint(
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    entity: str = Query(..., min_length=1, max_length=256),
+    depth: int = Query(2, ge=1, le=4),
+    tenant: dict = Depends(require_api_key),
+):
+    """Get knowledge graph around an entity with multi-hop traversal."""
+    try:
+        result = get_entity_subgraph(agent_id, entity, depth=depth, tenant_id=tenant["id"])
+        track_api_usage(tenant["id"], "/graph/entity", response_time_ms=0)
+        return result
+    except Exception as e:
+        logger.error(f"Graph query failed: {e}")
+        raise HTTPException(500, detail="Graph query failed. Check agent_id and entity name.")
+
+
+@app.get("/graph/entities")
+async def graph_entities_endpoint(
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    entity_type: Optional[str] = Query(None, max_length=32),
+    limit: int = Query(50, ge=1, le=200),
+    tenant: dict = Depends(require_api_key),
+):
+    """List all known entities for an agent."""
+    try:
+        return list_entities(agent_id, entity_type=entity_type, limit=limit, tenant_id=tenant["id"])
+    except Exception as e:
+        raise HTTPException(500, detail="Failed to list entities.")
+
+
+@app.get("/graph/entity/memories")
+async def graph_entity_memories_endpoint(
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    entity: str = Query(..., min_length=1, max_length=256),
+    limit: int = Query(20, ge=1, le=100),
+    tenant: dict = Depends(require_api_key),
+):
+    """Get all memories associated with an entity."""
+    try:
+        return get_entity_memories(agent_id, entity, limit=limit, tenant_id=tenant["id"])
+    except Exception as e:
+        raise HTTPException(500, detail="Failed to retrieve entity memories.")
+
+
+@app.get("/graph/path")
+async def graph_path_endpoint(
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    source: str = Query(..., min_length=1, max_length=256),
+    target: str = Query(..., min_length=1, max_length=256),
+    max_depth: int = Query(4, ge=1, le=6),
+    tenant: dict = Depends(require_api_key),
+):
+    """Find shortest path between two entities in the knowledge graph."""
+    try:
+        path = find_path(agent_id, source, target, max_depth=max_depth, tenant_id=tenant["id"])
+        return {"source": source, "target": target, "path": path, "hops": len(path) - 1 if path else 0}
+    except Exception as e:
+        raise HTTPException(500, detail="Path query failed.")
+
+
+# === MEMORY VERSIONING ENDPOINTS ===
+
+@app.get("/memories/{memory_id}/history")
+async def memory_history_endpoint(
+    memory_id: str,
+    tenant: dict = Depends(require_api_key),
+):
+    """Get full version history for a memory."""
+    try:
+        return get_history(memory_id, tenant["id"])
+    except Exception as e:
+        raise HTTPException(500, detail="Failed to retrieve memory history.")
+
+
+@app.put("/memories/{memory_id}")
+async def update_memory_endpoint(
+    memory_id: str,
+    request: Request,
+    tenant: dict = Depends(require_api_key),
+):
+    """Update a memory. Automatically creates a version snapshot before updating."""
+    try:
+        body = await request.json()
+        
+        # Snapshot current state before update
+        snapshot_version(memory_id, tenant["id"], changed_by="api", change_reason="manual_update")
+        
+        # Build update query from provided fields
+        allowed_fields = {"headline", "context", "full_content", "memory_type", "importance", "confidence"}
+        updates = []
+        params = []
+        for field in allowed_fields:
+            if field in body:
+                updates.append(f"{field} = %s")
+                params.append(body[field])
+        
+        if not updates:
+            raise HTTPException(400, detail="No valid fields to update")
+        
+        params.extend([memory_id, tenant["id"]])
+        query = f"""
+            UPDATE memory_service.memories 
+            SET {', '.join(updates)}
+            WHERE id = %s::UUID AND tenant_id = %s::UUID
+            RETURNING id
+        """
+        rows = _db_execute_rows(query, tuple(params), tenant_id=tenant["id"])
+        
+        if not rows:
+            raise HTTPException(404, detail="Memory not found")
+        
+        # Trigger webhook
+        trigger_event(tenant["id"], "memory.updated", {
+            "memory_id": memory_id,
+            "fields_updated": list(body.keys()),
+        })
+        
+        return {"updated": memory_id, "version": "incremented"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, detail="Memory update failed.")
+
+
+# === WEBHOOK ENDPOINTS ===
+
+class WebhookRequest(BaseModel):
+    url: str = Field(..., min_length=10, max_length=2048)
+    events: list[str] = Field(..., min_length=1, max_length=10)
+    secret: Optional[str] = Field(None, max_length=256)
+
+@app.post("/webhooks")
+async def create_webhook_endpoint(req: WebhookRequest, tenant: dict = Depends(require_api_key)):
+    """Register a webhook for memory events."""
+    try:
+        return register_webhook(tenant["id"], req.url, req.events, req.secret)
+    except ValueError as e:
+        raise HTTPException(400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(500, detail="Webhook creation failed.")
+
+
+@app.get("/webhooks")
+async def list_webhooks_endpoint(tenant: dict = Depends(require_api_key)):
+    """List all webhooks for the current tenant."""
+    return list_webhooks(tenant["id"])
+
+
+@app.delete("/webhooks/{webhook_id}")
+async def delete_webhook_endpoint(webhook_id: str, tenant: dict = Depends(require_api_key)):
+    """Delete a webhook."""
+    if delete_webhook(tenant["id"], webhook_id):
+        return {"deleted": webhook_id}
+    raise HTTPException(404, detail="Webhook not found")
+
+
+# === CRITERIA ENDPOINTS ===
+
+class CriteriaRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    name: str = Field(..., min_length=1, max_length=64)
+    weight: float = Field(default=0.5, ge=0.0, le=1.0)
+    description: Optional[str] = Field(None, max_length=500)
+    scoring_prompt: Optional[str] = Field(None, max_length=2000)
+
+@app.post("/criteria")
+async def create_criteria_endpoint(req: CriteriaRequest, tenant: dict = Depends(require_api_key)):
+    """Create a custom recall scoring criteria."""
+    try:
+        return _create_criteria(tenant["id"], req.agent_id, req.name, req.weight,
+                               req.description, req.scoring_prompt)
+    except Exception as e:
+        raise HTTPException(500, detail="Criteria creation failed.")
+
+
+@app.get("/criteria")
+async def list_criteria_endpoint(
+    agent_id: str = Query(..., min_length=1, max_length=128),
+    tenant: dict = Depends(require_api_key),
+):
+    """List all criteria for an agent."""
+    return _list_criteria(tenant["id"], agent_id)
+
+
+@app.delete("/criteria/{criteria_id}")
+async def delete_criteria_endpoint(criteria_id: str, tenant: dict = Depends(require_api_key)):
+    """Delete a criteria."""
+    if _delete_criteria(tenant["id"], criteria_id):
+        return {"deleted": criteria_id}
+    raise HTTPException(404, detail="Criteria not found")
+
+
+# === SCHEMA ENDPOINTS ===
+
+class SchemaRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=128)
+    schema_definition: dict = Field(..., alias="schema")
+    extraction_prompt: Optional[str] = Field(None, max_length=2000)
+    
+    class Config:
+        populate_by_name = True
+
+@app.post("/schemas")
+async def create_schema_endpoint(req: SchemaRequest, tenant: dict = Depends(require_api_key)):
+    """Create a custom extraction schema."""
+    try:
+        return _create_schema(tenant["id"], req.name, req.schema_definition, req.extraction_prompt)
+    except Exception as e:
+        raise HTTPException(500, detail="Schema creation failed.")
+
+
+@app.get("/schemas")
+async def list_schemas_endpoint(tenant: dict = Depends(require_api_key)):
+    """List all schemas for the current tenant."""
+    return _list_schemas(tenant["id"])
+
+
+@app.delete("/schemas/{schema_id}")
+async def delete_schema_endpoint(schema_id: str, tenant: dict = Depends(require_api_key)):
+    """Delete a schema."""
+    if _delete_schema(tenant["id"], schema_id):
+        return {"deleted": schema_id}
+    raise HTTPException(404, detail="Schema not found")
+
+
+# === BATCH OPERATION ENDPOINTS ===
+
+class BatchDeleteRequest(BaseModel):
+    memory_ids: list[str] = Field(..., min_length=1, max_length=100)
+
+@app.post("/memories/batch-delete")
+async def batch_delete_endpoint(req: BatchDeleteRequest, tenant: dict = Depends(require_api_key)):
+    """Delete multiple memories in one request."""
+    deleted = []
+    errors = []
+    for mid in req.memory_ids:
+        try:
+            rows = _db_execute_rows("""
+                DELETE FROM memory_service.memories
+                WHERE id = %s::UUID AND tenant_id = %s::UUID
+                RETURNING id
+            """, (mid, tenant["id"]), tenant_id=tenant["id"])
+            if rows:
+                deleted.append(mid)
+                trigger_event(tenant["id"], "memory.deleted", {"memory_id": mid})
+            else:
+                errors.append({"id": mid, "error": "not found"})
+        except Exception as e:
+            errors.append({"id": mid, "error": "delete failed"})
+    
+    return {"deleted": deleted, "errors": errors if errors else None}
+
+
+class BatchSearchRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    queries: list[str] = Field(..., min_length=1, max_length=20)
+    limit_per_query: int = Field(default=10, ge=1, le=50)
+
+@app.post("/memories/batch-search")
+async def batch_search_endpoint(req: BatchSearchRequest, tenant: dict = Depends(require_api_key)):
+    """Search with multiple queries in one request."""
+    results = {}
+    for query in req.queries:
+        try:
+            pattern = f"%{query}%"
+            rows = _db_execute_rows("""
+                SELECT id, headline, memory_type, importance, created_at
+                FROM memory_service.memories
+                WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+                  AND (headline ILIKE %s OR context ILIKE %s)
+                ORDER BY importance DESC
+                LIMIT %s
+            """, (req.agent_id, tenant["id"], pattern, pattern, req.limit_per_query),
+                tenant_id=tenant["id"])
+            
+            results[query] = [{
+                "id": str(r[0]),
+                "headline": str(r[1]),
+                "memory_type": str(r[2]),
+                "importance": float(r[3]) if r[3] else 0.5,
+                "created_at": str(r[4]),
+            } for r in (rows or [])]
+        except Exception as e:
+            results[query] = {"error": "search failed"}
+    
+    return {"results": results}
+
+
+# === ORG MEMORY ENDPOINTS ===
+
+class OrgMemoryRequest(BaseModel):
+    headline: str = Field(..., min_length=1, max_length=500)
+    context: Optional[str] = Field(None, max_length=2000)
+    full_content: Optional[str] = Field(None, max_length=10000)
+    memory_type: str = Field(default="fact", max_length=32)
+    importance: float = Field(default=0.5, ge=0.0, le=1.0)
+    entities: Optional[list[str]] = None
+    categories: Optional[list[str]] = None
+
+@app.post("/org/memories")
+async def store_org_memory_endpoint(req: OrgMemoryRequest, tenant: dict = Depends(require_api_key)):
+    """Store an organization-level shared memory."""
+    org_id = get_tenant_org(tenant["id"])
+    if not org_id:
+        raise HTTPException(403, detail="Tenant not part of an organization. Contact admin to set up org.")
+    
+    try:
+        mem_id = store_org_memory(
+            org_id=org_id,
+            headline=req.headline,
+            context=req.context,
+            full_content=req.full_content,
+            memory_type=req.memory_type,
+            importance=req.importance,
+            entities=req.entities,
+            categories=req.categories,
+            created_by=tenant["id"],
+        )
+        return {"id": mem_id, "org_id": org_id}
+    except Exception as e:
+        raise HTTPException(500, detail="Failed to store org memory.")
+
+
+@app.get("/org/memories")
+async def list_org_memories_endpoint(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    tenant: dict = Depends(require_api_key),
+):
+    """List org-level memories."""
+    org_id = get_tenant_org(tenant["id"])
+    if not org_id:
+        raise HTTPException(403, detail="Tenant not part of an organization")
+    return list_org_memories(org_id, limit=limit, offset=offset)
+
+
+@app.get("/org/memories/recall")
+async def recall_org_memories_endpoint(
+    q: str = Query(..., min_length=1, max_length=500),
+    limit: int = Query(10, ge=1, le=50),
+    tenant: dict = Depends(require_api_key),
+):
+    """Recall relevant org-level memories by semantic search."""
+    org_id = get_tenant_org(tenant["id"])
+    if not org_id:
+        raise HTTPException(403, detail="Tenant not part of an organization")
+    return recall_org_memories(org_id, query=q, limit=limit)
+
+
+@app.post("/memories/{memory_id}/promote")
+async def promote_to_org_endpoint(memory_id: str, tenant: dict = Depends(require_api_key)):
+    """Promote an agent memory to organization level."""
+    try:
+        org_mem_id = promote_to_org(tenant["id"], memory_id)
+        return {"promoted": memory_id, "org_memory_id": org_mem_id}
+    except ValueError as e:
+        raise HTTPException(400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(500, detail="Memory promotion failed.")
+
+
+@app.delete("/org/memories/{memory_id}")
+async def delete_org_memory_endpoint(memory_id: str, tenant: dict = Depends(require_api_key)):
+    """Delete an org memory."""
+    org_id = get_tenant_org(tenant["id"])
+    if not org_id:
+        raise HTTPException(403, detail="Tenant not part of an organization")
+    if delete_org_memory(org_id, memory_id):
+        return {"deleted": memory_id}
+    raise HTTPException(404, detail="Org memory not found")
+
+
+# === EXISTING ENDPOINTS ===
+
+@app.get("/tenant-info", response_model=TenantInfo)
+async def get_tenant_info(tenant: dict = Depends(require_api_key)):
+    """Get current tenant information."""
+    return TenantInfo(
+        id=tenant["id"],
+        name=tenant["name"],
+        plan=tenant["plan"],
+        memory_limit=tenant["memory_limit"],
+        rate_limit_rpm=tenant["rate_limit_rpm"],
+        api_calls_count=tenant["api_calls_count"]
+    )
+
+
+@app.get("/usage")
+async def get_usage(
+    days: int = Query(7, ge=1, le=90),
+    tenant: dict = Depends(require_api_key),
+):
+    """Get API usage stats for current tenant."""
+    tenant_id = tenant["id"]
+    
+    # Summary stats
+    rows = _db_execute_rows("""
+        SELECT endpoint, COUNT(*) as calls, 
+               COALESCE(SUM(tokens_used), 0) as total_tokens,
+               COALESCE(AVG(response_time_ms)::int, 0) as avg_latency_ms,
+               COUNT(*) FILTER (WHERE status_code >= 400) as errors
+        FROM memory_service.api_usage
+        WHERE tenant_id = %s::UUID AND timestamp > now() - make_interval(days => %s)
+        GROUP BY endpoint
+        ORDER BY calls DESC
+    """, (tenant_id, days), tenant_id=tenant_id)
+    
+    endpoints = []
+    for row in (rows or []):
+        endpoints.append({
+            "endpoint": str(row[0]),
+            "calls": int(row[1]),
+            "total_tokens": int(row[2]),
+            "avg_latency_ms": int(row[3]),
+            "errors": int(row[4]),
+        })
+    
+    # Memory count for this tenant
+    mem_rows = _db_execute_rows("""
+        SELECT COUNT(*) FROM memory_service.memories
+        WHERE tenant_id = %s::UUID AND superseded_at IS NULL
+    """, (tenant_id,), tenant_id=tenant_id)
+    memory_count = int(mem_rows[0][0]) if mem_rows else 0
+    
+    return {
+        "tenant_id": tenant_id,
+        "period_days": days,
+        "total_api_calls": tenant["api_calls_count"],
+        "memories_stored": memory_count,
+        "memory_limit": tenant["memory_limit"],
+        "memory_usage_pct": round(memory_count / tenant["memory_limit"] * 100, 1) if tenant["memory_limit"] > 0 else 0,
+        "endpoints": endpoints,
+    }
+
+
+# --- Admin Endpoints ---
+@app.post("/api-keys", response_model=CreateTenantResponse)
+async def create_api_key(req: CreateTenantRequest, admin: bool = Depends(require_admin_key)):
+    """Create a new tenant and API key. Requires admin authentication."""
+    try:
+        tenant = create_tenant(req.name, req.plan)
+        return CreateTenantResponse(**tenant)
+    except Exception as e:
+        raise HTTPException(500, detail="Failed to create tenant.")
+
+
+class RotateKeyResponse(BaseModel):
+    tenant_id: str
+    new_api_key: str
+    message: str
+
+@app.post("/admin/rotate-key/{tenant_id}", response_model=RotateKeyResponse)
+async def rotate_api_key(tenant_id: str, admin: bool = Depends(require_admin_key)):
+    """Rotate API key for a tenant. Old key is immediately invalidated."""
+    import secrets
+    try:
+        from storage_multitenant import _db_execute
+        # Generate new key
+        new_key = f"zl_live_{''.join(secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(32))}"
+        new_hash = hashlib.sha256(new_key.encode()).hexdigest()
+        
+        # Update tenant with new key hash
+        rows = _db_execute("""
+            UPDATE memory_service.tenants 
+            SET api_key_hash = %s
+            WHERE id = %s::UUID AND active = true
+            RETURNING id
+        """, (new_hash, tenant_id), tenant_id="00000000-0000-0000-0000-000000000000")
+        
+        if not rows:
+            raise HTTPException(404, detail="Tenant not found or inactive")
+        
+        _invalidate_tenant_cache(tenant_id)
+        logger.info(f"API key rotated for tenant {tenant_id}")
+        return RotateKeyResponse(
+            tenant_id=tenant_id,
+            new_api_key=new_key,
+            message="Key rotated. Old key is immediately invalid."
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(500, detail="Failed to rotate key.")
+
+
+@app.post("/admin/revoke-key/{tenant_id}")
+async def revoke_api_key(tenant_id: str, admin: bool = Depends(require_admin_key)):
+    """Revoke API key by deactivating tenant. Immediate effect."""
+    try:
+        from storage_multitenant import _db_execute
+        rows = _db_execute("""
+            UPDATE memory_service.tenants 
+            SET active = false
+            WHERE id = %s::UUID
+            RETURNING id
+        """, (tenant_id,), tenant_id="00000000-0000-0000-0000-000000000000")
+        
+        if not rows:
+            raise HTTPException(404, detail="Tenant not found")
+        
+        _invalidate_tenant_cache(tenant_id)
+        logger.info(f"API key revoked (tenant deactivated) for {tenant_id}")
+        return {"tenant_id": tenant_id, "status": "revoked", "message": "Tenant deactivated. API key no longer valid."}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(500, detail="Failed to revoke key.")
+
+
+@app.post("/admin/reactivate/{tenant_id}")
+async def reactivate_tenant(tenant_id: str, admin: bool = Depends(require_admin_key)):
+    """Reactivate a previously revoked tenant."""
+    try:
+        from storage_multitenant import _db_execute
+        rows = _db_execute("""
+            UPDATE memory_service.tenants 
+            SET active = true
+            WHERE id = %s::UUID
+            RETURNING id
+        """, (tenant_id,), tenant_id="00000000-0000-0000-0000-000000000000")
+        
+        if not rows:
+            raise HTTPException(404, detail="Tenant not found")
+        
+        _invalidate_tenant_cache(tenant_id)
+        logger.info(f"Tenant reactivated: {tenant_id}")
+        return {"tenant_id": tenant_id, "status": "active"}
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(500, detail="Failed to reactivate tenant.")
+
+
+@app.get("/admin/tenants")
+async def list_tenants(admin: bool = Depends(require_admin_key)):
+    """List all tenants. Admin only."""
+    try:
+        rows = _db_execute_rows("""
+            SELECT id, name, plan, memory_limit, rate_limit_rpm, active, api_calls_count, created_at
+            FROM memory_service.tenants 
+            ORDER BY created_at DESC
+        """, tenant_id="00000000-0000-0000-0000-000000000000")
+        
+        tenants = []
+        for row in (rows or []):
+            tenants.append({
+                "id": str(row[0]),
+                "name": str(row[1]),
+                "plan": str(row[2]),
+                "memory_limit": int(row[3]),
+                "rate_limit_rpm": int(row[4]),
+                "active": bool(row[5]),
+                "api_calls_count": int(row[6] or 0),
+                "created_at": str(row[7])
+            })
+        return {"tenants": tenants}
+    except Exception as e:
+        raise HTTPException(500, detail="Failed to list tenants.")
+
+# Temporary admin endpoint to delete a user
+@app.delete("/admin/delete-user/{email}")
+
+# Temporary admin endpoint to delete a user  
+@app.delete("/admin/delete-user/{email}")
+async def admin_delete_user(email: str):
+    """ADMIN: Delete user by email"""
+    from api.auth import _db_exec
+    
+    try:
+        result = _db_exec(
+            "DELETE FROM memory_service.users WHERE email = %s RETURNING id",
+            (email,)
+        )
+        deleted = len(result)
+        return {"deleted": deleted, "email": email}
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
+
+# Fix GitHub tenant API key
+@app.post("/admin/fix-github-tenant")
+async def fix_github_tenant():
+    """ADMIN: Generate API key for GitHub tenant"""
+    from api.auth import _db_exec
+    import secrets
+    import hashlib
+    
+    tenant_id = "677cd129-7f9c-4556-93be-f10bf8c54a73"
+    api_key = f"zl_live_{''.join(secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(32))}"
+    api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    
+    _db_exec(
+        "UPDATE memory_service.tenants SET api_key_live = %s, api_key_hash = %s WHERE id = %s::UUID",
+        (api_key, api_key_hash, tenant_id),
+        fetch=False
+    )
+    
+    return {"fixed": True, "tenant_id": tenant_id, "api_key": api_key}

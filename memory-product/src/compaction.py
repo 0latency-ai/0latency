@@ -166,7 +166,7 @@ def run_compaction(agent_id: str, force: bool = False):
                                 (agent_id, cluster_name, summary, member_memory_ids, member_count,
                                  importance_avg, centroid_embedding)
                             VALUES (%s, %s, %s, %s, %s, %s, %s::extensions.vector)
-                            ON CONFLICT DO NOTHING
+                            
                         """, (agent_id, cluster["cluster_key"], summary,
                               member_ids, len(member_ids), avg_importance,
                               "[" + ",".join(str(v) for v in embedding) + "]"))
@@ -176,7 +176,7 @@ def run_compaction(agent_id: str, force: bool = False):
                                 (agent_id, cluster_name, summary, member_memory_ids, member_count,
                                  importance_avg)
                             VALUES (%s, %s, %s, %s, %s, %s)
-                            ON CONFLICT DO NOTHING
+                            
                         """, (agent_id, cluster["cluster_key"], summary,
                               member_ids, len(member_ids), avg_importance))
                     conn.commit()

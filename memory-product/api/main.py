@@ -17,7 +17,7 @@ import uuid
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List
-from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query, BackgroundTasks
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from api.analytics import track_posthog_event, is_first_api_call, is_first_memory_stored, is_first_memory_recalled, check_activation_milestone
 from api.email_service import email_service
@@ -376,7 +376,7 @@ class SeedFact(BaseModel):
     importance: float = Field(default=0.5, ge=0.0, le=1.0)
 
 class SeedRequest(BaseModel):
-    agent_id: str = Field(..., min_length=1, max_length=128)
+    agent_id: Optional[str] = Field(None, min_length=1, max_length=128)
     facts: list[SeedFact] = Field(..., min_length=1, max_length=500)
 
 class SeedResponse(BaseModel):
@@ -387,14 +387,14 @@ class SeedResponse(BaseModel):
 
 
 class ExtractRequest(BaseModel):
-    agent_id: str = Field(..., min_length=1, max_length=128)
+    agent_id: Optional[str] = Field(None, min_length=1, max_length=128)
     human_message: str = Field(..., min_length=1, max_length=50000)
     agent_message: str = Field(..., min_length=1, max_length=50000)
     session_key: Optional[str] = Field(None, max_length=256)
     turn_id: Optional[str] = Field(None, max_length=256)
 
 class AsyncExtractRequest(BaseModel):
-    agent_id: str = Field(..., min_length=1, max_length=128)
+    agent_id: Optional[str] = Field(None, min_length=1, max_length=128)
     content: str = Field(..., min_length=1, max_length=100000)
     session_key: Optional[str] = Field(None, max_length=256)
 
@@ -481,6 +481,9 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
     check_for_secrets(req.human_message, "human_message")
     check_for_secrets(req.agent_message, "agent_message")
     
+    # Resolve agent_id default: use tenant_id if not provided
+    agent_id = req.agent_id or tenant["id"]
+    
     start_time = time.time()
     try:
         # Enforce memory limit
@@ -499,7 +502,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
                 SELECT headline FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
                 ORDER BY created_at DESC LIMIT 20
-            """, (req.agent_id, tenant["id"]), tenant_id=tenant["id"])
+            """, (agent_id, tenant["id"]), tenant_id=tenant["id"])
             if recent:
                 existing_context = "\n".join(f"- {row[0]}" for row in recent)
         except Exception as e:
@@ -508,7 +511,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
         memories = extract_memories(
             human_message=req.human_message,
             agent_message=req.agent_message,
-            agent_id=req.agent_id,
+            agent_id=agent_id,
             session_key=req.session_key,
             turn_id=req.turn_id,
             existing_context=existing_context,
@@ -540,7 +543,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
                         memory_dict["id"] = memory_id
                         
                         # Extract entities and relationships using existing graph function
-                        extract_relationships_from_memory(memory_dict, req.agent_id, tenant_id=tenant["id"])
+                        extract_relationships_from_memory(memory_dict, agent_id, tenant_id=tenant["id"])
                         
                         # Count entities for response
                         entity_count = len(memory_dict.get("entities", []))
@@ -614,6 +617,9 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
         # Secret scanning on each fact
         for i, fact in enumerate(req.facts):
             check_for_secrets(fact.text, f"facts[{i}].text")
+        
+        # Resolve agent_id default: use tenant_id if not provided
+        agent_id = req.agent_id or tenant["id"]
 
         # Enforce memory limit
         count_rows = _db_execute_rows("""
@@ -632,7 +638,7 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
         for fact in req.facts:
             categories = [fact.category] if fact.category else []
             memories.append({
-                "agent_id": req.agent_id,
+                "agent_id": agent_id,
                 "headline": fact.text,
                 "context": fact.text,
                 "full_content": fact.text,
@@ -686,13 +692,16 @@ async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depend
     # Secret scanning — reject if secrets detected in inbound content
     check_for_secrets(req.content, "content")
     
+    # Resolve agent_id default: use tenant_id if not provided
+    agent_id = req.agent_id or tenant["id"]
+    
     import threading
     
     job_id = str(uuid.uuid4())
     _extract_jobs[job_id] = {
         "status": "accepted",
         "tenant_id": tenant["id"],
-        "agent_id": req.agent_id,
+        "agent_id": agent_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "memories_stored": 0,
         "memory_ids": [],
@@ -704,7 +713,7 @@ async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depend
             memories = extract_memories(
                 human_message=req.content,
                 agent_message="",
-                agent_id=req.agent_id,
+                agent_id=agent_id,
                 session_key=req.session_key,
             )
             if memories:
@@ -763,7 +772,7 @@ def _analytics_fire_and_forget(func, *args):
 
 @app.post("/recall", response_model=RecallResponse)
 @track_critical_errors
-async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api_key)):
+async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api_key), background_tasks: BackgroundTasks = BackgroundTasks()):
     """Recall relevant memories for a conversation context.
     
     Supports multi-agent orchestration via cross-agent recall:
@@ -773,7 +782,9 @@ async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api
     start_time = time.time()
     try:
         # Auto-resolve agent_id if not provided
+        _t0 = time.time()
         agent_id = auto_resolve_agent_id(tenant["id"], req.agent_id)
+        _t1 = time.time()
 
         # Choose recall strategy based on cross_agent parameter
         if req.cross_agent:
@@ -793,6 +804,8 @@ async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api
                 budget_tokens=req.budget_tokens,
                 tenant_id=tenant["id"]
             )
+
+        _t2 = time.time()
 
         # Extract memory_ids from recall_details
         memory_ids = []
@@ -818,20 +831,31 @@ async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api
         except Exception:
             pass  # Fire-and-forget, don't break on telemetry failure
         
-        # Track usage
+        # Track usage — run after response is sent (was blocking ~800ms on sync DB writes)
         response_time = int((time.time() - start_time) * 1000)
-        track_api_usage(tenant["id"], "/recall", 
-                       tokens_used=result["tokens_used"],
-                       response_time_ms=response_time)
-        
-        # Fire analytics checks in background — don't wait, don't block response
-        _analytics_fire_and_forget(is_first_api_call, tenant["id"])
-        _analytics_fire_and_forget(is_first_memory_recalled, tenant["id"])
+        background_tasks.add_task(track_api_usage, tenant["id"], "/recall",
+                                  tokens_used=result["tokens_used"],
+                                  response_time_ms=response_time)
+
+        # Fire activation check in background (executor) — has genuine side effect
         _analytics_fire_and_forget(check_activation_milestone, tenant["id"])
 
+        _t3 = time.time()
+        _phases = {
+            "agent_resolve_ms": round((_t1 - _t0) * 1000, 1),
+            "recall_exec_ms": round((_t2 - _t1) * 1000, 1),
+            "telemetry_ms": round((_t3 - _t2) * 1000, 1),
+            "total_ms": round((_t3 - start_time) * 1000, 1),
+        }
+        # Merge inner timing from recall_hybrid
+        _inner = result.get("_timing", {})
+        _phases["bm25_ms"] = round(_inner.get("bm25_ms", 0), 1) if isinstance(_inner.get("bm25_ms"), (int, float)) else 0
+        _phases["vector_ms"] = round(_inner.get("vector_ms", 0), 1) if isinstance(_inner.get("vector_ms"), (int, float)) else 0
+        _phases["path"] = _inner.get("path", "unknown")
+        logger.info(f"[RECALL PHASES] agent_resolve={_phases['agent_resolve_ms']:.0f}ms recall_exec={_phases['recall_exec_ms']:.0f}ms bm25={_phases['bm25_ms']:.0f}ms vector={_phases['vector_ms']:.0f}ms telemetry={_phases['telemetry_ms']:.0f}ms total={_phases['total_ms']:.0f}ms path={_phases['path']}")
         return response
     except Exception as e:
-        track_api_usage(tenant["id"], "/recall", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
+        background_tasks.add_task(track_api_usage, tenant["id"], "/recall", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
         raise HTTPException(500, detail="Recall failed. Please check your input and try again.")
 
 
@@ -1037,7 +1061,7 @@ async def search_memories(
 
 
 class BatchExtractItem(BaseModel):
-    agent_id: str = Field(..., min_length=1, max_length=128)
+    agent_id: Optional[str] = Field(None, min_length=1, max_length=128)
     human_message: str = Field(..., min_length=1, max_length=50000)
     agent_message: str = Field(..., min_length=1, max_length=50000)
     session_key: Optional[str] = Field(None, max_length=256)
@@ -1064,6 +1088,9 @@ async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require
     
     for i, turn in enumerate(req.turns):
         logger.info(f"[BATCH DEBUG] Turn {i}: agent_id={turn.agent_id!r}, human_len={len(turn.human_message)}, agent_len={len(turn.agent_message)}, session_key={turn.session_key!r}")
+        
+        # Resolve agent_id default for this turn
+        agent_id = turn.agent_id or tenant["id"]
         try:
             # Fetch existing headlines for dedup (matches /extract behavior)
             existing_context = ""
@@ -1072,7 +1099,7 @@ async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require
                     SELECT headline FROM memory_service.memories
                     WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
                     ORDER BY created_at DESC LIMIT 20
-                """, (turn.agent_id, tenant["id"]), tenant_id=tenant["id"])
+                """, (agent_id, tenant["id"]), tenant_id=tenant["id"])
                 if recent:
                     existing_context = "\n".join(f"- {row[0]}" for row in recent)
                     logger.info(f"[BATCH DEBUG] Turn {i}: loaded {len(recent)} existing headlines for dedup")
@@ -1082,7 +1109,7 @@ async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require
             memories = extract_memories(
                 human_message=turn.human_message,
                 agent_message=turn.agent_message,
-                agent_id=turn.agent_id,
+                agent_id=agent_id,
                 session_key=turn.session_key,
                 turn_id=turn.turn_id,
                 existing_context=existing_context,
@@ -2047,7 +2074,7 @@ async def create_api_key(req: CreateTenantRequest, admin: bool = Depends(require
         
         # Track API key creation
         track_posthog_event(
-            tenant_id=tenant["id"],
+            tenant_id=tenant["tenant_id"],
             event_name="api_key_created",
             properties={
                 "method": "admin_create",

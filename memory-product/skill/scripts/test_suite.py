@@ -14,7 +14,7 @@ import subprocess
 sys.path.insert(0, os.path.dirname(__file__))
 
 DB_CONN = os.environ.get("MEMORY_DB_CONN", "")
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 results = {"passed": 0, "failed": 0, "errors": []}
 
@@ -52,7 +52,7 @@ def test_schema_exists():
 
 # === Test 3: Extraction ===
 def test_extraction():
-    os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
+    os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
     from extraction import extract_memories
     memories = extract_memories(
         human_message="My name is Alex and I work at Acme Corp. My dog's name is Biscuit.",
@@ -207,15 +207,15 @@ def main():
         print("❌ MEMORY_DB_CONN not set. Cannot run tests.")
         sys.exit(1)
     
-    if not GOOGLE_API_KEY:
-        print("⚠️  GOOGLE_API_KEY not set. Extraction tests will fail.")
+    if not OPENAI_API_KEY:
+        print("⚠️  OPENAI_API_KEY not set. Extraction tests will fail.")
     
     print("\n📋 Running tests...\n")
     
     test("Database connection", test_db_connection)
     test("Schema exists", test_schema_exists)
     
-    if GOOGLE_API_KEY:
+    if OPENAI_API_KEY:
         test("Extraction", test_extraction)
         test("Storage + dedup", test_storage_and_dedup)
         test("Recall", test_recall)
@@ -224,7 +224,7 @@ def main():
         test("List preservation", test_list_preservation)
         test("Cleanup", test_cleanup)
     else:
-        print("  ⏭️  Skipping extraction/storage/recall tests (no GOOGLE_API_KEY)")
+        print("  ⏭️  Skipping extraction/storage/recall tests (no OPENAI_API_KEY)")
     
     print(f"\n{'=' * 50}")
     print(f"Results: {results['passed']} passed, {results['failed']} failed")

@@ -39,7 +39,7 @@
 - [ ] **Review Reddit post** — read `/root/.openclaw/workspace/memory-product/launch/reddit-claude-code-post.md`
 - [ ] **Review X thread** — read `/root/.openclaw/workspace/memory-product/launch/x-launch-thread.md`
 - [ ] **Proofread landing page** — typos, grammar, clarity
-- [ ] **Verify pricing accuracy** — Free: 100 memories, Pro: $19/mo 50K memories
+- [ ] **Verify pricing accuracy** — Free: 10K memories, Pro: $29/mo 100K memories, Scale: $89/mo 1M memories
 - [ ] **Check contact info** — emails, GitHub links correct
 
 ### Final Checks

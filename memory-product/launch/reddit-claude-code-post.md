@@ -1,12 +1,12 @@
 # r/ClaudeCode Launch Post
 
-**Title:** I built cross-platform memory consolidation (like Auto Dream, but works everywhere)
+**Title:** I built a universal memory layer for AI agents — works with Claude Code, GPT, Cursor, everything
 
 ---
 
-**Update:** Anthropic just shipped Auto Dream for Claude Code — memory consolidation that runs in the background. It's great if you only use Claude Code. But what if you use GPT? Cursor? Custom agents?
+**One memory layer. Every AI platform.**
 
-That's why I built **0Latency** — cross-platform memory that works with Claude Code, ChatGPT, Cursor, any agent framework. Not locked to one tool.
+Your agents forget everything between sessions. Every tool handles memory differently (or not at all). I built **0Latency** — persistent memory infrastructure that works with Claude Code, ChatGPT, Cursor, any agent framework. One API, every platform. Not locked to one tool.
 
 ## What it does
 
@@ -44,33 +44,30 @@ Add to your `claude_desktop_config.json`:
 
 Now Claude can use the `remember` tool. Every session, it recalls what matters. Your context compounds instead of resetting.
 
-## What's different from Auto Dream?
+## Why a universal memory layer?
 
-Auto Dream is built into Claude Code. 0Latency is an API:
+Most memory solutions lock you into one platform. 0Latency works everywhere:
 
-| Feature | Auto Dream | 0Latency |
-|---------|-----------|----------|
-| Memory consolidation | ✅ | ✅ |
-| Works with Claude Code | ✅ | ✅ |
-| Works with ChatGPT | ❌ | ✅ |
-| Works with Cursor | ❌ | ✅ |
-| Works with custom agents | ❌ | ✅ |
-| API access | ❌ | ✅ |
-| Export your data | ❌ | ✅ |
+- ✅ Claude Code, Claude Desktop, any MCP client
+- ✅ ChatGPT, GPT API
+- ✅ Cursor
+- ✅ Any custom agent framework
+- ✅ Full API access — your data, your control
+- ✅ Export everything anytime
 
-Think of us as "Auto Dream for everyone else."
+One memory layer. Every AI platform. Your context follows you.
 
 ## The actual technical bits
 
 - **PostgreSQL + pgvector** (not SQLite, actual production infra)
-- **Auto-consolidation** — merges duplicate memories, like Auto Dream
+- **Auto-consolidation** — merges duplicate memories automatically
 - **Temporal decay** — recent memories weigh more
 - **Contradiction detection** — updates stale facts instead of duplicating
 - **Graph relationships** — entities + semantic links (Pro/Scale tiers)
 - **Sentiment analysis** — understands emotional context (Pro/Scale)
 - **Confidence scoring** — tracks which memories are validated vs inferred
 
-Free tier: 10K memories. Pro: 100K at $19/mo. Scale: 1M + graph features at $89/mo.
+Free tier: 10K memories. Pro: 100K at $29/mo. Scale: 1M + graph features at $89/mo.
 
 ## Why I built this
 
@@ -86,7 +83,7 @@ So I built the portable layer. Works with Claude Desktop, Claude Code, any MCP c
 - **Docs:** https://0latency.ai/docs
 - **API:** https://api.0latency.ai
 - **npm:** `@0latency/mcp-server` (https://npmjs.com/package/@0latency/mcp-server)
-- **GitHub:** Coming soon (open-sourcing after launch)
+- **GitHub:** https://github.com/0latency-ai/0latency
 
 Feedback welcome. Especially if you find bugs — I want this bulletproof before the wider launch.
 

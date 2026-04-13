@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(__file__))
-# GOOGLE_API_KEY must be set in environment
+# OPENAI_API_KEY must be set in environment
 
 from extraction import extract_memories
 from storage import store_memories, _db_execute

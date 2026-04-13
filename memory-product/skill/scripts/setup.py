@@ -203,7 +203,7 @@ def main():
     
     print("✅ Schema created successfully!")
     print("\nNext steps:")
-    print("1. Set GOOGLE_API_KEY for extraction (Gemini Flash 2.0)")
+    print("1. Set OPENAI_API_KEY for extraction (GPT-4o-mini)")
     print("2. Start the daemon: python3 scripts/session_processor.py daemon")
     print("3. Verify: python3 scripts/health.py")
 

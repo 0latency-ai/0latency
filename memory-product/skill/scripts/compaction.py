@@ -6,7 +6,7 @@ to stay within token budgets at scale.
 
 Strategy:
 1. Cluster memories by entity/scope overlap using the entity graph
-2. Generate summaries for each cluster using Gemini
+2. Generate summaries for each cluster using OpenAI
 3. Store cluster summaries with centroid embeddings
 4. Recall layer checks clusters first for broad context, then drills into individual memories
 
@@ -27,7 +27,7 @@ from typing import Optional
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 DB_CONN = os.environ.get("MEMORY_DB_CONN", "")
 
 
@@ -43,38 +43,46 @@ def _db_execute(query: str) -> list:
 
 
 def _call_gemini(prompt: str) -> str:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+    """OpenAI replacement for Gemini calls."""
+    url = "https://api.openai.com/v1/chat/completions"
     resp = requests.post(
         url,
-        params={"key": GOOGLE_API_KEY},
+        headers={
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json"
+        },
         json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.2,
-                "maxOutputTokens": 1024,
-            }
+            "model": "gpt-4o-mini",
+            "temperature": 0.2,
+            "max_tokens": 1024,
+            "messages": [
+                {"role": "system", "content": "You summarize and cluster related memories. Respond concisely."},
+                {"role": "user", "content": prompt}
+            ]
         },
         timeout=30
     )
     resp.raise_for_status()
-    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    return resp.json()["choices"][0]["message"]["content"]
 
 
 def _embed_text(text: str) -> list[float]:
-    model_name = "gemini-embedding-001"
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:embedContent"
+    """Generate embedding using OpenAI."""
+    url = "https://api.openai.com/v1/embeddings"
     resp = requests.post(
         url,
-        params={"key": GOOGLE_API_KEY},
+        headers={
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json"
+        },
         json={
-            "model": f"models/{model_name}",
-            "content": {"parts": [{"text": text}]},
-            "outputDimensionality": 768
+            "model": "text-embedding-3-small",
+            "input": text,
         },
         timeout=15
     )
     resp.raise_for_status()
-    return resp.json()["embedding"]["values"]
+    return resp.json()["data"][0]["embedding"]
 
 
 def build_clusters(agent_id: str, min_cluster_size: int = 3) -> list[dict]:
