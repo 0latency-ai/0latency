@@ -377,16 +377,33 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     logger.debug(f"📝 Context text: {context_text[:200]}...")
     
     candidates = {}
-    embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
     
-    # CP6 PREFLIGHT: Instrument vector subphases
+    # CP6 INSTRUMENTATION: Import timing module
     import time as _time_cp6
-    _t_db_start = _time_cp6.perf_counter()
     
-    # Strategy 1: Semantic similarity search (top 200)
+    # ====================================================================
+    # STRATEGY 1: VECTOR SEARCH (7-PHASE INSTRUMENTATION)
+    # ====================================================================
+    _t_s1_start = _time_cp6.perf_counter()
+    
+    # S1 Phase 1-2: Extract & Sanitize (N/A for vector search — embedding already provided)
+    _t_s1_extract_ms = 0
+    _t_s1_sanitize_ms = 0
+    
+    # S1 Phase 3: Build — embedding string and params
+    _t_s1_build_start = _time_cp6.perf_counter()
+    embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
     _project_filter = "AND project_id = %s" if project_id else ""
+    _s1_params = (embedding_str, agent_id, _tid) + ((project_id,) if project_id else ()) + (embedding_str,)
+    _t_s1_build_ms = int((_time_cp6.perf_counter() - _t_s1_build_start) * 1000)
+    
+    # S1 Phase 4-5: Conn & Exec (handled by _db_execute wrapper)
+    # NOTE: _db_execute abstracts connection pooling, so we measure total exec time
+    _t_s1_conn_ms = 0  # N/A — _db_execute handles connection
+    _t_s1_exec_start = _time_cp6.perf_counter()
+    _s1_rows_count = 0
+    
     try:
-        _s1_params = (embedding_str, agent_id, _tid) + ((project_id,) if project_id else ()) + (embedding_str,)
         rows = _db_execute(f"""
             SELECT id, headline, context, full_content, memory_type,
                    importance, access_count, reinforcement_count,
@@ -401,33 +418,60 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             LIMIT 200
         """, _s1_params,
             tenant_id=_tid)
+        _t_s1_exec_ms = int((_time_cp6.perf_counter() - _t_s1_exec_start) * 1000)
         
+        # S1 Phase 6: Fetch — parse rows returned by _db_execute
+        _t_s1_fetch_start = _time_cp6.perf_counter()
         logger.info(f"✅ Semantic search returned {len(rows) if rows else 0} rows")
         for row in rows:
             parts = row.split("|||")
             if len(parts) >= 11:
                 mem_id = parts[0]
                 candidates[mem_id] = _parse_candidate_row(parts)
+                _s1_rows_count += 1
                 similarity = float(parts[10]) if parts[10] else 0
                 logger.debug(f"  • Memory {parts[1][:50]}... similarity={similarity:.3f}")
+        _t_s1_fetch_ms = int((_time_cp6.perf_counter() - _t_s1_fetch_start) * 1000)
     except Exception as e:
         logger.error(f"❌ Semantic search failed: {e}")
         print(f"Warning: Semantic search failed: {e}")
+        _t_s1_exec_ms = int((_time_cp6.perf_counter() - _t_s1_exec_start) * 1000)
+        _t_s1_fetch_ms = 0
     
-    _t_db_end = _time_cp6.perf_counter()
-    _t_db_ms = int((_t_db_end - _t_db_start) * 1000)
+    # S1 Phase 7: Commit (N/A — _db_execute handles commit)
+    _t_s1_commit_ms = 0
     
-    _t_post_start = _time_cp6.perf_counter()
+    _t_s1_end = _time_cp6.perf_counter()
+    _t_s1_ms = int((_t_s1_end - _t_s1_start) * 1000)
     
-    # CP6 PART 2: Per-strategy timing
+    # S1 SUBPHASE LOG
+    logger.info(
+        f"[S1 SUBPHASES] extract={_t_s1_extract_ms}ms sanitize={_t_s1_sanitize_ms}ms "
+        f"build={_t_s1_build_ms}ms conn={_t_s1_conn_ms}ms exec={_t_s1_exec_ms}ms "
+        f"fetch={_t_s1_fetch_ms}ms commit={_t_s1_commit_ms}ms total={_t_s1_ms}ms"
+    )
+    
+    # ====================================================================
+    # STRATEGY 2: HIGH IMPORTANCE (7-PHASE INSTRUMENTATION)
+    # ====================================================================
     _t_s2_start = _time_cp6.perf_counter()
-    _s2_count = 0
     
-    # Strategy 2: High-importance memories (always consider)
+    # S2 Phase 1-2: Extract & Sanitize (N/A for high-importance query)
+    _t_s2_extract_ms = 0
+    _t_s2_sanitize_ms = 0
+    
+    # S2 Phase 3: Build — params for high-importance query
+    _t_s2_build_start = _time_cp6.perf_counter()
+    existing_ids = list(candidates.keys()) if candidates else ["00000000-0000-0000-0000-000000000000"]
+    _s2_params = (agent_id, _tid) + ((project_id,) if project_id else ()) + (existing_ids,)
+    _t_s2_build_ms = int((_time_cp6.perf_counter() - _t_s2_build_start) * 1000)
+    
+    # S2 Phase 4-5: Conn & Exec (handled by _db_execute wrapper)
+    _t_s2_conn_ms = 0  # N/A — _db_execute handles connection
+    _t_s2_exec_start = _time_cp6.perf_counter()
+    _s2_rows_count = 0
+    
     try:
-        existing_ids = list(candidates.keys()) if candidates else ["00000000-0000-0000-0000-000000000000"]
-
-        _s2_params = (agent_id, _tid) + ((project_id,) if project_id else ()) + (existing_ids,)
         rows2 = _db_execute(f"""
             SELECT id, headline, context, full_content, memory_type,
                    importance, access_count, reinforcement_count,
@@ -442,20 +486,39 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             LIMIT 50
         """, _s2_params,
             tenant_id=_tid)
+        _t_s2_exec_ms = int((_time_cp6.perf_counter() - _t_s2_exec_start) * 1000)
         
+        # S2 Phase 6: Fetch — parse rows
+        _t_s2_fetch_start = _time_cp6.perf_counter()
         for row in rows2:
             parts = row.split("|||")
             if len(parts) >= 11:
                 mem_id = parts[0]
                 if mem_id not in candidates:
                     candidates[mem_id] = _parse_candidate_row(parts)
-                    _s2_count += 1
-        
-        _t_s2_end = _time_cp6.perf_counter()
-        _t_s2_ms = int((_t_s2_end - _t_s2_start) * 1000)
+                    _s2_rows_count += 1
+        _t_s2_fetch_ms = int((_time_cp6.perf_counter() - _t_s2_fetch_start) * 1000)
     except Exception as e:
         print(f"Warning: High-importance search failed: {e}")
+        _t_s2_exec_ms = int((_time_cp6.perf_counter() - _t_s2_exec_start) * 1000)
+        _t_s2_fetch_ms = 0
     
+    # S2 Phase 7: Commit (N/A — _db_execute handles commit)
+    _t_s2_commit_ms = 0
+    
+    _t_s2_end = _time_cp6.perf_counter()
+    _t_s2_ms = int((_t_s2_end - _t_s2_start) * 1000)
+    
+    # S2 SUBPHASE LOG
+    logger.info(
+        f"[S2 SUBPHASES] extract={_t_s2_extract_ms}ms sanitize={_t_s2_sanitize_ms}ms "
+        f"build={_t_s2_build_ms}ms conn={_t_s2_conn_ms}ms exec={_t_s2_exec_ms}ms "
+        f"fetch={_t_s2_fetch_ms}ms commit={_t_s2_commit_ms}ms total={_t_s2_ms}ms"
+    )
+    
+    # ====================================================================
+    # STRATEGY 3: KEYWORD SEARCH (EXISTING 7-PHASE INSTRUMENTATION)
+    # ====================================================================
     _t_s3_start = _time_cp6.perf_counter()
     _s3_count = 0
     _s3_skipped = True  # Will be set to False if keyword search runs
@@ -569,18 +632,21 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     _t_s3_end = _time_cp6.perf_counter()
     _t_s3_ms = int((_t_s3_end - _t_s3_start) * 1000)
     
-    _t_post_end = _time_cp6.perf_counter()
-    _t_post_ms = int((_t_post_end - _t_post_start) * 1000)
-    
-    logger.info(f"[VECTOR SUBPHASES] db={_t_db_ms}ms post={_t_post_ms}ms")
-    logger.info(f"[POST SUBPHASES] s2={_t_s2_ms}ms s2_rows={_s2_count} s3={_t_s3_ms}ms s3_rows={_s3_count} s3_skipped={_s3_skipped}")
+    # S3 SUBPHASE LOG (EXISTING)
     logger.info(
         f"[S3 SUBPHASES] extract={_t_s3_extract_ms}ms sanitize={_t_s3_sanitize_ms}ms "
         f"build={_t_s3_build_ms}ms conn={_t_s3_conn_ms}ms exec={_t_s3_exec_ms}ms "
-        f"fetch={_t_s3_fetch_ms}ms commit={_t_s3_commit_ms}ms rows_fetched={_s3_rows_fetched}"
+        f"fetch={_t_s3_fetch_ms}ms commit={_t_s3_commit_ms}ms total={_t_s3_ms}ms"
     )
 
-    return list(candidates.values()), {"db_ms": _t_db_ms, "post_ms": _t_post_ms}
+    return list(candidates.values()), {
+        "s1_ms": _t_s1_ms,
+        "s2_ms": _t_s2_ms,
+        "s3_ms": _t_s3_ms,
+        "s1_rows": _s1_rows_count,
+        "s2_rows": _s2_rows_count,
+        "s3_rows": _s3_count,
+    }
 
 
 def _parse_candidate_row(parts: list[str]) -> dict:
@@ -716,7 +782,7 @@ def recall_fixed(
     candidates, _vector_timing = _retrieve_candidates(agent_id, query_embedding, conversation_context, tenant_id=_tid, project_id=project_id)
     _search_t1 = _time.time()
     _search_ms = (_search_t1 - _search_t0) * 1000
-    logger.info(f"[VECTOR SUBPHASES] embed={_embed_ms:.0f}ms db={_vector_timing["db_ms"]}ms post={_vector_timing["post_ms"]}ms")
+    logger.info(f"[VECTOR SUBPHASES] embed={_embed_ms:.0f}ms s1={_vector_timing["s1_ms"]}ms s2={_vector_timing["s2_ms"]}ms s3={_vector_timing["s3_ms"]}ms")
     logger.info(f"📦 Retrieved {len(candidates)} candidates")
     
     if not candidates:
