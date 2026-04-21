@@ -1,0 +1,19 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "0Latency Memory API",
+  "name_for_model": "0latency",
+  "description_for_human": "Long-term memory storage and recall for AI agents. Extract, store, and retrieve contextual memories from conversations.",
+  "description_for_model": "0Latency provides structured memory extraction, storage, and semantic recall for AI agents. Use this API to: (1) Extract memories from conversation turns via /extract or /memories/extract (async), (2) Recall relevant memories for a conversation context via /recall, (3) Search memories by keyword via /memories/search, (4) List, update, or delete memories, (5) Query knowledge graphs via /graph/* endpoints. All requests require X-API-Key header authentication. Memories are tenant-isolated and support versioning, entity extraction, and custom schemas.",
+  "auth": {
+    "type": "user_http",
+    "authorization_type": "bearer"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://0latency.ai/api-docs.json",
+    "has_user_authentication": true
+  },
+  "logo_url": "https://0latency.ai/logos/0latency-logo.png",
+  "contact_email": "justin@0latency.ai",
+  "legal_info_url": "https://0latency.ai/terms.html"
+}

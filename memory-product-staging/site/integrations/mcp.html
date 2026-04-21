@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Server — 0Latency Memory for Claude & Cursor</title>
+    <meta name="description" content="Give Claude, Cursor, and any MCP-compatible AI tool persistent memory. Install the 0Latency MCP server — 6 tools, one config change, zero code.">
+    <meta name="keywords" content="MCP server, Model Context Protocol, Claude memory, Cursor memory, AI agent memory, persistent memory MCP, 0Latency MCP">
+    <meta name="author" content="Justin Ghiglia">
+    <meta name="robots" content="index, follow">
+
+    <link rel="canonical" href="https://0latency.ai/integrations/mcp.html">
+
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://0latency.ai/integrations/mcp.html">
+    <meta property="og:title" content="MCP Server — 0Latency Memory for Claude & Cursor">
+    <meta property="og:description" content="Give Claude, Cursor, and any MCP-compatible AI tool persistent memory. One config change, zero code.">
+    <meta property="og:image" content="https://0latency.ai/og-image.png">
+    <meta property="og:site_name" content="0Latency">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="MCP Server — 0Latency Memory for Claude & Cursor">
+    <meta name="twitter:description" content="Give Claude, Cursor, and any MCP-compatible AI tool persistent memory. One config change, zero code.">
+    <meta name="twitter:image" content="https://0latency.ai/og-image.png">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TechArticle",
+      "headline": "MCP Server — 0Latency Memory for Claude & Cursor",
+      "description": "How to add persistent memory to Claude, Cursor, and MCP-compatible AI tools using the 0Latency MCP server.",
+      "url": "https://0latency.ai/integrations/mcp.html",
+      "author": { "@type": "Person", "name": "Justin Ghiglia" },
+      "publisher": { "@type": "Organization", "name": "0Latency", "url": "https://0latency.ai/" },
+      "datePublished": "2026-03-23",
+      "about": {
+        "@type": "SoftwareApplication",
+        "name": "0Latency MCP Server",
+        "applicationCategory": "DeveloperApplication",
+        "url": "https://0latency.ai/integrations/mcp.html"
+      }
+    }
+    </script>
+
+    <style>
+        html { scroll-behavior: smooth; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #fafafa;
+            --surface: #ffffff;
+            --border: #e5e7eb;
+            --text: #111827;
+            --text-dim: #6b7280;
+            --accent: #f97316;
+            --accent-glow: rgba(249, 115, 22, 0.1);
+            --green: #059669;
+            --orange: #fb923c;
+        }
+        body {
+            font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image:
+                linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: -1;
+        }
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: #ffffff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 3rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .logo { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px; }
+        .logo span { color: var(--accent); }
+        .logo a { color: var(--text); text-decoration: none; }
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            margin-left: 2rem;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--text); }
+        .nav-links .btn-primary {
+            background: var(--accent);
+            color: #111827;
+            padding: 0.5rem 1.2rem;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .nav-links .btn-primary:hover { opacity: 0.9; }
+        article { max-width: 760px; margin: 0 auto; padding: 4rem 2rem 6rem; }
+        .breadcrumb { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 2rem; }
+        .breadcrumb a { color: var(--accent); text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 1rem;
+            line-height: 1.15;
+        }
+        h1 .gradient {
+            background: linear-gradient(135deg, var(--accent), #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .lead { font-size: 1.15rem; color: var(--text-dim); margin-bottom: 3rem; }
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 3rem;
+            margin-bottom: 1rem;
+            letter-spacing: -0.3px;
+        }
+        h3 { font-size: 1.15rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.75rem; }
+        p { margin-bottom: 1rem; }
+        a { color: var(--accent); }
+        pre {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+            font-size: 0.88rem;
+            line-height: 1.6;
+        }
+        code {
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.88rem;
+        }
+        p code, li code {
+            background: rgba(249, 115, 22, 0.1);
+            color: var(--accent);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+        .callout {
+            background: var(--surface);
+            border-left: 3px solid var(--accent);
+            padding: 1.25rem 1.5rem;
+            border-radius: 0 8px 8px 0;
+            margin: 2rem 0;
+        }
+        .callout-stat {
+            background: var(--surface);
+            border-left: 3px solid var(--green);
+            padding: 1.25rem 1.5rem;
+            border-radius: 0 8px 8px 0;
+            margin: 2rem 0;
+        }
+        .callout-stat strong { color: var(--green); }
+        ul, ol { margin: 1rem 0 1rem 1.5rem; }
+        li { margin-bottom: 0.5rem; }
+        .tool-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        .tool-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+        }
+        .tool-card h4 {
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.9rem;
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+        .tool-card p { font-size: 0.9rem; margin: 0; color: var(--text-dim); }
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 3rem 2rem;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+        footer a { color: var(--text-dim); text-decoration: none; margin: 0 1rem; }
+        footer a:hover { color: var(--text); }
+        @media (max-width: 640px) {
+            h1 { font-size: 1.8rem; }
+            .tool-grid { grid-template-columns: 1fr; }
+            nav { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="logo"><a href="/"><span>0</span>Latency</a></div>
+        <div class="nav-links">
+            <a href="/#features">Features</a>
+            <a href="/integrations/">Integrations</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="https://docs.0latency.ai" target="_blank">Docs</a>
+            <a href="/login.html" class="btn-primary">Dashboard →</a>
+        </div>
+    </nav>
+
+    <article>
+        <div class="breadcrumb">
+            <a href="/">Home</a> / <a href="/integrations/">Integrations</a> / MCP Server
+        </div>
+
+        <h1>Persistent Memory via <span class="gradient">MCP</span></h1>
+        <p class="lead">Give Claude Desktop, Claude Code, Cursor, and any MCP-compatible AI tool long-term memory — with a single config change and zero code.</p>
+
+        <div class="callout">
+            <strong>What is MCP?</strong> Model Context Protocol is the emerging standard for connecting AI tools to external services. An MCP server exposes "tools" that AI assistants can call natively — no SDK, no wrapper, no glue code.
+        </div>
+
+        <h2>Available Tools</h2>
+        <p>The 0Latency MCP server exposes six tools that cover the full memory lifecycle:</p>
+
+        <div class="tool-grid">
+            <div class="tool-card">
+                <h4>memory_add</h4>
+                <p>Extract and store memories from conversation turns. Entities, facts, and preferences are auto-extracted.</p>
+            </div>
+            <div class="tool-card">
+                <h4>memory_recall</h4>
+                <p>Recall relevant memories for the current context. Returns a token-budgeted context block.</p>
+            </div>
+            <div class="tool-card">
+                <h4>memory_search</h4>
+                <p>Full-text search across stored memories. Filter and rank by relevance.</p>
+            </div>
+            <div class="tool-card">
+                <h4>memory_list</h4>
+                <p>List memories with type filters and pagination. Browse what your agent remembers.</p>
+            </div>
+            <div class="tool-card">
+                <h4>memory_delete</h4>
+                <p>Remove specific memories by ID. Full control over what persists.</p>
+            </div>
+            <div class="tool-card">
+                <h4>memory_graph</h4>
+                <p>Query the knowledge graph — entities, relationships, and connection paths.</p>
+            </div>
+        </div>
+
+        <h2>Quick Start</h2>
+
+        <h3>1. Get Your API Key</h3>
+        <p>Sign up at <a href="https://0latency.ai">0latency.ai</a> and grab your API key from the <a href="/login.html">dashboard</a>.</p>
+
+        <h3>2. Install</h3>
+<pre><code># Clone and build
+git clone https://github.com/0latency/mcp-server.git
+cd mcp-server
+npm install && npm run build
+
+# Or install globally (when published to npm)
+npm install -g @0latency/mcp-server</code></pre>
+
+        <h3>3. Configure Claude Desktop / Claude Code</h3>
+        <p>Add to <code>~/.claude/claude_desktop_config.json</code> or your project's <code>.mcp.json</code>:</p>
+<pre><code>{
+  "mcpServers": {
+    "0latency": {
+      "command": "node",
+      "args": ["/path/to/mcp-server/dist/index.js"],
+      "env": {
+        "ZERO_LATENCY_API_KEY": "zl_live_your_key_here"
+      }
+    }
+  }
+}</code></pre>
+
+        <p>If installed globally via npm, simplify to:</p>
+<pre><code>{
+  "mcpServers": {
+    "0latency": {
+      "command": "0latency-mcp",
+      "env": {
+        "ZERO_LATENCY_API_KEY": "zl_live_your_key_here"
+      }
+    }
+  }
+}</code></pre>
+
+        <h3>4. Configure Cursor</h3>
+        <p>Add to <code>.cursor/mcp.json</code> in your project root:</p>
+<pre><code>{
+  "mcpServers": {
+    "0latency": {
+      "command": "node",
+      "args": ["/path/to/mcp-server/dist/index.js"],
+      "env": {
+        "ZERO_LATENCY_API_KEY": "zl_live_your_key_here"
+      }
+    }
+  }
+}</code></pre>
+
+        <h2>Environment Variables</h2>
+        <table style="width:100%;border-collapse:collapse;margin:1.5rem 0;">
+            <thead>
+                <tr style="border-bottom:2px solid var(--border);text-align:left;">
+                    <th style="padding:0.75rem 1rem;font-size:0.9rem;">Variable</th>
+                    <th style="padding:0.75rem 1rem;font-size:0.9rem;">Required</th>
+                    <th style="padding:0.75rem 1rem;font-size:0.9rem;">Default</th>
+                    <th style="padding:0.75rem 1rem;font-size:0.9rem;">Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:0.75rem 1rem;"><code>ZERO_LATENCY_API_KEY</code></td>
+                    <td style="padding:0.75rem 1rem;">✅</td>
+                    <td style="padding:0.75rem 1rem;">—</td>
+                    <td style="padding:0.75rem 1rem;font-size:0.9rem;">Your 0Latency API key</td>
+                </tr>
+                <tr>
+                    <td style="padding:0.75rem 1rem;"><code>ZERO_LATENCY_API_URL</code></td>
+                    <td style="padding:0.75rem 1rem;">—</td>
+                    <td style="padding:0.75rem 1rem;font-size:0.85rem;"><code>https://api.0latency.ai</code></td>
+                    <td style="padding:0.75rem 1rem;font-size:0.9rem;">API base URL (for self-hosted deployments)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>How It Works</h2>
+        <p>Once configured, your AI assistant can use 0Latency tools natively. No SDK needed — the MCP protocol handles everything.</p>
+
+        <div class="callout-stat">
+            <strong>Example:</strong> Say "Remember that I prefer TypeScript and dark mode" — the assistant calls <code>memory_add</code>. Next session, ask "What are my preferences?" — the assistant calls <code>memory_recall</code> and gets the answer instantly.
+        </div>
+
+        <p>The knowledge graph lets your AI explore relationships between entities, find connection paths, and build a rich understanding of your project over time.</p>
+
+        <h2>Source Code</h2>
+        <p>The MCP server is open source and available on <a href="https://github.com/0latency/mcp-server" target="_blank">GitHub</a>. Contributions welcome.</p>
+
+        <div style="margin-top:3rem;padding-top:2rem;border-top:1px solid var(--border);">
+            <p style="color:var(--text-dim);font-size:0.9rem;">
+                <strong>Other integrations:</strong>
+                <a href="/integrations/openclaw.html">OpenClaw</a> ·
+                <a href="/integrations/langchain.html">LangChain</a> ·
+                <a href="/integrations/crewai.html">CrewAI</a> ·
+                <a href="/integrations/autogen.html">AutoGen</a>
+            </p>
+        </div>
+    </article>
+
+    <footer>
+        <div>
+            <a href="/">Home</a>
+            <a href="/integrations/">Integrations</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/privacy.html">Privacy</a>
+            <a href="/terms.html">Terms</a>
+        </div>
+        <p style="margin-top:1rem;">© 2026 0Latency · Justin Ghiglia</p>
+    </footer>
+</body>
+</html>

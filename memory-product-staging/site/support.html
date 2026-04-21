@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support — 0Latency</title>
+    <meta name="description" content="Get help with 0Latency — the persistent memory layer for AI agents. FAQs, documentation, and contact information.">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://0latency.ai/support">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://0latency.ai/support">
+    <meta property="og:title" content="Support — 0Latency">
+    <meta property="og:description" content="Get help with 0Latency. FAQs, documentation links, and contact information for the persistent memory layer for AI agents.">
+    <meta property="og:site_name" content="0Latency">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Support — 0Latency">
+    <meta name="twitter:description" content="Get help with 0Latency. FAQs, documentation links, and contact information.">
+
+    <style>
+        html { scroll-behavior: smooth; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #fafafa;
+            --surface: #ffffff;
+            --border: #e5e7eb;
+            --text: #111827;
+            --text-dim: #6b7280;
+            --accent: #f97316;
+            --accent-glow: rgba(249, 115, 22, 0.1);
+            --green: #059669;
+        }
+
+        body {
+            font-family: -apple-system, 'Inter', 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image:
+                linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: #ffffff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 3rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo {
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            text-decoration: none;
+            color: var(--text);
+        }
+        
+
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            margin-left: 2rem;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--text); }
+        .nav-links .btn-primary {
+            background: var(--accent);
+            color: #111827;
+            padding: 0.5rem 1.2rem;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .nav-links .btn-primary:hover { opacity: 0.9; }
+
+        .page-header {
+            text-align: center;
+            padding: 4rem 2rem 3rem;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .page-header h1 {
+            font-size: 2.8rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 1rem;
+        }
+        .page-header h1 .gradient {
+            background: linear-gradient(135deg, var(--accent), #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .page-header p {
+            font-size: 1.1rem;
+            color: var(--text-dim);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 2rem 6rem;
+        }
+
+        /* Getting Started */
+        .section {
+            margin-bottom: 4rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.5px;
+        }
+
+        .doc-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+
+        .doc-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.5rem;
+            text-decoration: none;
+            color: var(--text);
+            transition: border-color 0.2s, transform 0.2s;
+        }
+        .doc-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .doc-card .icon {
+            font-size: 1.6rem;
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+
+        .doc-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+        }
+
+        .doc-card p {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            line-height: 1.5;
+        }
+
+        /* FAQ */
+        .faq-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+
+        .faq-question {
+            width: 100%;
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 1rem;
+            font-weight: 600;
+            text-align: left;
+            padding: 1.25rem 1.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: inherit;
+            line-height: 1.4;
+        }
+        .faq-question:hover { color: var(--accent); }
+
+        .faq-question .chevron {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            transition: transform 0.2s;
+            flex-shrink: 0;
+            margin-left: 1rem;
+        }
+
+        .faq-item.open .faq-question .chevron {
+            transform: rotate(180deg);
+        }
+
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .faq-answer-inner {
+            padding: 0 1.5rem 1.25rem;
+            font-size: 0.95rem;
+            color: var(--text-dim);
+            line-height: 1.7;
+        }
+
+        .faq-item.open .faq-answer {
+            max-height: 500px;
+        }
+
+        /* Contact */
+        .contact-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+
+        .contact-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.5rem;
+            text-align: center;
+            text-decoration: none;
+            color: var(--text);
+            transition: border-color 0.2s, transform 0.2s;
+        }
+        .contact-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .contact-card .icon {
+            font-size: 1.6rem;
+            margin-bottom: 0.75rem;
+            display: block;
+        }
+
+        .contact-card h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+        }
+
+        .contact-card p {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        /* Status */
+        .status-banner {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1.5rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            text-decoration: none;
+            color: var(--text);
+            transition: border-color 0.2s;
+        }
+        .status-banner:hover { border-color: var(--accent); }
+
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--green);
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px rgba(52, 211, 153, 0.4);
+        }
+
+        .status-label {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .status-link {
+            font-size: 0.85rem;
+            color: var(--accent);
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 2rem 3rem;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        footer a:hover { text-decoration: underline; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            nav { padding: 1rem 1.5rem; }
+            .nav-links a { margin-left: 1rem; }
+            .page-header { padding: 3rem 1.5rem 2rem; }
+            .page-header h1 { font-size: 2rem; }
+            .doc-grid, .contact-grid { grid-template-columns: 1fr; }
+            .container { padding: 0 1.5rem 4rem; }
+        }
+    
+        /* Scroll-triggered fade-in */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    
+        /* Hamburger menu */
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text, #111827);
+            padding: 0.25rem;
+            line-height: 1;
+        }
+        @media (max-width: 768px) {
+            .hamburger { display: block; }
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: #ffffff;
+                border-bottom: 1px solid #e5e7eb;
+                flex-direction: column;
+                padding: 1rem 2rem;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                z-index: 99;
+            }
+            .nav-links.open {
+                display: flex;
+            }
+            .nav-links a {
+                margin-left: 0 !important;
+                padding: 0.6rem 0;
+                border-bottom: 1px solid #f3f4f6;
+            }
+            .nav-links a:last-child { border-bottom: none; }
+        }
+    
+        /* Code block improvements */
+        pre {
+            position: relative;
+            overflow-x: auto;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: #e5e7eb;
+            border: none;
+            border-radius: 4px;
+            padding: 0.25rem 0.6rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.2s;
+            opacity: 0;
+        }
+        pre:hover .copy-btn { opacity: 1; }
+        .copy-btn:hover {
+            background: #f97316;
+            color: #ffffff;
+        }
+    
+/* Responsive nav logo - hide text on mobile */
+.logo-text { display: inline; }
+@media (max-width: 767px) {
+  .logo-text { display: none !important; }
+  .logo img, .nav-logo img { height: 32px !important; }
+}
+</style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+        <header>
+    <nav role="navigation" aria-label="Main navigation">
+        <a href="/" class="logo" style="text-decoration:none;display:flex;align-items:center;gap:8px;"><img src="/logos/logo-icon.svg" alt="0" style="height:28px;vertical-align:middle;"><span style="font-weight:700;font-size:1.1rem;margin-left:6px;"><span style="color:#f97316;">0</span><span style="color:#111827;">Latency</span></span></a>
+        <button class="hamburger" aria-label="Menu">☰</button>
+            <div class="nav-links">
+            <a href="https://github.com/jghiglia2380">GitHub</a>
+            <a href="/login">API Docs</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/pricing.html">Pricing</a>
+            <a href="/login.html" class="btn-primary">Sign In</a>
+        </div>
+    </nav>
+    </header>
+
+    <main>
+        <div class="page-header">
+            <h1>How can we <span class="gradient">help?</span></h1>
+            <p>Documentation, answers, and ways to reach us.</p>
+        </div>
+
+        <div class="container">
+
+            <!-- Getting Started -->
+            <div class="section">
+                <h2 class="section-title">Getting Started</h2>
+                <div class="doc-grid fade-in">
+                    <a href="https://github.com/jghiglia2380#quickstart" class="doc-card">
+                        <span class="icon">🚀</span>
+                        <h3>Quickstart</h3>
+                        <p>Store and recall your first memory in under 2 minutes.</p>
+                    </a>
+                    <a href="/login" class="doc-card">
+                        <span class="icon">📖</span>
+                        <h3>API Reference</h3>
+                        <p>Full endpoint documentation with examples and schemas.</p>
+                    </a>
+                    <a href="https://github.com/jghiglia2380#deploy" class="doc-card">
+                        <span class="icon">⚙️</span>
+                        <h3>Deploy Guide</h3>
+                        <p>Self-host on your own infrastructure with Supabase + Postgres.</p>
+                    </a>
+                </div>
+            </div>
+
+            <!-- FAQ -->
+            <div class="section">
+                <h2 class="section-title">Frequently Asked Questions</h2>
+
+                <div class="faq-item open">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        What is 0Latency?
+                        <span class="chevron">▼</span>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            0Latency is a memory layer for AI agents. Install it, call <code>.add()</code> to store, call <code>.recall()</code> to retrieve. Sub-100ms recall, always. No configuration needed — temporal dynamics, contradiction detection, knowledge graphs, and context budgets all work automatically. It just works.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        How is this different from just using a vector database?
+                        <span class="chevron">▼</span>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            Vector databases do similarity search — you put text in, you get similar text back. 0Latency is a complete memory system with temporal dynamics (decay and reinforcement), contradiction detection, context budget management, and structured recall. It's the difference between "find similar text" and "what should this agent know <em>right now</em>?" We handle the entire lifecycle: extraction, storage, scoring, recall, and pruning.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        How is this different from Mem0?
+                        <span class="chevron">▼</span>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            It just works. No latency tuning, no performance configuration, no knobs to turn. Temporal intelligence, proactive recall, context budget management, and graph memory all work automatically on every plan — including free. Mem0 paywalls graph memory at $249/month and still requires you to configure scoring. With 0Latency: install, add, recall. We handle the rest.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        What frameworks does it work with?
+                        <span class="chevron">▼</span>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            Any of them. We provide a REST API plus Python and TypeScript SDKs that integrate with LangChain, CrewAI, AutoGen, or any custom agent framework. If you're using OpenClaw, there's a zero-config skill that handles everything automatically. If your agent can make HTTP requests, it can use 0Latency.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        Where is my data stored?
+                        <span class="chevron">▼</span>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            You choose. Self-hosted plans run on your own Supabase/Postgres instance — your data never leaves your infrastructure. Pro and API plans use our hosted infrastructure. Either way, you own your data completely. Export anytime, no lock-in.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        How fast is recall?
+                        <span class="chevron">▼</span>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            Sub-100ms. Always. No configuration needed. Recall is synchronous and optimized for the fast path — you get your memories back before your LLM even starts generating. Extraction happens asynchronously in the background, so storing memories never blocks your agent either.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        What LLM does extraction use?
+                        <span class="chevron">▼</span>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            Gemini Flash 2.0 — fast and cheap, keeping extraction costs negligible. We chose it so you don't have to. Extraction runs asynchronously in the background, so it never adds latency to your agent's responses.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <button class="faq-question" onclick="toggleFaq(this)">
+                        Is there a free tier?
+                        <span class="chevron">▼</span>
+                    </button>
+                    <div class="faq-answer">
+                        <div class="faq-answer-inner">
+                            Yes. The free tier includes 50 memories, 1 agent, and the full feature set — temporal intelligence, graph memory, contradiction detection, everything. No feature gating. When you're ready to scale, upgrade.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact -->
+            <div class="section">
+                <h2 class="section-title">Contact Us</h2>
+                <div class="contact-grid fade-in">
+                    <a href="mailto:support@0latency.ai" class="contact-card">
+                        <span class="icon">✉️</span>
+                        <h3>Email</h3>
+                        <p>support@0latency.ai</p>
+                    </a>
+                    <a href="https://discord.gg/0latency" class="contact-card">
+                        <span class="icon">💬</span>
+                        <h3>Discord</h3>
+                        <p>Join the community</p>
+                    </a>
+                    <a href="https://github.com/jghiglia2380/issues" class="contact-card">
+                        <span class="icon">🐛</span>
+                        <h3>GitHub Issues</h3>
+                        <p>Bug reports &amp; feature requests</p>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Status -->
+            <div class="section">
+                <h2 class="section-title">System Status</h2>
+                <a href="https://status.0latency.ai" class="status-banner">
+                    <div class="status-left">
+                        <span class="status-dot"></span>
+                        <span class="status-label">All systems operational</span>
+                    </div>
+                    <span class="status-link">status.0latency.ai →</span>
+                </a>
+            </div>
+
+        </div>
+    </main>
+
+    <footer style="background:#f1f5f9;border-top:1px solid #e5e7eb;padding:0;margin-top:2rem;">
+        <div style="max-width:1100px;margin:0 auto;padding:3rem 2rem 1.5rem;display:grid;grid-template-columns:2fr 1fr 1fr;gap:3rem;">
+            <div>
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+                    <img src="/logos/logo-icon.svg" alt="0" style="height:28px;vertical-align:middle;"><span style="font-weight:700;font-size:1.1rem;margin-left:6px;"><span style="color:#f97316;">0</span><span style="color:#111827;">Latency</span></span></span>Latency</span> <span style="font-weight:700;font-size:1.2rem;"><span style="color:#f97316;">0</span>Latency</span>
+                </div>
+                <p style="color:#6b7280;font-size:0.9rem;line-height:1.6;max-width:300px;">Persistent memory layer for AI agents. Sub-100ms recall, zero configuration. Your agent remembers everything.</p>
+            </div>
+            <div>
+                <h4 style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Product</h4>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    <a href="/pricing.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Pricing</a>
+                    <a href="/login" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Docs</a>
+                    <a href="/integrations/" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Integrations</a>
+                    <a href="/blog/why-your-agent-forgets.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Blog</a>
+                    <a href="/support.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Support</a>
+                </div>
+            </div>
+            <div>
+                <h4 style="font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Resources</h4>
+                <div style="display:flex;flex-direction:column;gap:0.5rem;">
+                    <a href="https://github.com/jghiglia2380" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">GitHub</a>
+                    <a href="https://api.0latency.ai/health" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Status</a>
+                    <a href="/privacy.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Privacy</a>
+                    <a href="/terms.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;transition:color 0.2s;">Terms</a>
+                </div>
+            </div>
+        </div>
+        <div style="max-width:1100px;margin:0 auto;padding:1.5rem 2rem;border-top:1px solid #e5e7eb;text-align:center;">
+            <p style="color:#9ca3af;font-size:0.8rem;">© 2026 0Latency. All rights reserved.</p>
+        </div>
+        <style>
+            footer a:hover { color: #f97316 !important; }
+            @media (max-width: 768px) {
+                footer > div:first-child { grid-template-columns: 1fr !important; gap: 2rem !important; }
+            }
+        </style>
+    </footer>
+
+    <script>
+        function toggleFaq(btn) {
+            const item = btn.parentElement;
+            const wasOpen = item.classList.contains('open');
+            // Close all
+            document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+            // Toggle clicked
+            if (!wasOpen) item.classList.add('open');
+        }
+    </script>
+
+    <!-- Copy button for code blocks -->
+    <script>
+    document.querySelectorAll('pre').forEach(pre => {
+        const btn = document.createElement('button');
+        btn.className = 'copy-btn';
+        btn.textContent = 'Copy';
+        btn.addEventListener('click', () => {
+            const code = pre.querySelector('code') ? pre.querySelector('code').textContent : pre.textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        });
+        pre.style.position = 'relative';
+        pre.appendChild(btn);
+    });
+    </script>
+    <!-- Scroll-triggered fade-in -->
+    <script>
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+    </script>
+    <!-- Hamburger menu toggle -->
+    <script>
+    document.querySelectorAll('.hamburger').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const nav = btn.parentElement.querySelector('.nav-links');
+            if (nav) nav.classList.toggle('open');
+        });
+    });
+    </script>
+</body>
+</html>

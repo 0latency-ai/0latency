@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Environment & Secrets
+.env
+.env.*
+*.bak
+
+# Database
+backup_test.sql
+*.sql.bak
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+0latency-registry/.mcpregistry_github_token
+*.mcpregistry_github_token

@@ -563,12 +563,19 @@ server.tool(
       .boolean()
       .default(false)
       .describe("Let the API auto-size the budget based on relevance"),
+    project_id: z
+      .string()
+      .max(256)
+      .optional()
+      .describe("Filter recall to memories from a specific project (e.g. Claude.ai project UUID)"),
   },
-  async ({ agent_id, conversation_context, budget_tokens, dynamic_budget }) => {
+  async ({ agent_id, conversation_context, budget_tokens, dynamic_budget, project_id }) => {
+    const body: Record<string, unknown> = { agent_id, conversation_context, budget_tokens, dynamic_budget };
+    if (project_id) body.project_id = project_id;
     const result = await api({
       method: "POST",
       path: "/recall",
-      body: { agent_id, conversation_context, budget_tokens, dynamic_budget },
+      body,
     });
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
@@ -608,11 +615,18 @@ server.tool(
     agent_id: z.string().min(1).max(128).default("default").describe("Namespace (use 'default' unless user specifies)"),
     q: z.string().min(1).max(500).describe("Search query"),
     limit: z.number().int().min(1).max(100).default(20).describe("Max results to return"),
+    project_id: z
+      .string()
+      .max(256)
+      .optional()
+      .describe("Filter search to memories from a specific project"),
   },
-  async ({ agent_id, q, limit }) => {
+  async ({ agent_id, q, limit, project_id }) => {
+    const query: Record<string, string | number | boolean | undefined> = { agent_id, q, limit };
+    if (project_id) query.project_id = project_id;
     const result = await api({
       path: "/memories/search",
-      query: { agent_id, q, limit },
+      query,
     });
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
@@ -630,11 +644,18 @@ server.tool(
     memory_type: z.string().max(32).optional().describe("Filter by memory type (e.g. fact, preference, event)"),
     limit: z.number().int().min(1).max(200).default(50).describe("Max results to return"),
     offset: z.number().int().min(0).default(0).describe("Pagination offset"),
+    project_id: z
+      .string()
+      .max(256)
+      .optional()
+      .describe("Filter list to memories from a specific project"),
   },
-  async ({ agent_id, memory_type, limit, offset }) => {
+  async ({ agent_id, memory_type, limit, offset, project_id }) => {
+    const query: Record<string, string | number | boolean | undefined> = { agent_id, memory_type, limit, offset };
+    if (project_id) query.project_id = project_id;
     const result = await api({
       path: "/memories",
-      query: { agent_id, memory_type, limit, offset },
+      query,
     });
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],

@@ -129,30 +129,24 @@ def _embed_text_local(text: str) -> list[float]:
 
 
 def _embed_text_uncached(text: str) -> list[float]:
-    """Generate embedding for text using configured model."""
+    """Generate embedding for text using configured model.
     
-    # TEMP: Gemini suspended, revert when reinstated
-    #     # Try Google first (cheaper)
-    #     if GOOGLE_API_KEY:
-    #         try:
-    #             model_name = "gemini-embedding-001"
-    #             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:embedContent"
-    #             resp = requests.post(
-    #                 url,
-    #                 params={"key": GOOGLE_API_KEY},
-    #                 json={
-    #                     "model": f"models/{model_name}",
-    #                     "content": {"parts": [{"text": text}]},
-    #                     "outputDimensionality": 768
-    #                 },
-    #                 timeout=15
-    #             )
-    #             resp.raise_for_status()
-    #             return resp.json()["embedding"]["values"]
-    #         except Exception as e:
-    #             print(f"Google embedding failed: {e}")
-    #     
-    # OpenAI embeddings (primary)
+    Per product spec: local all-MiniLM-L6-v2 (384d, zero-padded to 768d) is PRIMARY.
+    OpenAI is fallback only for when local model fails.
+    """
+    
+    # Primary: Local sentence-transformers (384 dims, zero-padded to 768)
+    # Fast, free, zero latency, no rate limits
+    try:
+        model = _get_local_model()
+        vec = model.encode(text).tolist()
+        if len(vec) < 768:
+            vec = vec + [0.0] * (768 - len(vec))
+        return vec
+    except Exception as e:
+        print(f"Local embedding failed: {e}, falling back to OpenAI...")
+    
+    # Fallback: OpenAI embeddings (only when local fails)
     if OPENAI_API_KEY:
         try:
             resp = requests.post(
@@ -171,7 +165,7 @@ def _embed_text_uncached(text: str) -> list[float]:
             resp.raise_for_status()
             return resp.json()["data"][0]["embedding"]
         except Exception as e:
-            print(f"OpenAI embedding failed: {e}")
+            print(f"OpenAI embedding fallback also failed: {e}")
     
     raise RuntimeError("No embedding provider available")
 
@@ -402,12 +396,16 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
             (tenant_id, agent_id, headline, context, full_content, memory_type, 
              entities, project, categories, scope,
              importance, confidence, embedding, local_embedding,
-             source_session, source_turn, metadata)
+             source_session, source_turn, metadata,
+             project_id, thread_id, project_name, thread_title,
+             source_type)
         VALUES 
             (%s::UUID, %s, %s, %s, %s, %s,
              %s, %s, %s, %s,
              %s, %s, %s::extensions.vector, %s::extensions.vector,
-             %s, %s, %s::jsonb)
+             %s, %s, %s::jsonb,
+             %s, %s, %s, %s,
+             %s)
         RETURNING id;
     """
     
@@ -428,7 +426,12 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
         local_embedding,
         memory.get('source_session'),
         memory.get('source_turn'),
-        json.dumps(memory.get('metadata', {}))
+        json.dumps(memory.get('metadata', {})),
+        memory.get('project_id'),
+        memory.get('thread_id'),
+        memory.get('project_name'),
+        memory.get('thread_title'),
+        memory.get('source_type')
     )
     
     rows = _db_execute(query, params, tenant_id=current_tenant)

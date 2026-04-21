@@ -367,6 +367,140 @@ def _build_always_include(agent_id: str, tenant_id: str = None, config: dict = N
     return always_block, _estimate_tokens(always_block)
 
 
+
+# --- CP6 OPT1: Helper functions for parallel strategy execution ---
+from concurrent.futures import ThreadPoolExecutor
+
+def _strategy_2_high_importance(agent_id: str, tenant_id: str, project_id: str, existing_ids: list):
+    """Strategy 2: High-importance memories (always consider)."""
+    import time as _time_cp6
+    
+    _t_s2_start = _time_cp6.perf_counter()
+    _s2_count = 0
+    s2_candidates = {}
+    
+    _project_filter = "AND project_id = %s" if project_id else ""
+    
+    try:
+        _s2_params = (agent_id, tenant_id) + ((project_id,) if project_id else ()) + (existing_ids,)
+        rows2 = _db_execute(f"""
+            SELECT id, headline, context, full_content, memory_type,
+                   importance, access_count, reinforcement_count,
+                   created_at, superseded_at, 0.5 as similarity
+            FROM memory_service.memories
+            WHERE agent_id = %s AND tenant_id = %s::UUID
+              AND superseded_at IS NULL
+              AND importance > 0.8
+              {_project_filter}
+              AND id NOT IN (SELECT unnest(%s::uuid[]))
+            ORDER BY importance DESC
+            LIMIT 50
+        """, _s2_params,
+            tenant_id=tenant_id)
+        
+        if rows2:
+            for row in rows2:
+                parts = row.split("|||")
+                if len(parts) >= 11:
+                    mem_id = parts[0]
+                    s2_candidates[mem_id] = _parse_candidate_row(parts)
+                    _s2_count += 1
+        
+        _t_s2_end = _time_cp6.perf_counter()
+        _t_s2_ms = int((_t_s2_end - _t_s2_start) * 1000)
+        
+    except Exception as e:
+        print(f"Warning: High-importance search failed: {e}")
+        _t_s2_end = _time_cp6.perf_counter()
+        _t_s2_ms = int((_t_s2_end - _t_s2_start) * 1000)
+        _s2_count = 0
+    
+    return s2_candidates, _t_s2_ms, _s2_count
+
+
+def _strategy_3_keyword(agent_id: str, tenant_id: str, project_id: str, existing_ids: list, context_text: str):
+    """Strategy 3: Keyword search — parameterized ILIKE."""
+    import time as _time_cp6
+    import re
+    
+    _t_s3_start = _time_cp6.perf_counter()
+    _s3_count = 0
+    _s3_skipped = True
+    s3_candidates = {}
+    
+    _project_filter = "AND project_id = %s" if project_id else ""
+    
+    try:
+        words = re.findall(r'\b[a-zA-Z]{3,}\b', context_text.lower())
+        stop_words = {'this', 'that', 'with', 'from', 'what', 'when', 'where', 'which', 'about',
+                      'have', 'been', 'will', 'would', 'could', 'should', 'their', 'there',
+                      'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her',
+                      'was', 'one', 'our', 'out'}
+        keywords = [w for w in words if w not in stop_words][:5]
+        
+        if keywords:
+            _s3_skipped = False
+            
+            # Build parameterized OR conditions for keywords
+            keyword_conditions = []
+            keyword_params = []
+            for kw in keywords:
+                keyword_conditions.append("(headline ILIKE %s OR context ILIKE %s)")
+                pattern = f"%{kw}%"
+                keyword_params.extend([pattern, pattern])
+            
+            condition_str = " OR ".join(keyword_conditions)
+            
+            # Use a direct psycopg2 query for the complex parameterized keyword search
+            pool = _get_connection_pool()
+            conn = pool.getconn()
+            cur = conn.cursor()
+            try:
+                cur.execute("BEGIN")
+                cur.execute("SELECT memory_service.set_tenant_context(%s)", (tenant_id,))
+                
+                query = f"""
+                    SELECT id, headline, context, full_content, memory_type,
+                           importance, access_count, reinforcement_count,
+                           created_at, superseded_at, 0.35 as similarity
+                    FROM memory_service.memories
+                    WHERE agent_id = %s AND tenant_id = %s::UUID
+                      AND superseded_at IS NULL
+                      AND ({condition_str})
+                      {_project_filter}
+                      AND id NOT IN (SELECT unnest(%s::uuid[]))
+                    ORDER BY importance DESC
+                    LIMIT 100
+                """  # nosec B608 — all values parameterized via %s
+                params = [agent_id, tenant_id] + keyword_params + ([project_id] if project_id else []) + [existing_ids]
+                cur.execute(query, params)
+                
+                if cur.description:
+                    for row_tuple in cur.fetchall():
+                        row_str = "|||".join(str(val) if val is not None else "" for val in row_tuple)
+                        parts = row_str.split("|||")
+                        if len(parts) >= 11:
+                            mem_id = parts[0]
+                            s3_candidates[mem_id] = _parse_candidate_row(parts)
+                            _s3_count += 1
+                
+                cur.execute("COMMIT")
+            except Exception as e:
+                cur.execute("ROLLBACK")
+                print(f"Warning: Keyword search query failed: {e}")
+            finally:
+                cur.close()
+                pool.putconn(conn)
+                
+    except Exception as e:
+        print(f"Warning: Keyword search failed: {e}")
+    
+    _t_s3_end = _time_cp6.perf_counter()
+    _t_s3_ms = int((_t_s3_end - _t_s3_start) * 1000)
+    
+    return s3_candidates, _t_s3_ms, _s3_count, _s3_skipped
+
+
 def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_text: str, tenant_id: str = None, project_id: str = None):
     """Retrieve candidate memories using multiple strategies — fully parameterized."""
     # SECURITY: Use provided tenant_id for all queries
@@ -419,118 +553,26 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     
     _t_post_start = _time_cp6.perf_counter()
     
-    # CP6 PART 2: Per-strategy timing
-    _t_s2_start = _time_cp6.perf_counter()
-    _s2_count = 0
+    # CP6 OPT1: Parallelize strategies 2 and 3 using ThreadPoolExecutor
+    existing_ids = list(candidates.keys()) if candidates else ["00000000-0000-0000-0000-000000000000"]
     
-    # Strategy 2: High-importance memories (always consider)
-    try:
-        existing_ids = list(candidates.keys()) if candidates else ["00000000-0000-0000-0000-000000000000"]
-
-        _s2_params = (agent_id, _tid) + ((project_id,) if project_id else ()) + (existing_ids,)
-        rows2 = _db_execute(f"""
-            SELECT id, headline, context, full_content, memory_type,
-                   importance, access_count, reinforcement_count,
-                   created_at, superseded_at, 0.5 as similarity
-            FROM memory_service.memories
-            WHERE agent_id = %s AND tenant_id = %s::UUID
-              AND superseded_at IS NULL
-              AND importance > 0.8
-              {_project_filter}
-              AND id NOT IN (SELECT unnest(%s::uuid[]))
-            ORDER BY importance DESC
-            LIMIT 50
-        """, _s2_params,
-            tenant_id=_tid)
+    # Run S2 and S3 concurrently
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        future_s2 = executor.submit(_strategy_2_high_importance, agent_id, _tid, project_id, existing_ids)
+        future_s3 = executor.submit(_strategy_3_keyword, agent_id, _tid, project_id, existing_ids, context_text)
         
-        for row in rows2:
-            parts = row.split("|||")
-            if len(parts) >= 11:
-                mem_id = parts[0]
-                if mem_id not in candidates:
-                    candidates[mem_id] = _parse_candidate_row(parts)
-                    _s2_count += 1
-        
-        _t_s2_end = _time_cp6.perf_counter()
-        _t_s2_ms = int((_t_s2_end - _t_s2_start) * 1000)
-    except Exception as e:
-        print(f"Warning: High-importance search failed: {e}")
+        # Wait for both to complete
+        s2_candidates, _t_s2_ms, _s2_count = future_s2.result()
+        s3_candidates, _t_s3_ms, _s3_count, _s3_skipped = future_s3.result()
     
-    _t_s3_start = _time_cp6.perf_counter()
-    _s3_count = 0
-    _s3_skipped = True  # Will be set to False if keyword search runs
+    # Merge results into main candidates dict
+    for mem_id, mem in s2_candidates.items():
+        if mem_id not in candidates:
+            candidates[mem_id] = mem
     
-    # Strategy 3: Keyword search — parameterized ILIKE
-    try:
-        import re
-        words = re.findall(r'\b[a-zA-Z]{3,}\b', context_text.lower())
-        stop_words = {'this', 'that', 'with', 'from', 'what', 'when', 'where', 'which', 'about',
-                      'have', 'been', 'will', 'would', 'could', 'should', 'their', 'there',
-                      'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her',
-                      'was', 'one', 'our', 'out'}
-        keywords = [w for w in words if w not in stop_words][:5]
-        
-        if keywords:
-            _s3_skipped = False  # Keywords found, search will run
-            existing_ids = list(candidates.keys()) if candidates else ["00000000-0000-0000-0000-000000000000"]
-            
-            # Build parameterized OR conditions for keywords
-            keyword_conditions = []
-            keyword_params = []
-            for kw in keywords:
-                keyword_conditions.append("(headline ILIKE %s OR context ILIKE %s)")
-                pattern = f"%{kw}%"
-                keyword_params.extend([pattern, pattern])
-            
-            condition_str = " OR ".join(keyword_conditions)
-            
-            # Use a direct psycopg2 query for the complex parameterized keyword search
-            pool = _get_connection_pool()
-            conn = pool.getconn()
-            cur = conn.cursor()
-            try:
-                cur.execute("BEGIN")
-                cur.execute("SELECT memory_service.set_tenant_context(%s)", (_tid,))
-                
-                # condition_str is built from hardcoded "ILIKE %s" templates — safe
-                query = f"""
-                    SELECT id, headline, context, full_content, memory_type,
-                           importance, access_count, reinforcement_count,
-                           created_at, superseded_at, 0.35 as similarity
-                    FROM memory_service.memories
-                    WHERE agent_id = %s AND tenant_id = %s::UUID
-                      AND superseded_at IS NULL
-                      AND ({condition_str})
-                      {_project_filter}
-                      AND id NOT IN (SELECT unnest(%s::uuid[]))
-                    ORDER BY importance DESC
-                    LIMIT 100
-                """  # nosec B608 — all values parameterized via %s
-                params = [agent_id, _tid] + keyword_params + ([project_id] if project_id else []) + [existing_ids]
-                cur.execute(query, params)
-                
-                if cur.description:
-                    for row_tuple in cur.fetchall():
-                        row_str = "|||".join(str(val) if val is not None else "" for val in row_tuple)
-                        parts = row_str.split("|||")
-                        if len(parts) >= 11:
-                            mem_id = parts[0]
-                            if mem_id not in candidates:
-                                candidates[mem_id] = _parse_candidate_row(parts)
-                                _s3_count += 1
-                
-                cur.execute("COMMIT")
-            except Exception as e:
-                cur.execute("ROLLBACK")
-                print(f"Warning: Keyword search query failed: {e}")
-            finally:
-                cur.close()
-                pool.putconn(conn)
-    except Exception as e:
-        print(f"Warning: Keyword search failed: {e}")
-    
-    _t_s3_end = _time_cp6.perf_counter()
-    _t_s3_ms = int((_t_s3_end - _t_s3_start) * 1000)
+    for mem_id, mem in s3_candidates.items():
+        if mem_id not in candidates:
+            candidates[mem_id] = mem
     
     _t_post_end = _time_cp6.perf_counter()
     _t_post_ms = int((_t_post_end - _t_post_start) * 1000)

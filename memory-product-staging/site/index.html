@@ -1,0 +1,2224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/logos/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/logos/0latency-icon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/logos/0latency-icon-16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/logos/0latency-icon-256.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>0Latency — Persistent Memory Layer API for AI Agents</title>
+    <meta name="description" content="AI agent memory service with persistent memory for AI agents. Structured memory extraction, storage, and recall via a simple memory layer API. Knowledge graphs, temporal intelligence, and composite scoring. Your agent remembers everything.">
+    <meta name="keywords" content="AI agent memory, persistent memory for AI agents, memory layer API, agent memory service, AI memory infrastructure, knowledge graph, temporal memory, context management">
+    <meta name="author" content="Justin Ghiglia">
+    <meta name="robots" content="index, follow">
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://0latency.ai/">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://0latency.ai/">
+    <meta property="og:title" content="0Latency — Persistent Memory Layer API for AI Agents">
+    <meta property="og:description" content="AI agent memory service with structured extraction, storage, and recall. Knowledge graphs, temporal intelligence, and composite scoring. Three lines of code.">
+    <meta property="og:image" content="https://0latency.ai/og-image.png">
+    <meta property="og:site_name" content="0Latency">
+    <meta property="og:locale" content="en_US">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="0Latency — Persistent Memory Layer API for AI Agents">
+    <meta name="twitter:description" content="AI agent memory service with persistent memory for AI agents. Structured extraction, recall, knowledge graphs, and temporal intelligence.">
+    <meta name="twitter:image" content="https://0latency.ai/og-image.png">
+
+    <!-- Preconnect hints -->
+    <link rel="preconnect" href="https://api.0latency.ai" crossorigin>
+    <link rel="preconnect" href="https://github.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Fonts: Plus Jakarta Sans, Inter, Newsreader, JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500&family=Newsreader:ital,wght@1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "0Latency",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Web",
+      "description": "AI agent memory service providing persistent memory for AI agents. Structured memory extraction, storage, and recall with temporal intelligence, knowledge graphs, and composite scoring.",
+      "url": "https://0latency.ai/",
+      "author": {
+        "@type": "Person",
+        "name": "Justin Ghiglia",
+        "url": "https://github.com/jghiglia2380"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD",
+        "description": "Free tier available"
+      },
+      "softwareHelp": {
+        "@type": "WebPage",
+        "url": "https://0latency.ai/dashboard"
+      },
+      "codeRepository": "https://github.com/jghiglia2380",
+      "featureList": [
+        "Temporal Intelligence with memory decay and reinforcement",
+        "Knowledge Graph with multi-hop traversal",
+        "Proactive Context Injection",
+        "Contradiction Detection",
+        "Negative Recall",
+        "Custom Scoring Criteria",
+        "Memory Version History",
+        "Webhooks with HMAC signing",
+        "Organization-level shared memory",
+        "Chrome Extension for ChatGPT, Claude, Gemini, Perplexity"
+      ]
+    }
+    </script>
+
+    <style>
+        html { scroll-behavior: smooth; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #fafafa;
+            --surface: #ffffff;
+            --surface-alt: #f8fafc;
+            --border: #e5e7eb;
+            --text: #111827;
+            --text-dim: #6b7280;
+            --accent: #f97316;
+            --accent-hover: #ea580c;
+            --accent-glow: rgba(249, 115, 22, 0.1);
+            --green: #059669;
+            --orange: #ea580c;
+            --radius: 12px;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+            --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
+            --shadow-xl: 0 20px 60px rgba(0,0,0,0.1);
+            --font-heading: 'Plus Jakarta Sans', -apple-system, 'Inter', 'Segoe UI', sans-serif;
+            --font-body: 'Inter', -apple-system, 'Segoe UI', sans-serif;
+            --font-quote: 'Newsreader', Georgia, 'Times New Roman', serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+            --transition-fast: 0.15s ease;
+            --transition-base: 0.2s ease;
+            --transition-slow: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+            font-weight: 400;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Subtle grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image:
+                linear-gradient(rgba(0, 0, 0, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.02) 1px, transparent 1px);
+            background-size: 64px 64px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            font-family: var(--font-heading);
+            letter-spacing: -0.02em;
+        }
+
+        a {
+            transition: color var(--transition-base);
+        }
+
+        /* ═══════════════════ NAV ═══════════════════ */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 3rem;
+            border-bottom: 1px solid var(--border);
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            text-decoration: none;
+            color: var(--text);
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            margin-left: 2rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: color var(--transition-base);
+            position: relative;
+        }
+        .nav-links a:not(.btn-primary)::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 1.5px;
+            background: var(--accent);
+            transition: width var(--transition-slow);
+        }
+        .nav-links a:not(.btn-primary):hover { color: var(--text); }
+        .nav-links a:not(.btn-primary):hover::after { width: 100%; }
+        .nav-links .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            padding: 0.5rem 1.2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all var(--transition-base);
+        }
+        .nav-links .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.25);
+        }
+
+        /* ═══════════════════ HERO ═══════════════════ */
+        .hero {
+            text-align: center;
+            padding: 7rem 2rem 5rem;
+            max-width: 850px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        /* Gradient mesh behind hero */
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -20%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 800px;
+            height: 600px;
+            background:
+                radial-gradient(ellipse at 30% 50%, rgba(249, 115, 22, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 30%, rgba(147, 51, 234, 0.04) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 80%, rgba(5, 150, 105, 0.03) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            background: rgba(249, 115, 22, 0.06);
+            color: var(--accent);
+            padding: 0.4rem 1.2rem;
+            border-radius: 24px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(249, 115, 22, 0.15);
+            letter-spacing: 0.02em;
+            opacity: 0;
+            animation: fadeUp 0.6s ease forwards;
+            animation-delay: 0.1s;
+        }
+
+        h1 {
+            font-size: 3.8rem;
+            font-weight: 800;
+            line-height: 1.08;
+            letter-spacing: -0.035em;
+            margin-bottom: 1.5rem;
+            opacity: 0;
+            animation: fadeUp 0.6s ease forwards;
+            animation-delay: 0.2s;
+        }
+        h1 .gradient {
+            background: linear-gradient(135deg, var(--accent), #9333ea);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        h1 .zero-glow {
+            position: relative;
+            display: inline-block;
+        }
+        h1 .zero-glow::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px;
+            height: 60px;
+            background: radial-gradient(circle, rgba(249, 115, 22, 0.2) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: glowPulse 3s ease-in-out infinite;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-dim);
+            max-width: 720px;
+            margin: 0 auto 2.5rem;
+            line-height: 1.7;
+            opacity: 0;
+            animation: fadeUp 0.6s ease forwards;
+            animation-delay: 0.35s;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            opacity: 0;
+            animation: fadeUp 0.6s ease forwards;
+            animation-delay: 0.5s;
+        }
+        .hero-buttons a {
+            padding: 0.85rem 2.2rem;
+            border-radius: 10px;
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: all var(--transition-slow);
+        }
+        .btn-hero-primary {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(249, 115, 22, 0.25);
+        }
+        .btn-hero-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(249, 115, 22, 0.3);
+            background: var(--accent-hover);
+        }
+        .btn-hero-secondary {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+        }
+        .btn-hero-secondary:hover {
+            border-color: #d1d5db;
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        /* ═══════════════════ ELEGANCE CALLOUT ═══════════════════ */
+        .elegance-callout {
+            text-align: center;
+            padding: 3rem 2rem 1rem;
+            opacity: 0;
+            animation: fadeUp 0.8s ease forwards;
+            animation-delay: 0.65s;
+        }
+        .elegance-callout p {
+            font-family: var(--font-quote);
+            font-style: italic;
+            font-size: 1.35rem;
+            color: var(--text-dim);
+            letter-spacing: 0.04em;
+        }
+
+        /* ═══════════════════ MOCK DASHBOARD ═══════════════════ */
+        .dashboard-preview {
+            max-width: 900px;
+            margin: 2rem auto 4rem;
+            padding: 0 2rem;
+        }
+        .browser-chrome {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+            transition: box-shadow var(--transition-slow);
+        }
+        .browser-chrome:hover {
+            box-shadow: var(--shadow-xl);
+        }
+        .browser-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: #f9fafb;
+            border-bottom: 1px solid var(--border);
+        }
+        .browser-dots {
+            display: flex;
+            gap: 6px;
+        }
+        .browser-dots span {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            opacity: 0.5;
+        }
+        .browser-dots span:nth-child(1) { background: #ef4444; }
+        .browser-dots span:nth-child(2) { background: #eab308; }
+        .browser-dots span:nth-child(3) { background: #22c55e; }
+        .browser-url {
+            flex: 1;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            font-family: var(--font-body);
+        }
+        .browser-url .lock { color: var(--green); margin-right: 4px; }
+        .dashboard-body {
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            min-height: 300px;
+        }
+        .dash-sidebar {
+            background: #f9fafb;
+            border-right: 1px solid var(--border);
+            padding: 20px 16px;
+        }
+        .dash-sidebar-logo {
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 0.85rem;
+            margin-bottom: 24px;
+            color: var(--text);
+        }
+        .dash-sidebar-logo span { color: var(--accent); }
+        .dash-nav-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            margin-bottom: 2px;
+        }
+        .dash-nav-item.active {
+            background: var(--surface);
+            color: var(--text);
+            font-weight: 500;
+            box-shadow: var(--shadow-sm);
+        }
+        .dash-nav-item svg { width: 14px; height: 14px; opacity: 0.6; }
+        .dash-main {
+            padding: 24px;
+        }
+        .dash-header {
+            font-family: var(--font-heading);
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--text);
+        }
+        .dash-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .dash-stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .dash-stat-label {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+        .dash-stat-value {
+            font-family: var(--font-heading);
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+        .dash-stat-value.accent { color: var(--accent); }
+        .dash-stat-value.green { color: var(--green); }
+        .dash-chart {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .dash-chart-title {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+        .dash-bars {
+            display: flex;
+            align-items: flex-end;
+            gap: 6px;
+            height: 80px;
+        }
+        .dash-bar {
+            flex: 1;
+            border-radius: 3px 3px 0 0;
+            transition: opacity var(--transition-base);
+        }
+        .dash-bar:hover { opacity: 0.8; }
+
+        @media (max-width: 640px) {
+            .dashboard-body { grid-template-columns: 1fr; }
+            .dash-sidebar { display: none; }
+        }
+
+        /* ═══════════════════ CODE SECTION ═══════════════════ */
+        .code-section {
+            max-width: 700px;
+            margin: 0 auto 2rem;
+            background: #1e1e2e;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+        }
+        .code-section::after {
+            content: '';
+            position: absolute;
+            bottom: -20px;
+            left: 10%;
+            right: 10%;
+            height: 20px;
+            background: radial-gradient(ellipse at center, rgba(249, 115, 22, 0.08) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .code-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            font-size: 0.78rem;
+            color: rgba(255,255,255,0.4);
+            background: rgba(0,0,0,0.15);
+        }
+        .code-dot { width: 10px; height: 10px; border-radius: 50%; opacity: 0.6; }
+        .code-dot-r { background: #ef4444; }
+        .code-dot-y { background: #eab308; }
+        .code-dot-g { background: #22c55e; }
+        .code-header span { margin-left: 4px; }
+        pre {
+            padding: 0;
+            overflow-x: auto;
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            line-height: 1.75;
+            position: relative;
+            background: transparent;
+            color: #cdd6f4;
+        }
+        .code-lines {
+            display: flex;
+        }
+        .line-numbers {
+            padding: 1.25rem 0;
+            text-align: right;
+            user-select: none;
+            border-right: 1px solid rgba(255,255,255,0.06);
+            min-width: 40px;
+        }
+        .line-numbers span {
+            display: block;
+            padding: 0 12px;
+            color: rgba(255,255,255,0.15);
+            font-size: 0.75rem;
+            line-height: 1.75;
+        }
+        .code-content {
+            padding: 1.25rem 1.5rem;
+            flex: 1;
+            overflow-x: auto;
+        }
+        /* Dark theme syntax colors */
+        .kw { color: #cba6f7; }
+        .fn { color: #fab387; }
+        .str { color: #a6e3a1; }
+        .cm { color: #585b70; font-style: italic; }
+        .num { color: #fab387; }
+        .var { color: #89b4fa; }
+        .op { color: #89dceb; }
+        .copy-btn {
+            position: absolute;
+            top: 48px;
+            right: 12px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.4);
+            cursor: pointer;
+            transition: all var(--transition-base);
+            opacity: 0;
+            font-family: var(--font-body);
+        }
+        .code-section:hover .copy-btn { opacity: 1; }
+        .copy-btn:hover {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        /* ═══════════════════ MOCK API RESPONSE ═══════════════════ */
+        .api-response-section {
+            max-width: 700px;
+            margin: 2rem auto 4rem;
+            padding: 0 2rem;
+        }
+        .api-response-card {
+            background: #1e1e2e;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+        }
+        .api-response-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: rgba(0,0,0,0.15);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .api-response-header .method {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #a6e3a1;
+            background: rgba(166, 227, 161, 0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        .api-response-header .status {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: #a6e3a1;
+        }
+        .api-response-header .endpoint {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: rgba(255,255,255,0.4);
+            margin-left: 8px;
+        }
+        .api-response-body {
+            padding: 1.25rem 1.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            line-height: 1.7;
+            color: #cdd6f4;
+        }
+        .json-key { color: #89b4fa; }
+        .json-string { color: #a6e3a1; }
+        .json-number { color: #fab387; }
+        .json-bracket { color: #585b70; }
+        .api-response-footer {
+            padding: 8px 16px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            color: rgba(255,255,255,0.25);
+        }
+
+        /* ═══════════════════ STATS ═══════════════════ */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 5rem;
+            padding: 4rem 2rem;
+            flex-wrap: wrap;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+        .stat { text-align: center; }
+        .stat-accent-line {
+            width: 24px;
+            height: 2px;
+            background: var(--accent);
+            margin: 0 auto 12px;
+            border-radius: 1px;
+        }
+        .stat-num {
+            font-family: var(--font-heading);
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--accent);
+            line-height: 1;
+        }
+        .stat-label {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+            font-weight: 500;
+        }
+
+        .platform-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: #f1f5f9;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #374151;
+            margin-right: 0.4rem;
+        }
+
+        /* ═══════════════════ FEATURES ═══════════════════ */
+        .features {
+            max-width: 1100px;
+            margin: 5rem auto;
+            padding: 0 2rem;
+        }
+        .features h2 {
+            text-align: center;
+            font-size: 2.2rem;
+            margin-bottom: 0.5rem;
+            font-weight: 800;
+        }
+        .features .subtitle {
+            text-align: center;
+            color: var(--text-dim);
+            margin-bottom: 3rem;
+            font-size: 1.05rem;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.25rem;
+        }
+        .feature-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 2rem;
+            transition: all var(--transition-slow);
+            box-shadow: var(--shadow-sm);
+            position: relative;
+            overflow: hidden;
+        }
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--accent);
+            opacity: 0;
+            transition: opacity var(--transition-slow);
+        }
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: rgba(249, 115, 22, 0.2);
+        }
+        .feature-card:hover::before { opacity: 1; }
+        .feature-icon {
+            width: 40px;
+            height: 40px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(249, 115, 22, 0.06);
+            border-radius: 10px;
+            color: var(--accent);
+        }
+        .feature-icon svg { width: 20px; height: 20px; }
+        .feature-card h3 {
+            font-size: 1.05rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+        .feature-card p {
+            color: var(--text-dim);
+            font-size: 0.92rem;
+            line-height: 1.6;
+        }
+
+        /* ═══════════════════ COMPARISON ═══════════════════ */
+        .comparison {
+            max-width: 950px;
+            margin: 5rem auto;
+            padding: 0 2rem;
+        }
+        .comparison h2 {
+            text-align: center;
+            font-size: 2.2rem;
+            margin-bottom: 0.5rem;
+            font-weight: 800;
+        }
+        .comparison .subtitle {
+            text-align: center;
+            color: var(--text-dim);
+            margin-bottom: 2.5rem;
+            font-size: 1.05rem;
+        }
+        .compare-table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-md);
+        }
+        .compare-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--surface);
+        }
+        .compare-table th, .compare-table td {
+            padding: 0.8rem 1rem;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            font-size: 0.9rem;
+            transition: background var(--transition-fast);
+        }
+        .compare-table th:first-child, .compare-table td:first-child {
+            text-align: left;
+            position: sticky;
+            left: 0;
+            background: inherit;
+            z-index: 2;
+            font-weight: 500;
+        }
+        .compare-table thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .compare-table th {
+            background: #f8f9fa;
+            font-weight: 700;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-dim);
+        }
+        /* Orange tint on our headers */
+        .compare-table th:nth-child(2),
+        .compare-table th:nth-child(3),
+        .compare-table th:nth-child(4) {
+            background: rgba(249, 115, 22, 0.04);
+            color: var(--accent-hover);
+        }
+        .compare-table tbody tr:nth-child(even) { background: var(--surface-alt); }
+        .compare-table tbody tr:nth-child(even) td:first-child { background: var(--surface-alt); }
+        .compare-table tbody tr:nth-child(odd) td:first-child { background: var(--surface); }
+        .compare-table tbody tr:hover td { background: rgba(249, 115, 22, 0.03); }
+        .compare-table tbody tr:hover td:first-child { background: rgba(249, 115, 22, 0.03); }
+        .compare-table tr:last-child td { border-bottom: none; }
+        .check { color: var(--green); font-weight: 600; }
+        .cross { color: #dc2626; }
+        .advantage { color: var(--accent-hover); font-weight: 700; font-size: 0.7rem; background: rgba(249,115,22,0.08); padding: 0.15rem 0.5rem; border-radius: 4px; letter-spacing: 0.02em; }
+
+        /* ═══════════════════ DEVS WHO SHIP ═══════════════════ */
+        .devs-section {
+            background: var(--surface-alt);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            padding: 5rem 2rem;
+        }
+        .devs-section h2 {
+            text-align: center;
+            font-size: 2.2rem;
+            margin-bottom: 0.5rem;
+            font-weight: 800;
+        }
+        .devs-section .subtitle {
+            text-align: center;
+            color: var(--text-dim);
+            margin-bottom: 3.5rem;
+            font-size: 1.05rem;
+        }
+        .devs-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .dev-card {
+            text-align: center;
+            padding: 2.5rem 2rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition-slow);
+        }
+        .dev-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+        .dev-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(249, 115, 22, 0.06);
+            border-radius: 12px;
+            color: var(--accent);
+        }
+        .dev-icon svg { width: 24px; height: 24px; }
+        .dev-card h3 {
+            font-size: 1.15rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+        .dev-card p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            margin-bottom: 1.25rem;
+            line-height: 1.5;
+        }
+        .dev-snippet {
+            background: #1e1e2e;
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: #cdd6f4;
+            text-align: left;
+            line-height: 1.7;
+            overflow-x: auto;
+        }
+        .dev-viz {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            height: 80px;
+        }
+        .dev-viz-bar {
+            width: 8px;
+            border-radius: 4px;
+            transition: height var(--transition-slow);
+        }
+        .dev-config-visual {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            line-height: 1.8;
+        }
+        .dev-config-visual .strikethrough {
+            text-decoration: line-through;
+            color: #d1d5db;
+        }
+        .dev-config-visual .nope {
+            color: #ef4444;
+            font-size: 0.7rem;
+        }
+
+        @media (max-width: 768px) {
+            .devs-grid { grid-template-columns: 1fr; max-width: 400px; }
+        }
+
+        /* ═══════════════════ PRICING ═══════════════════ */
+        .pricing { max-width: 1200px; margin: 5rem auto; padding: 0 2rem; }
+        .pricing h2 { text-align: center; font-size: 2.2rem; margin-bottom: 0.5rem; font-weight: 800; }
+        .pricing .subtitle { text-align: center; color: var(--text-dim); margin-bottom: 3rem; font-size: 1.05rem; }
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.25rem;
+            align-items: start;
+        }
+        .plan {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2.5rem 2rem;
+            display: flex;
+            flex-direction: column;
+            transition: all var(--transition-slow);
+            box-shadow: var(--shadow-sm);
+        }
+        .plan:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+        .plan.featured {
+            position: relative;
+            background: var(--surface);
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            transform: scale(1.03);
+        }
+        /* Gradient border for featured plan */
+        .plan.featured::before {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, #f97316, #fb923c, #fdba74, #f97316);
+            z-index: -1;
+        }
+        .plan.featured::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 16px;
+            background: linear-gradient(180deg, #fffbf5 0%, #ffffff 40%);
+            z-index: -1;
+        }
+        .plan.featured:hover { transform: scale(1.03) translateY(-4px); box-shadow: 0 12px 40px rgba(249, 115, 22, 0.12); }
+        .plan-badge {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--accent);
+            color: #fff;
+            padding: 0.25rem 1rem;
+            border-radius: 20px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            white-space: nowrap;
+            font-family: var(--font-heading);
+        }
+        .plan-name {
+            font-family: var(--font-heading);
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 0.4rem;
+        }
+        .plan-desc { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 1.5rem; min-height: 2rem; }
+        .plan-price { margin-bottom: 1.5rem; }
+        .plan-price .amount {
+            font-family: var(--font-heading);
+            font-size: 2.5rem;
+            font-weight: 800;
+        }
+        .plan-price .period { color: var(--text-dim); font-size: 0.85rem; }
+        .plan-features { list-style: none; flex: 1; margin-bottom: 2rem; }
+        .plan-features li {
+            padding: 0.4rem 0;
+            color: #4b5563;
+            font-size: 0.88rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.6rem;
+        }
+        .plan-features li::before {
+            content: '';
+            flex-shrink: 0;
+            width: 16px;
+            height: 16px;
+            margin-top: 2px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23f97316'%3E%3Cpath d='M12.207 4.793a1 1 0 0 1 0 1.414l-5 5a1 1 0 0 1-1.414 0l-2-2a1 1 0 0 1 1.414-1.414L6.5 9.086l4.293-4.293a1 1 0 0 1 1.414 0z'/%3E%3C/svg%3E");
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+        .plan-btn {
+            display: block; text-align: center; padding: 0.85rem 1.25rem; border-radius: 10px;
+            font-family: var(--font-heading);
+            font-weight: 700; font-size: 0.92rem; text-decoration: none; transition: all var(--transition-slow);
+            border: none; cursor: pointer; width: 100%;
+        }
+        .plan-btn.primary { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(249, 115, 22, 0.2); }
+        .plan-btn.primary:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(249, 115, 22, 0.3); }
+        .plan-btn.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+        .plan-btn.secondary:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+        .compare-banner-inline {
+            max-width: 800px; margin: 2.5rem auto 0; padding: 1.5rem 2rem; text-align: center;
+            border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+            box-shadow: var(--shadow-sm);
+        }
+        .compare-banner-inline p { font-size: 1.1rem; font-weight: 700; font-family: var(--font-heading); }
+        .compare-banner-inline .highlight { color: var(--accent); }
+        .compare-banner-inline .subtext { font-size: 0.85rem; color: var(--text-dim); font-weight: 400; margin-top: 0.4rem; font-family: var(--font-body); }
+
+        /* Checkout status */
+        .checkout-banner { display: none; max-width: 600px; margin: 1rem auto; padding: 1rem 1.5rem; border-radius: 10px; text-align: center; font-weight: 600; }
+        .checkout-banner.success { display: block; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+        .checkout-banner.cancelled { display: block; background: #fffbeb; color: #d97706; border: 1px solid #fcd34d; }
+
+        /* ═══════════════════ FAQ ═══════════════════ */
+        .faq { max-width: 700px; margin: 5rem auto; padding: 0 2rem; }
+        .faq h2 { font-size: 2.2rem; text-align: center; margin-bottom: 2.5rem; font-weight: 800; }
+        .faq-item {
+            border-bottom: 1px solid var(--border);
+        }
+        .faq-question {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.25rem 0;
+            cursor: pointer;
+            user-select: none;
+            transition: color var(--transition-base);
+        }
+        .faq-question:hover { color: var(--accent); }
+        .faq-question h3 {
+            font-size: 1.02rem;
+            font-weight: 600;
+            margin: 0;
+            flex: 1;
+        }
+        .faq-toggle {
+            width: 24px;
+            height: 24px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dim);
+            transition: transform var(--transition-slow);
+            margin-left: 1rem;
+        }
+        .faq-item.open .faq-toggle { transform: rotate(45deg); }
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s ease;
+            padding: 0 0;
+        }
+        .faq-item.open .faq-answer {
+            max-height: 200px;
+            padding-bottom: 1.25rem;
+        }
+        .faq-answer p {
+            color: var(--text-dim);
+            font-size: 0.93rem;
+            line-height: 1.65;
+        }
+
+        /* ═══════════════════ FOOTER ═══════════════════ */
+        footer {
+            background: var(--surface-alt);
+            padding: 0;
+            margin-top: 2rem;
+            position: relative;
+        }
+        footer::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--border), transparent);
+        }
+        footer a {
+            transition: color var(--transition-base);
+        }
+
+        /* ═══════════════════ API STATUS ═══════════════════ */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--green);
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.4rem;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes glowPulse {
+            0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }
+        }
+
+        .sr-only {
+            position: absolute; width: 1px; height: 1px;
+            padding: 0; margin: -1px; overflow: hidden;
+            clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+        }
+
+        /* Scroll-triggered fade-in */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Hamburger menu */
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text);
+            padding: 0.25rem;
+            line-height: 1;
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 2.4rem; letter-spacing: -0.03em; }
+            nav { padding: 1rem 1.5rem; }
+            .stats { gap: 2.5rem; }
+            .nav-links a { margin-left: 1rem; }
+            .hamburger { display: block; }
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: rgba(255,255,255,0.95);
+                backdrop-filter: blur(12px);
+                border-bottom: 1px solid var(--border);
+                flex-direction: column;
+                padding: 1rem 2rem;
+                box-shadow: var(--shadow-lg);
+                z-index: 99;
+            }
+            .nav-links.open { display: flex; }
+            .nav-links a {
+                margin-left: 0 !important;
+                padding: 0.6rem 0;
+                border-bottom: 1px solid #f3f4f6;
+            }
+            .nav-links a::after { display: none; }
+            .nav-links a:last-child { border-bottom: none; }
+        }
+
+        @media (max-width: 1024px) {
+            .pricing-grid { grid-template-columns: repeat(2, 1fr); max-width: 700px; margin: 3rem auto; }
+        }
+        @media (max-width: 640px) {
+            .pricing-grid { grid-template-columns: 1fr; max-width: 400px; }
+            .plan.featured { transform: scale(1); }
+            .plan.featured:hover { transform: translateY(-4px); }
+        }
+    
+/* Responsive nav logo - hide text on mobile */
+.logo-text { display: inline; }
+@media (max-width: 767px) {
+  .logo-text { display: none !important; }
+  .logo img, .nav-logo img { height: 32px !important; }
+}
+</style>
+</head>
+<body>
+    <!-- GitHub Star Banner -->
+    <div style="background:linear-gradient(90deg,#f97316 0%,#fb923c 100%);text-align:center;padding:0.5rem 1rem;font-size:0.85rem;font-weight:600;">
+        <a href="https://github.com/jghiglia2380" style="color:#ffffff;text-decoration:none;font-family:var(--font-body);">
+            ⭐ If 0Latency helps your agents remember, star us on GitHub →
+        </a>
+    </div>
+    <header>
+    <nav role="navigation" aria-label="Main navigation">
+        <a href="/" class="logo" style="text-decoration:none;display:flex;align-items:center;gap:8px;"><img src="/logos/logo-icon.svg" alt="0" style="height:28px;vertical-align:middle;"><span style="font-weight:700;font-size:1.1rem;margin-left:6px;"><span style="color:#f97316;">0</span><span style="color:#111827;">Latency</span></span></a>
+        <button class="hamburger" aria-label="Menu">☰</button>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#faq">FAQ</a>
+            <a href="/case-study-thomas.html">Case Study</a>
+            <a href="/login">Docs</a>
+            <a href="/login" style="color:#6b7280;text-decoration:none;font-weight:500;">Log In</a>
+            <a href="/login" class="btn-primary">Get API Key</a>
+        </div>
+    </nav>
+    </header>
+
+    <main>
+    <section class="hero">
+        <span class="hero-badge">✦ Cross-Platform Memory Consolidation (like Auto Dream, for any AI)</span>
+        <h1><span class="zero-glow">Zero</span> memory latency.<br><span class="gradient">Your agent recalls everything.</span><br>Instantly.</h1>
+        <p>Anthropic just shipped Auto Dream for Claude Code. We built the cross-platform version.<br>Works with Claude, GPT, Cursor, any agent framework. Not locked to one tool.</p>
+        <div class="hero-buttons">
+            <a href="/login" class="btn-hero-primary">Get API Key</a>
+            <a href="https://github.com/jghiglia2380" class="btn-hero-secondary">⭐ Star on GitHub</a>
+            <a href="https://github.com/jghiglia2380/0Latency/tree/master/chrome-extension" class="btn-hero-secondary">🧩 Chrome Extension</a>
+        </div>
+    </section>
+
+    <!-- Elegance callout removed — competing with hero tagline -->
+
+    <!-- Mock Dashboard Preview -->
+    <div class="dashboard-preview fade-in">
+        <div class="browser-chrome">
+            <div class="browser-bar">
+                <div class="browser-dots">
+                    <span></span><span></span><span></span>
+                </div>
+                <div class="browser-url"><span class="lock">🔒</span> app.0latency.ai/dashboard</div>
+            </div>
+            <div class="dashboard-body">
+                <div class="dash-sidebar">
+                    <div class="dash-sidebar-logo"><span>0</span>Latency</div>
+                    <div class="dash-nav-item active">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+                        Dashboard
+                    </div>
+                    <div class="dash-nav-item">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3l2 2"/></svg>
+                        Memories
+                    </div>
+                    <div class="dash-nav-item">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 3h10v2H3zM3 7h10v2H3zM3 11h6v2H3z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+                        Agents
+                    </div>
+                    <div class="dash-nav-item">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 4l8 0M4 8l8 0M4 12l5 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        Logs
+                    </div>
+                    <div class="dash-nav-item">
+                        <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        Settings
+                    </div>
+                </div>
+                <div class="dash-main">
+                    <div class="dash-header">Overview</div>
+                    <div class="dash-stats">
+                        <div class="dash-stat-card">
+                            <div class="dash-stat-label">Memories stored</div>
+                            <div class="dash-stat-value">624</div>
+                        </div>
+                        <div class="dash-stat-card">
+                            <div class="dash-stat-label">Avg recall</div>
+                            <div class="dash-stat-value accent">12ms</div>
+                        </div>
+                        <div class="dash-stat-card">
+                            <div class="dash-stat-label">Uptime</div>
+                            <div class="dash-stat-value green">99.9%</div>
+                        </div>
+                    </div>
+                    <div class="dash-chart">
+                        <div class="dash-chart-title">Memory Operations (7d)</div>
+                        <div class="dash-bars">
+                            <div class="dash-bar" style="height:45%;background:rgba(249,115,22,0.2);"></div>
+                            <div class="dash-bar" style="height:60%;background:rgba(249,115,22,0.3);"></div>
+                            <div class="dash-bar" style="height:35%;background:rgba(249,115,22,0.2);"></div>
+                            <div class="dash-bar" style="height:80%;background:rgba(249,115,22,0.4);"></div>
+                            <div class="dash-bar" style="height:55%;background:rgba(249,115,22,0.3);"></div>
+                            <div class="dash-bar" style="height:90%;background:rgba(249,115,22,0.5);"></div>
+                            <div class="dash-bar" style="height:70%;background:rgba(249,115,22,0.35);"></div>
+                            <div class="dash-bar" style="height:50%;background:rgba(249,115,22,0.25);"></div>
+                            <div class="dash-bar" style="height:85%;background:rgba(249,115,22,0.45);"></div>
+                            <div class="dash-bar" style="height:65%;background:rgba(249,115,22,0.3);"></div>
+                            <div class="dash-bar" style="height:40%;background:rgba(249,115,22,0.2);"></div>
+                            <div class="dash-bar" style="height:95%;background:var(--accent);"></div>
+                            <div class="dash-bar" style="height:75%;background:rgba(249,115,22,0.4);"></div>
+                            <div class="dash-bar" style="height:60%;background:rgba(249,115,22,0.3);"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Code Example -->
+    <section class="code-section fade-in" style="margin-left:auto;margin-right:auto;">
+        <div class="code-header">
+            <div class="code-dot code-dot-r"></div>
+            <div class="code-dot code-dot-y"></div>
+            <div class="code-dot code-dot-g"></div>
+            <span>quickstart.py</span>
+        </div>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><div class="code-lines"><div class="line-numbers"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span></div><div class="code-content"><code><span class="kw">from</span> <span class="var">zerolatency</span> <span class="kw">import</span> Memory
+
+mem <span class="op">=</span> Memory(<span class="str">"zl_live_..."</span>)
+
+<span class="cm"># Store a memory</span>
+mem.<span class="fn">add</span>(<span class="str">"User prefers Python and hates meetings before 10am"</span>)
+
+<span class="cm"># Recall — sub-100ms, always</span>
+result <span class="op">=</span> mem.<span class="fn">recall</span>(<span class="str">"Schedule a code review"</span>)
+<span class="cm"># → Python preference, no meetings before 10am. That's it.</span></code></div></div></pre>
+    </section>
+
+    <!-- Mock API Response -->
+    <div class="api-response-section fade-in">
+        <div class="api-response-card">
+            <div class="api-response-header">
+                <div style="display:flex;align-items:center;">
+                    <span class="method">GET</span>
+                    <span class="endpoint">/v1/recall?q=schedule+review</span>
+                </div>
+                <span class="status">200 OK · 12ms</span>
+            </div>
+            <div class="api-response-body">
+<span class="json-bracket">{</span>
+  <span class="json-key">"memories"</span>: <span class="json-bracket">[</span>
+    <span class="json-bracket">{</span>
+      <span class="json-key">"content"</span>: <span class="json-string">"User prefers dark mode"</span>,
+      <span class="json-key">"relevance"</span>: <span class="json-number">0.94</span>,
+      <span class="json-key">"age"</span>: <span class="json-string">"2 days"</span>
+    <span class="json-bracket">}</span>,
+    <span class="json-bracket">{</span>
+      <span class="json-key">"content"</span>: <span class="json-string">"Works primarily in Python"</span>,
+      <span class="json-key">"relevance"</span>: <span class="json-number">0.87</span>,
+      <span class="json-key">"age"</span>: <span class="json-string">"1 week"</span>
+    <span class="json-bracket">}</span>
+  <span class="json-bracket">]</span>,
+  <span class="json-key">"recall_ms"</span>: <span class="json-number">12</span>,
+  <span class="json-key">"tokens_used"</span>: <span class="json-number">847</span>
+<span class="json-bracket">}</span>
+            </div>
+            <div class="api-response-footer">
+                <span>Content-Type: application/json</span>
+                <span>X-Recall-Time: 12ms</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <section class="stats fade-in" aria-label="Platform statistics">
+        <h2 class="sr-only">Platform Statistics</h2>
+        <div class="stat">
+            <div class="stat-accent-line"></div>
+            <div class="stat-num" data-target="42" data-suffix="">0</div>
+            <div class="stat-label">API Endpoints</div>
+        </div>
+        <div class="stat">
+            <div class="stat-accent-line"></div>
+            <div class="stat-num" data-target="147" data-suffix="">0</div>
+            <div class="stat-label">Tests Passing</div>
+        </div>
+        <div class="stat">
+            <div class="stat-accent-line"></div>
+            <div class="stat-num" data-target="50" data-prefix="<" data-suffix="ms">&lt;50ms</div>
+            <div class="stat-label">Recall Latency</div>
+        </div>
+        <div class="stat">
+            <div class="stat-accent-line"></div>
+            <div class="stat-num" data-target="99.9" data-suffix="%" data-decimal="true">99.9%</div>
+            <div class="stat-label">Uptime SLA</div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="features" id="features">
+        <div style="max-width:700px;margin:0 auto 3rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;box-shadow:var(--shadow-sm);transition:box-shadow var(--transition-slow);">
+            <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;">
+                <span style="font-size:2rem;">🧩</span>
+                <div>
+                    <h2 style="margin:0;font-size:1.1rem;">Chrome Extension</h2>
+                    <p style="color:var(--text-dim);font-size:0.85rem;margin:0;">Capture memories from ChatGPT, Claude, Gemini & Perplexity automatically.</p>
+                </div>
+            </div>
+            <div class="platforms" style="margin-bottom:1rem;">
+                <span class="platform-badge" style="border-color:#10a37f;color:#10a37f;">ChatGPT</span>
+                <span class="platform-badge" style="border-color:#d97706;color:#d97706;">Claude</span>
+                <span class="platform-badge" style="border-color:#4285f4;color:#4285f4;">Gemini</span>
+                <span class="platform-badge" style="border-color:#22c55e;color:#22c55e;">Perplexity</span>
+            </div>
+            <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem;">Every conversation you have with any AI assistant is automatically extracted into your memory layer. No copy-paste. No manual logging. Just talk — your agent remembers.</p>
+            <div style="display:flex;gap:0.8rem;flex-wrap:wrap;">
+                <a href="https://github.com/jghiglia2380/0Latency/tree/master/chrome-extension" style="display:inline-block;padding:0.6rem 1.2rem;background:var(--accent);color:white;border-radius:8px;text-decoration:none;font-size:0.85rem;font-weight:600;box-shadow:0 2px 8px rgba(249,115,22,0.2);transition:all var(--transition-slow);">View Setup Guide</a>
+                <a href="https://github.com/jghiglia2380/0Latency/tree/master/chrome-extension" style="display:inline-block;padding:0.6rem 1.2rem;background:#ffffff;color:var(--text-dim);border:1px solid var(--border);border-radius:8px;text-decoration:none;font-size:0.85rem;box-shadow:var(--shadow-sm);transition:all var(--transition-slow);">Setup Guide</a>
+            </div>
+        </div>
+        <h2>Built Different</h2>
+        <p class="subtitle">Not another RAG wrapper. An actual memory system.</p>
+        <div class="feature-grid fade-in">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 1 7 7c0 2.5-1.5 4.5-3 6l-1 4H9l-1-4c-1.5-1.5-3-3.5-3-6a7 7 0 0 1 7-7z"/><path d="M9 19h6"/><path d="M10 22h4"/></svg>
+                </div>
+                <h3>Temporal Intelligence</h3>
+                <p>Memories decay, reinforce, and evolve over time. Half-life scoring ensures your agent prioritizes what's current, not just what's similar.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 6h6M6 9v6M18 9v6M9 18h6"/></svg>
+                </div>
+                <h3>Knowledge Graph</h3>
+                <p>Entity relationships with multi-hop traversal. Find connections between people, projects, and concepts — no Neo4j required.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                </div>
+                <h3>Proactive Recall</h3>
+                <p>Context injection without explicit search. Tiered loading (L0/L1/L2) fits your context window budget automatically.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.5 0 10-4.5 10-10S17.5 2 12 2 2 6.5 2 12s4.5 10 10 10z"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+                </div>
+                <h3>Contradiction Detection</h3>
+                <p>When facts change, old memories get superseded — not stacked. Correction cascading ensures your agent never serves stale context.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                </div>
+                <h3>Negative Recall</h3>
+                <p>Knows what it doesn't know. When context is missing, your agent says "I don't have that information" instead of hallucinating.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                </div>
+                <h3>Custom Criteria</h3>
+                <p>Define scoring attributes like urgency, joy, or confidence. Re-rank recalled memories by what matters to your application.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                </div>
+                <h3>Version History</h3>
+                <p>Full changelog per memory. Every update snapshots the previous state. Audit trail for compliance and debugging.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                </div>
+                <h3>Webhooks</h3>
+                <p>Real-time notifications on memory events. HMAC-signed payloads with retry logic and delivery audit logs.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a4 4 0 0 0-8 0v2"/><circle cx="12" cy="14" r="2"/></svg>
+                </div>
+                <h3>Organization Memory</h3>
+                <p>Shared memory across team agents. Promote individual memories to org level. Build institutional knowledge.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </div>
+                <h3>Automatic Secret Detection</h3>
+                <p>Every inbound memory is scanned for API keys, tokens, and credentials. Secrets are blocked before storage — never accidentally persist sensitive data in agent memory.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Comparison -->
+    <section class="comparison">
+        <h2>Feature Comparison</h2>
+        <p class="subtitle">What you get at each tier — and what competitors charge for the same features.</p>
+        <div class="compare-table-wrap fade-in">
+            <table class="compare-table">
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>0Latency Free</th>
+                    <th>0Latency Pro <span style="color:#f97316;">$19/mo</span></th>
+                    <th>0Latency Scale <span style="color:#f97316;">$89/mo</span></th>
+                    <th>Mem0 Starter <span style="color:#9ca3af;">$19/mo</span></th>
+                    <th>Mem0 Pro <span style="color:#9ca3af;">$249/mo</span></th>
+                    <th>Zep Flex+ <span style="color:#9ca3af;">$475/mo</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Memories</td>
+                    <td>10,000</td>
+                    <td>100,000</td>
+                    <td>1,000,000</td>
+                    <td>50,000</td>
+                    <td>Unlimited</td>
+                    <td>300K credits</td>
+                </tr>
+                <tr>
+                    <td>Agents</td>
+                    <td>5</td>
+                    <td>25</td>
+                    <td><span class="check">∞</span> Unlimited</td>
+                    <td>—</td>
+                    <td>—</td>
+                    <td>—</td>
+                </tr>
+                <tr>
+                    <td>Sub-100ms Recall</td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span style="color:#9ca3af;">~300ms</span></td>
+                    <td><span style="color:#9ca3af;">~200ms</span></td>
+                    <td><span style="color:#9ca3af;">~200ms</span></td>
+                </tr>
+                <tr>
+                    <td>Temporal Decay & Reinforcement <span class="advantage">EXCLUSIVE</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="cross">✗</span></td>
+                </tr>
+                <tr>
+                    <td>Proactive Context Injection <span class="advantage">EXCLUSIVE</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="cross">✗</span></td>
+                </tr>
+                <tr>
+                    <td>Context Budget Management <span class="advantage">EXCLUSIVE</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="cross">✗</span></td>
+                </tr>
+                <tr>
+                    <td>Negative Recall <span class="advantage">EXCLUSIVE</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="cross">✗</span></td>
+                </tr>
+                <tr>
+                    <td>Knowledge Graph</td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="check">✓</span> <span style="color:#9ca3af;">$249 required</span></td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+                <tr>
+                    <td>Async Extraction</td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+                <tr>
+                    <td>Contradiction Detection</td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+                <tr>
+                    <td>Webhooks</td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+                <tr>
+                    <td>Priority Support</td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+                <tr>
+                    <td>SOC 2</td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="cross">✗</span> Roadmap</td>
+                    <td><span class="cross">✗</span></td>
+                    <td><span class="check">✓</span></td>
+                    <td><span class="check">✓</span></td>
+                </tr>
+            </tbody>
+            </table>
+        </div>
+        <p style="text-align:center;margin-top:2rem;color:#6b7280;font-size:0.95rem;">Our $89/mo Scale plan includes everything Mem0 charges $249/mo for — 64% less — and features they don't have at any price.</p>
+    </section>
+
+    <!-- Built for developers who ship -->
+    <section class="devs-section fade-in">
+        <h2>Built for developers who ship</h2>
+        <p class="subtitle">Three things that make 0Latency different.</p>
+        <div class="devs-grid">
+            <div class="dev-card">
+                <div class="dev-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                </div>
+                <h3>3 lines of code</h3>
+                <p>Import, initialize, recall. That's the entire integration.</p>
+                <div class="dev-snippet">
+<span style="color:#cba6f7;">from</span> <span style="color:#89b4fa;">zerolatency</span> <span style="color:#cba6f7;">import</span> Memory<br>
+mem = Memory(<span style="color:#a6e3a1;">"zl_live_..."</span>)<br>
+mem.<span style="color:#fab387;">recall</span>(<span style="color:#a6e3a1;">"what does the user prefer?"</span>)
+                </div>
+            </div>
+            <div class="dev-card">
+                <div class="dev-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                </div>
+                <h3>Sub-100ms recall</h3>
+                <p>Median 12ms. Your users never wait for memory.</p>
+                <div class="dev-viz" id="latency-viz">
+                    <div class="dev-viz-bar" style="height:20px;background:rgba(249,115,22,0.15);"></div>
+                    <div class="dev-viz-bar" style="height:12px;background:rgba(249,115,22,0.2);"></div>
+                    <div class="dev-viz-bar" style="height:40px;background:rgba(249,115,22,0.3);"></div>
+                    <div class="dev-viz-bar" style="height:65px;background:var(--accent);"></div>
+                    <div class="dev-viz-bar" style="height:35px;background:rgba(249,115,22,0.3);"></div>
+                    <div class="dev-viz-bar" style="height:18px;background:rgba(249,115,22,0.2);"></div>
+                    <div class="dev-viz-bar" style="height:8px;background:rgba(249,115,22,0.15);"></div>
+                </div>
+                <div style="font-family:var(--font-mono);font-size:0.7rem;color:var(--text-dim);margin-top:0.5rem;">p50: 12ms · p99: 48ms</div>
+            </div>
+            <div class="dev-card">
+                <div class="dev-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg>
+                </div>
+                <h3>Zero configuration</h3>
+                <p>No YAML. No tuning. No index management. It just works.</p>
+                <div class="dev-config-visual">
+                    <span class="strikethrough">config.yaml</span> <span class="nope">✗</span><br>
+                    <span class="strikethrough">vector_index.json</span> <span class="nope">✗</span><br>
+                    <span class="strikethrough">embedding_model: ada-002</span> <span class="nope">✗</span><br>
+                    <span class="strikethrough">chunk_size: 512</span> <span class="nope">✗</span><br>
+                    <span style="color:var(--green);font-weight:600;">→ It just works.</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- MCP Integration -->
+    <section class="devs-section fade-in" id="mcp" style="padding-top:4rem;">
+        <h2>Native MCP Support</h2>
+        <p class="subtitle">Give Claude, Cursor, and any MCP-compatible tool persistent memory — one config change.</p>
+        <div class="devs-grid">
+            <div class="dev-card">
+                <div class="dev-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                </div>
+                <h3>Model Context Protocol</h3>
+                <p>The emerging standard for AI tool integrations. Works with Claude Desktop, Claude Code, Cursor, and more.</p>
+                <div class="dev-snippet" style="text-align:left;font-size:0.75rem;line-height:1.6;">
+<span style="color:#6b7280;">// claude_desktop_config.json</span><br>
+{<br>
+&nbsp;&nbsp;<span style="color:#a6e3a1;">"mcpServers"</span>: {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#a6e3a1;">"0latency"</span>: {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#a6e3a1;">"command"</span>: <span style="color:#fab387;">"0latency-mcp"</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#a6e3a1;">"env"</span>: { <span style="color:#a6e3a1;">"ZERO_LATENCY_API_KEY"</span>: <span style="color:#fab387;">"zl_..."</span> }<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;}<br>
+}
+                </div>
+            </div>
+            <div class="dev-card">
+                <div class="dev-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                </div>
+                <h3>6 Tools, Zero Config</h3>
+                <p>memory_add, memory_recall, memory_search, memory_list, memory_delete, and memory_graph — all exposed as native MCP tools.</p>
+            </div>
+            <div class="dev-card">
+                <div class="dev-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </div>
+                <h3>Install in 60 Seconds</h3>
+                <div class="dev-snippet" style="text-align:left;font-size:0.75rem;line-height:1.6;">
+<span style="color:#6b7280;">$</span> npm install -g @0latency/mcp-server<br>
+<span style="color:#6b7280;">$</span> export ZERO_LATENCY_API_KEY=zl_...<br>
+<span style="color:#6b7280;">$</span> 0latency-mcp<br>
+<span style="color:var(--green);">✓ 0Latency MCP server running</span>
+                </div>
+                <a href="https://www.npmjs.com/package/@0latency/mcp-server" target="_blank" style="display:inline-block;margin-top:1rem;color:var(--accent);font-size:0.85rem;text-decoration:none;font-weight:600;">View on GitHub →</a>
+            </div>
+        </div>
+    </section>
+
+    <div class="checkout-banner" id="checkout-banner"></div>
+
+    <!-- Pricing -->
+    <section class="pricing" id="pricing">
+        <h2>Simple, transparent pricing</h2>
+        <p class="subtitle">Start free. Scale without limits. No contracts, cancel anytime.</p>
+
+        <!-- Billing Toggle -->
+        <div style="display:flex;align-items:center;justify-content:center;gap:1rem;margin-bottom:2.5rem;">
+            <span id="toggle-monthly-label" style="font-size:0.95rem;font-weight:600;color:var(--text);">Monthly</span>
+            <label style="position:relative;display:inline-block;width:52px;height:28px;cursor:pointer;">
+                <input type="checkbox" id="billing-toggle" onchange="toggleBilling()" style="opacity:0;width:0;height:0;">
+                <span style="position:absolute;inset:0;background:#d1d5db;border-radius:28px;transition:background 0.3s;"></span>
+                <span id="toggle-knob" style="position:absolute;top:2px;left:2px;width:24px;height:24px;background:#fff;border-radius:50%;transition:transform 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></span>
+            </label>
+            <span id="toggle-annual-label" style="font-size:0.95rem;font-weight:500;color:var(--text-dim);">Annual</span>
+            <span style="background:rgba(34,197,94,0.1);color:#059669;font-size:0.75rem;font-weight:700;padding:0.2rem 0.7rem;border-radius:12px;border:1px solid rgba(34,197,94,0.2);">Save 20%</span>
+        </div>
+
+        <div class="pricing-grid fade-in">
+            <!-- Free -->
+            <div class="plan">
+                <div class="plan-name">Free</div>
+                <div class="plan-desc">Get started with agent memory</div>
+                <div class="plan-price">
+                    <span class="amount">$0</span>
+                    <span class="period">/month</span>
+                </div>
+                <ul class="plan-features">
+                    <li>10,000 memories</li>
+                    <li>3 agents</li>
+                    <li>20 RPM rate limit</li>
+                    <li>Vector search + temporal decay</li>
+                    <li>Proactive context injection</li>
+                    <li>Community support</li>
+                </ul>
+                <a href="/login.html" class="plan-btn secondary">Get Started Free</a>
+            </div>
+            <!-- Pro -->
+            <div class="plan">
+                <div class="plan-name">Pro</div>
+                <div class="plan-desc">For production AI applications</div>
+                <div class="plan-price" id="pro-price">
+                    <span class="amount" id="pro-amount">$29</span>
+                    <span class="period" id="pro-period">/month</span>
+                </div>
+                <div id="pro-savings" style="display:none;margin-top:-0.75rem;margin-bottom:0.75rem;">
+                    <span style="font-size:0.8rem;color:#059669;font-weight:600;">$278/yr — save $70</span>
+                </div>
+                <ul class="plan-features">
+                    <li>Unlimited memories</li>
+                    <li>10 agents</li>
+                    <li>100 RPM rate limit</li>
+                    <li>Everything in Free</li>
+                    <li>Webhooks &amp; batch operations</li>
+                    <li>Memory versioning</li>
+                    <li>Custom schemas</li>
+                </ul>
+                <button onclick="startCheckout('pro')" class="plan-btn secondary" id="pro-btn">Get Started</button>
+            </div>
+            <!-- Scale (Featured) -->
+            <div class="plan featured">
+                <span class="plan-badge">MOST POPULAR</span>
+                <div class="plan-name">Scale</div>
+                <div class="plan-desc">Graph memory &amp; advanced intelligence</div>
+                <div class="plan-price" id="scale-price">
+                    <span class="amount" id="scale-amount">$89</span>
+                    <span class="period" id="scale-period">/month</span>
+                </div>
+                <div id="scale-savings" style="display:none;margin-top:-0.75rem;margin-bottom:0.75rem;">
+                    <span style="font-size:0.8rem;color:#059669;font-weight:600;">$854/yr — save $214</span>
+                </div>
+                <ul class="plan-features">
+                    <li>Unlimited memories</li>
+                    <li>Unlimited agents</li>
+                    <li>500 RPM rate limit</li>
+                    <li>Everything in Pro</li>
+                    <li>Graph Memory</li>
+                    <li>Negative Recall</li>
+                    <li>Organization Memory</li>
+                    <li>Custom scoring criteria</li>
+                    <li>Priority support</li>
+                </ul>
+                <button onclick="startCheckout('scale')" class="plan-btn primary" id="scale-btn">Get Started</button>
+            </div>
+            <!-- Enterprise -->
+            <div class="plan">
+                <div class="plan-name">Enterprise</div>
+                <div class="plan-desc">Custom deployments &amp; SLAs</div>
+                <div class="plan-price">
+                    <span class="amount">Custom</span>
+                </div>
+                <ul class="plan-features">
+                    <li>Everything in Scale</li>
+                    <li>Dedicated infrastructure</li>
+                    <li>Custom SLAs</li>
+                    <li>SSO / SAML</li>
+                    <li>Audit logs</li>
+                    <li>Dedicated support engineer</li>
+                </ul>
+                <a href="mailto:justin@0latency.ai?subject=Enterprise%20Inquiry" class="plan-btn secondary">Contact Us</a>
+            </div>
+        </div>
+        <div class="compare-banner-inline fade-in">
+            <p>Graph Memory: <span class="highlight">$89/mo</span> vs Mem0's $249/mo</p>
+            <p class="subtext">64% less. Unlimited memories, unlimited agents, graph relationships, negative recall — no surprise bills.</p>
+        </div>
+    </section>
+
+    <!-- Integrations -->
+    <section class="features" id="integrations" style="padding-bottom:3rem;">
+        <h2>Framework Integrations</h2>
+        <p class="subtitle">Drop-in memory for the frameworks you already use.</p>
+        <div class="feature-grid fade-in" style="grid-template-columns:repeat(3,1fr);max-width:900px;margin:0 auto;">
+            <a href="/integrations/langchain/" style="text-decoration:none;color:inherit;" class="feature-card" >
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 3H12H8C6.34 3 5 4.34 5 6v12c0 1.66 1.34 3 3 3h8c1.66 0 3-1.34 3-3v-9"/><path d="M13 3v5h5"/><path d="M9 13h6M9 17h3"/></svg>
+                </div>
+                <h3>🦜 LangChain</h3>
+                <p><code>ZeroLatencyMemory</code> extends <code>BaseMemory</code> — works with ConversationChain, custom chains, and LangGraph agents.</p>
+            </a>
+            <a href="/integrations/crewai/" style="text-decoration:none;color:inherit;" class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg>
+                </div>
+                <h3>🚢 CrewAI</h3>
+                <p><code>ZeroLatencyStorage</code> — compatible with ShortTermMemory, LongTermMemory, and EntityMemory backends.</p>
+            </a>
+            <a href="/integrations/autogen/" style="text-decoration:none;color:inherit;" class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                </div>
+                <h3>🤖 AutoGen</h3>
+                <p><code>ZeroLatencyMemory</code> — teachable agent hooks, system message augmentation, and multi-agent scoped memory.</p>
+            </a>
+        </div>
+        <div style="text-align:center;margin-top:2rem;">
+            <a href="/login" style="color:var(--accent);font-weight:600;text-decoration:none;font-size:0.95rem;">View integration docs →</a>
+        </div>
+    </section>
+
+    <!-- Case Study Banner -->
+    <section style="max-width:720px;margin:0 auto 3rem;padding:2rem 2.5rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-md);text-align:center;">
+        <h3 style="font-family:var(--font-heading);font-size:1.3rem;margin-bottom:0.5rem;">See it in action</h3>
+        <p style="color:var(--text-dim);margin-bottom:1rem;font-size:0.95rem;">A real AI agent survived context compaction and completed 15+ tasks in a 5-hour session. Read the full case study.</p>
+        <a href="/case-study-thomas.html" style="display:inline-block;background:var(--accent);color:#fff;padding:0.6rem 1.5rem;border-radius:8px;font-weight:600;font-size:0.95rem;text-decoration:none;transition:background 0.2s;" onmouseover="this.style.background='var(--accent-hover)'" onmouseout="this.style.background='var(--accent)'">Read the Case Study →</a>
+    </section>
+
+    <!-- Build With Us -->
+    <section class="devs-section fade-in" id="contributors" style="background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
+        <h2>Build With Us</h2>
+        <p class="subtitle">Help make 0Latency better. We'll take care of you forever.</p>
+        <div class="devs-grid">
+            <div class="dev-card" style="text-align:center;">
+                <div class="dev-icon" style="margin:0 auto 1.25rem;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </div>
+                <h3>Report a Bug</h3>
+                <p style="margin-bottom:1rem;">Find a confirmed bug and report it with reproduction steps.</p>
+                <div style="background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.15);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1.25rem;">
+                    <span style="font-family:var(--font-heading);font-weight:700;color:var(--accent);font-size:1rem;">Lifetime Pro</span>
+                    <span style="color:var(--text-dim);font-size:0.8rem;display:block;">$29/mo value — yours forever</span>
+                </div>
+                <a href="https://github.com/jghiglia2380/0Latency/issues" style="display:inline-block;padding:0.6rem 1.2rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;text-decoration:none;font-size:0.85rem;font-weight:600;transition:all var(--transition-slow);" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">Report a Bug →</a>
+            </div>
+            <div class="dev-card" style="text-align:center;">
+                <div class="dev-icon" style="margin:0 auto 1.25rem;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65S8.93 17.38 9 18v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+                </div>
+                <h3>Submit a PR</h3>
+                <p style="margin-bottom:1rem;">Fix a bug, add a feature, improve docs — get it merged.</p>
+                <div style="background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.15);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1.25rem;">
+                    <span style="font-family:var(--font-heading);font-weight:700;color:var(--accent);font-size:1rem;">Lifetime Scale</span>
+                    <span style="color:var(--text-dim);font-size:0.8rem;display:block;">$89/mo value — yours forever</span>
+                </div>
+                <a href="https://github.com/jghiglia2380/0Latency/issues" style="display:inline-block;padding:0.6rem 1.2rem;background:var(--accent);color:#fff;border-radius:8px;text-decoration:none;font-size:0.85rem;font-weight:600;box-shadow:0 2px 8px rgba(249,115,22,0.2);transition:all var(--transition-slow);" onmouseover="this.style.background='var(--accent-hover)'" onmouseout="this.style.background='var(--accent)'">View Open Issues →</a>
+            </div>
+            <div class="dev-card" style="text-align:center;">
+                <div class="dev-icon" style="margin:0 auto 1.25rem;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                </div>
+                <h3>Build &amp; Share</h3>
+                <p style="margin-bottom:1rem;">Write a blog post, tutorial, or build an open source project with 0Latency.</p>
+                <div style="background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.15);border-radius:8px;padding:0.75rem 1rem;margin-bottom:1.25rem;">
+                    <span style="font-family:var(--font-heading);font-weight:700;color:var(--accent);font-size:1rem;">Lifetime Scale</span>
+                    <span style="color:var(--text-dim);font-size:0.8rem;display:block;">$89/mo value — yours forever</span>
+                </div>
+                <a href="/login.html" style="display:inline-block;padding:0.6rem 1.2rem;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;text-decoration:none;font-size:0.85rem;font-weight:600;transition:all var(--transition-slow);" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">Get Started Free →</a>
+            </div>
+        </div>
+        <p style="text-align:center;margin-top:2rem;color:var(--text-dim);font-size:0.9rem;">The free tier gives you 10,000 memories and 3 agents — enough to build real projects. No credit card required.<br>
+        <a href="/docs#contributing" style="color:var(--accent);text-decoration:none;font-weight:600;">Read the contribution guidelines →</a></p>
+    </section>
+
+    <!-- FAQ -->
+    <section class="faq" id="faq">
+        <h2>FAQ</h2>
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                <h3>What counts as a "memory"?</h3>
+                <div class="faq-toggle">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>
+                </div>
+            </div>
+            <div class="faq-answer">
+                <p>Each extracted fact, preference, or relationship from a conversation turn is one memory. A single conversation turn typically produces 1–5 memories.</p>
+            </div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                <h3>Can I switch plans anytime?</h3>
+                <div class="faq-toggle">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>
+                </div>
+            </div>
+            <div class="faq-answer">
+                <p>Yes. Upgrade instantly, downgrade at end of billing period. No contracts, cancel anytime.</p>
+            </div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                <h3>What happens if I hit my memory limit?</h3>
+                <div class="faq-toggle">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>
+                </div>
+            </div>
+            <div class="faq-answer">
+                <p>Extract calls will return a 429 error. Recall continues to work. Upgrade to a higher plan for more capacity.</p>
+            </div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                <h3>What's the difference between Pro and Scale?</h3>
+                <div class="faq-toggle">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>
+                </div>
+            </div>
+            <div class="faq-answer">
+                <p>Pro gives you unlimited memories with 10 agents, plus webhooks, versioning, and batch operations. Scale adds Graph Memory, Negative Recall, Organization Memory, custom scoring criteria, and priority support — all at $89/mo (64% less than Mem0's comparable tier).</p>
+            </div>
+        </div>
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                <h3>Do you offer annual billing?</h3>
+                <div class="faq-toggle">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>
+                </div>
+            </div>
+            <div class="faq-answer">
+                <p>Yes! Toggle the Annual switch on the pricing section above. You'll save 20% — Pro drops to $23.17/mo ($278/yr) and Scale to $71.17/mo ($854/yr).</p>
+            </div>
+        </div>
+    </section>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <div style="max-width:1100px;margin:0 auto;padding:3.5rem 2rem 2rem;display:grid;grid-template-columns:2fr 1fr 1fr;gap:3rem;">
+            <div>
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;">
+                    <img src="/logos/logo-icon.svg" alt="0" style="height:28px;vertical-align:middle;"><span style="font-weight:700;font-size:1.1rem;margin-left:6px;"><span style="color:#f97316;">0</span><span style="color:#111827;">Latency</span></span>
+                </div>
+                <p style="color:#6b7280;font-size:0.9rem;line-height:1.7;max-width:300px;margin-bottom:1.25rem;">Persistent memory layer for AI agents. Sub-100ms recall, zero configuration. Your agent remembers everything.</p>
+                <p style="font-family:var(--font-quote);font-style:italic;color:#9ca3af;font-size:0.85rem;letter-spacing:0.03em;">Zero latency. Elegance.</p>
+            </div>
+            <div>
+                <h4 style="font-family:var(--font-heading);font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Product</h4>
+                <div style="display:flex;flex-direction:column;gap:0.6rem;">
+                    <a href="#pricing" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Pricing</a>
+                    <a href="/login" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Docs</a>
+                    <a href="/roadmap.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Roadmap</a>
+                    <a href="/integrations/" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Integrations</a>
+                    <a href="/blog/why-your-agent-forgets.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Blog</a>
+                    <a href="/support.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Support</a>
+                </div>
+            </div>
+            <div>
+                <h4 style="font-family:var(--font-heading);font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#374151;margin-bottom:1rem;">Resources</h4>
+                <div style="display:flex;flex-direction:column;gap:0.6rem;">
+                    <a href="https://github.com/jghiglia2380" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">GitHub</a>
+                    <a href="https://api.0latency.ai/health" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Status</a>
+                    <a href="/privacy.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Privacy</a>
+                    <a href="/terms.html" style="color:#6b7280;text-decoration:none;font-size:0.9rem;">Terms</a>
+                </div>
+            </div>
+        </div>
+        <div style="max-width:1100px;margin:0 auto;padding:1.5rem 2rem;border-top:1px solid #e5e7eb;text-align:center;">
+            <p style="color:#9ca3af;font-size:0.8rem;">© 2026 0Latency. All rights reserved.</p>
+        </div>
+        <style>
+            footer a:hover { color: #f97316 !important; }
+            @media (max-width: 768px) {
+                footer > div:first-child { grid-template-columns: 1fr !important; gap: 2rem !important; }
+            }
+        </style>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+    // Copy code button
+    function copyCode(btn) {
+        const code = btn.closest('pre').querySelector('code');
+        if (code) {
+            navigator.clipboard.writeText(code.textContent).then(() => {
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+    }
+
+    // Scroll-triggered fade-in
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+    // Stat counter animation
+    const statObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const el = entry.target;
+                const target = parseFloat(el.dataset.target);
+                const prefix = el.dataset.prefix || '';
+                const suffix = el.dataset.suffix || '';
+                const isDecimal = el.dataset.decimal === 'true';
+                const duration = 1500;
+                const start = performance.now();
+
+                function animate(now) {
+                    const progress = Math.min((now - start) / duration, 1);
+                    const eased = 1 - Math.pow(1 - progress, 3);
+                    const current = isDecimal
+                        ? (target * eased).toFixed(2)
+                        : Math.round(target * eased);
+                    el.textContent = prefix + current + suffix;
+                    if (progress < 1) requestAnimationFrame(animate);
+                }
+                requestAnimationFrame(animate);
+                statObserver.unobserve(el);
+            }
+        });
+    }, { threshold: 0.5 });
+    document.querySelectorAll('.stat-num[data-target]').forEach(el => statObserver.observe(el));
+
+    // Hamburger menu
+    document.querySelectorAll('.hamburger').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const nav = btn.parentElement.querySelector('.nav-links');
+            if (nav) nav.classList.toggle('open');
+        });
+    });
+
+    // FAQ accordion
+    function toggleFaq(el) {
+        const item = el.closest('.faq-item');
+        const wasOpen = item.classList.contains('open');
+        // Close all
+        document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+        // Toggle current
+        if (!wasOpen) item.classList.add('open');
+    }
+
+    // Checkout logic
+    const params = new URLSearchParams(window.location.search);
+    const banner = document.getElementById('checkout-banner');
+    if (params.get('checkout') === 'success') {
+        banner.className = 'checkout-banner success';
+        banner.textContent = 'Subscription activated! Welcome aboard.';
+        banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else if (params.get('checkout') === 'cancelled') {
+        banner.className = 'checkout-banner cancelled';
+        banner.textContent = 'Checkout cancelled. No charges were made.';
+    }
+
+    // Billing toggle
+    let isAnnual = false;
+    function toggleBilling() {
+        isAnnual = document.getElementById('billing-toggle').checked;
+        const knob = document.getElementById('toggle-knob');
+        const monthlyLabel = document.getElementById('toggle-monthly-label');
+        const annualLabel = document.getElementById('toggle-annual-label');
+        
+        if (isAnnual) {
+            knob.style.transform = 'translateX(24px)';
+            knob.parentElement.querySelector('span:nth-child(2)').style.background = '#f97316';
+            monthlyLabel.style.color = 'var(--text-dim)';
+            monthlyLabel.style.fontWeight = '500';
+            annualLabel.style.color = 'var(--text)';
+            annualLabel.style.fontWeight = '600';
+            
+            document.getElementById('pro-amount').textContent = '$23';
+            document.getElementById('pro-period').textContent = '/mo billed annually';
+            document.getElementById('pro-savings').style.display = 'block';
+            
+            document.getElementById('scale-amount').textContent = '$71';
+            document.getElementById('scale-period').textContent = '/mo billed annually';
+            document.getElementById('scale-savings').style.display = 'block';
+        } else {
+            knob.style.transform = 'translateX(0)';
+            knob.parentElement.querySelector('span:nth-child(2)').style.background = '#d1d5db';
+            monthlyLabel.style.color = 'var(--text)';
+            monthlyLabel.style.fontWeight = '600';
+            annualLabel.style.color = 'var(--text-dim)';
+            annualLabel.style.fontWeight = '500';
+            
+            document.getElementById('pro-amount').textContent = '$29';
+            document.getElementById('pro-period').textContent = '/month';
+            document.getElementById('pro-savings').style.display = 'none';
+            
+            document.getElementById('scale-amount').textContent = '$89';
+            document.getElementById('scale-period').textContent = '/month';
+            document.getElementById('scale-savings').style.display = 'none';
+        }
+    }
+
+    function getToken() {
+        const match = document.cookie.match(/zl_token=([^;]+)/);
+        if (match) return match[1];
+        return localStorage.getItem('zl_token');
+    }
+
+    async function startCheckout(plan) {
+        const token = getToken();
+        if (!token) {
+            window.location.href = '/login.html?redirect=/';
+            return;
+        }
+        const btnId = plan === 'scale' ? 'scale-btn' : 'pro-btn';
+        const btn = document.getElementById(btnId);
+        const originalText = btn.textContent;
+        btn.textContent = 'Loading...';
+        btn.disabled = true;
+        try {
+            const resp = await fetch('https://api.0latency.ai/billing/create-checkout', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plan: plan }),
+            });
+            if (resp.status === 401) { window.location.href = '/login.html?redirect=/'; return; }
+            const data = await resp.json();
+            if (data.checkout_url) { window.location.href = data.checkout_url; }
+            else { throw new Error(data.detail || 'Failed to create checkout'); }
+        } catch (err) {
+            alert('Error: ' + err.message);
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    }
+    </script>
+</body>
+</html>

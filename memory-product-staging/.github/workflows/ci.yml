@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    paths: ['memory-product/**']
+  pull_request:
+    branches: [master]
+    paths: ['memory-product/**']
+
+jobs:
+  lint-and-import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          cd memory-product
+          pip install -r requirements.txt
+      
+      - name: Verify imports
+        run: |
+          cd memory-product
+          python3 -c "
+          import sys
+          sys.path.insert(0, 'src')
+          sys.path.insert(0, 'api')
+          from graph import get_entity_subgraph
+          from versioning import snapshot_version
+          from webhooks import register_webhook
+          from criteria import create_criteria
+          from schemas import create_schema
+          from org_memory import create_organization
+          print('All imports OK')
+          "
+      
+      - name: Check for hardcoded secrets
+        run: |
+          cd memory-product
+          # Fail if any hardcoded API keys or admin keys found in source
+          if grep -r "zl_admin_" --include="*.py" --include="*.js" --include="*.ts" \
+             | grep -v "os.environ.get" | grep -v "process.env" | grep -v ".md" | grep -v "AUDIT"; then
+            echo "❌ FAIL: Hardcoded admin keys found"
+            exit 1
+          fi
+          echo "✅ No hardcoded secrets"
+
+  typescript-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: TypeScript compile check
+        run: |
+          cd memory-product/sdk/typescript
+          npm install
+          npx tsc --noEmit

@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Case Study: AI Agent Survives Context Compaction — 0Latency</title>
+    <meta name="description" content="Real production case study: An AI agent maintained full context through memory compaction, completing 15+ tasks across a 5-hour session. See how 0Latency's persistent memory layer made it possible.">
+    <meta property="og:title" content="Case Study: AI Agent Survives Context Compaction — 0Latency">
+    <meta property="og:description" content="What happens when your AI agent's context compacts? Nothing — if it has 0Latency. A real production story.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://0latency.ai/case-study-thomas.html">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Case Study: AI Agent Survives Context Compaction">
+    <meta name="twitter:description" content="Real production proof: an AI agent that remembers everything, even after context compaction.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&family=Newsreader:ital,wght@1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #fafafa;
+            --surface: #ffffff;
+            --surface-alt: #f8fafc;
+            --border: #e5e7eb;
+            --text: #111827;
+            --text-dim: #6b7280;
+            --accent: #f97316;
+            --accent-hover: #ea580c;
+            --accent-glow: rgba(249, 115, 22, 0.08);
+            --green: #059669;
+            --red: #dc2626;
+            --radius: 12px;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+            --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
+            --font-heading: 'Plus Jakarta Sans', -apple-system, sans-serif;
+            --font-body: 'Inter', -apple-system, sans-serif;
+            --font-quote: 'Newsreader', Georgia, serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(0,0,0,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,0,0,0.02) 1px, transparent 1px);
+            background-size: 64px 64px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* Nav */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 3rem;
+            border-bottom: 1px solid var(--border);
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        nav .logo { text-decoration: none; display: flex; align-items: center; }
+        nav .logo img { height: 36px; }
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            margin-left: 2rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .nav-links a:hover { color: var(--text); }
+        .nav-links .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            padding: 0.5rem 1.2rem;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+        .nav-links .btn-primary:hover { background: var(--accent-hover); }
+
+        /* Hero */
+        .hero {
+            text-align: center;
+            padding: 6rem 2rem 4rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .hero .badge {
+            display: inline-block;
+            background: var(--accent-glow);
+            color: var(--accent);
+            padding: 0.4rem 1rem;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(249, 115, 22, 0.15);
+        }
+        .hero h1 {
+            font-family: var(--font-heading);
+            font-size: clamp(2rem, 5vw, 3.2rem);
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1.15;
+            margin-bottom: 1.2rem;
+        }
+        .hero h1 span { color: var(--accent); }
+        .hero p {
+            font-size: 1.15rem;
+            color: var(--text-dim);
+            max-width: 650px;
+            margin: 0 auto;
+            line-height: 1.7;
+        }
+
+        /* Sections */
+        .section {
+            max-width: 820px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+        .section h2 {
+            font-family: var(--font-heading);
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 1rem;
+        }
+        .section h3 {
+            font-family: var(--font-heading);
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .section p, .section li {
+            color: var(--text-dim);
+            font-size: 1rem;
+        }
+
+        /* Problem Section */
+        .problem-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        .problem-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-sm);
+        }
+        .problem-card.bad { border-left: 3px solid var(--red); }
+        .problem-card.good { border-left: 3px solid var(--green); }
+        .problem-card .label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+        .problem-card.bad .label { color: var(--red); }
+        .problem-card.good .label { color: var(--green); }
+
+        /* Timeline */
+        .timeline {
+            position: relative;
+            margin: 2.5rem 0;
+            padding-left: 2.5rem;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0.9rem;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, var(--border), var(--accent), var(--green));
+        }
+        .timeline-item {
+            position: relative;
+            margin-bottom: 2rem;
+            padding-left: 1rem;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -1.65rem;
+            top: 0.35rem;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--surface);
+            border: 2px solid var(--border);
+            z-index: 1;
+        }
+        .timeline-item.compaction::before {
+            border-color: var(--red);
+            background: var(--red);
+            box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
+        }
+        .timeline-item.recovery::before {
+            border-color: var(--green);
+            background: var(--green);
+            box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.15);
+        }
+        .timeline-item.work::before {
+            border-color: var(--accent);
+            background: var(--accent);
+        }
+        .timeline-item .time {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            margin-bottom: 0.25rem;
+        }
+        .timeline-item h4 {
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+        .timeline-item p {
+            font-size: 0.92rem;
+            color: var(--text-dim);
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        .stat-card .number {
+            font-family: var(--font-heading);
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: -0.03em;
+        }
+        .stat-card .label {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-top: 0.25rem;
+        }
+
+        /* Remembered + Accomplished */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        .col-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+        }
+        .col-card h3 {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .col-card ul {
+            list-style: none;
+            padding: 0;
+        }
+        .col-card ul li {
+            padding: 0.4rem 0;
+            padding-left: 1.2rem;
+            position: relative;
+            font-size: 0.92rem;
+        }
+        .col-card ul li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: var(--green);
+            font-weight: 700;
+        }
+
+        /* Accomplished list */
+        .accomplish-list {
+            columns: 2;
+            column-gap: 2rem;
+            list-style: none;
+            padding: 0;
+            margin-top: 1.5rem;
+        }
+        .accomplish-list li {
+            padding: 0.4rem 0 0.4rem 1.5rem;
+            position: relative;
+            font-size: 0.92rem;
+            break-inside: avoid;
+        }
+        .accomplish-list li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        /* Quote */
+        .quote-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 3rem;
+            margin: 3rem auto;
+            max-width: 820px;
+            text-align: center;
+            box-shadow: var(--shadow-md);
+            position: relative;
+        }
+        .quote-section::before {
+            content: '"';
+            font-family: var(--font-quote);
+            font-size: 6rem;
+            color: var(--accent);
+            opacity: 0.15;
+            position: absolute;
+            top: -0.5rem;
+            left: 1.5rem;
+            line-height: 1;
+        }
+        .quote-section blockquote {
+            font-family: var(--font-quote);
+            font-style: italic;
+            font-size: 1.35rem;
+            color: var(--text);
+            line-height: 1.6;
+            max-width: 600px;
+            margin: 0 auto 1rem;
+        }
+        .quote-section .attribution {
+            font-family: var(--font-body);
+            font-style: normal;
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+
+        /* CTA */
+        .cta-section {
+            text-align: center;
+            padding: 4rem 2rem 5rem;
+            max-width: 650px;
+            margin: 0 auto;
+        }
+        .cta-section h2 {
+            font-family: var(--font-heading);
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+        .cta-section p {
+            color: var(--text-dim);
+            margin-bottom: 2rem;
+            font-size: 1.05rem;
+        }
+        .cta-code {
+            display: inline-block;
+            background: #1e1e2e;
+            color: #cdd6f4;
+            font-family: var(--font-mono);
+            font-size: 1.05rem;
+            padding: 0.8rem 2rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            letter-spacing: 0.01em;
+        }
+        .cta-code .prompt { color: #a6adc8; }
+        .cta-code .cmd { color: #f9e2af; }
+        .cta-code .pkg { color: #f97316; }
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .cta-buttons a {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .cta-buttons .primary {
+            background: var(--accent);
+            color: #fff;
+        }
+        .cta-buttons .primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+        .cta-buttons .secondary {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .cta-buttons .secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+        footer a { color: var(--accent); text-decoration: none; }
+
+        /* Divider */
+        .divider {
+            max-width: 820px;
+            margin: 0 auto;
+            border: none;
+            border-top: 1px solid var(--border);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            nav { padding: 1rem 1.5rem; }
+            .hero { padding: 4rem 1.5rem 3rem; }
+            .problem-grid, .two-col { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .accomplish-list { columns: 1; }
+            .quote-section { padding: 2rem 1.5rem; }
+        }
+
+        /* Fade-in animation */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    
+/* Responsive nav logo - hide text on mobile */
+.logo-text { display: inline; }
+@media (max-width: 767px) {
+  .logo-text { display: none !important; }
+  .logo img, .nav-logo img { height: 32px !important; }
+}
+</style>
+</head>
+<body>
+
+    <!-- Nav (matches main site) -->
+    <nav>
+        <a href="/" class="logo" style="text-decoration:none;display:flex;align-items:center;gap:8px;"><img src="/logos/logo-icon.svg" alt="0" style="height:28px;vertical-align:middle;"><span style="font-weight:700;font-size:1.1rem;margin-left:6px;"><span style="color:#f97316;">0</span><span style="color:#111827;">Latency</span></span></a>
+        <div class="nav-links">
+            <a href="/#features">Features</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/#faq">FAQ</a>
+            <a href="/login">Docs</a>
+            <a href="/login" class="btn-primary">Get API Key</a>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero fade-in">
+        <span class="badge">📋 Case Study — March 2026</span>
+        <h1>What happens when your AI agent's context compacts?<br><span>Nothing</span> — if it has 0Latency.</h1>
+        <p>A real production AI agent maintained full operational context through memory compaction, then completed 15+ complex tasks across a 5-hour session. No confusion. No lost state. Here's exactly what happened.</p>
+    </section>
+
+    <hr class="divider">
+
+    <!-- The Problem -->
+    <section class="section fade-in">
+        <h2>The Problem</h2>
+        <p>Every AI agent running in production hits context limits. When it happens, the runtime <strong>compacts</strong> — it strips out older conversation to make room. Decisions, preferences, ongoing work, task context — gone in an instant.</p>
+        <p style="margin-top: 0.75rem;">For most agents, this is a death sentence. They come back confused, asking questions they already answered, forgetting what they were working on, losing hours of accumulated context.</p>
+
+        <div class="problem-grid">
+            <div class="problem-card bad">
+                <div class="label">❌ Without persistent memory</div>
+                <p>"Wait, what were we working on?"</p>
+                <p style="margin-top: 0.5rem; font-size: 0.88rem;">Agent forgets the project, the user's preferences, ongoing tasks, team members, business context. Starts from scratch every time.</p>
+            </div>
+            <div class="problem-card good">
+                <div class="label">✓ With 0Latency</div>
+                <p>"Here's the update on the landing page redesign."</p>
+                <p style="margin-top: 0.5rem; font-size: 0.88rem;">Agent picks up exactly where it left off. Remembers everything — business context, communication style, technical decisions, ongoing projects.</p>
+            </div>
+        </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- The Test -->
+    <section class="section fade-in">
+        <h2>The Test</h2>
+        <p><strong>Thomas</strong> is a production AI agent — a Chief of Staff running daily operations for a startup founder. Not a demo. Not a toy. A working system managing real business across multiple companies, projects, and parallel workstreams.</p>
+        <p style="margin-top: 0.75rem;">On the night of March 23, 2026, Thomas was in the middle of a complex multi-hour session when context compaction hit. Here's the timeline of what happened — and what didn't break.</p>
+    </section>
+
+    <!-- Timeline -->
+    <section class="section fade-in">
+        <h2>Timeline</h2>
+        <div class="timeline">
+            <div class="timeline-item">
+                <div class="time">T+0:00</div>
+                <h4>Session begins</h4>
+                <p>Thomas and the founder start working on a major initiative: redesigning the 0latency.ai landing page, publishing the SDK, configuring infrastructure.</p>
+            </div>
+            <div class="timeline-item work">
+                <div class="time">T+1:30</div>
+                <h4>Subagent dispatched</h4>
+                <p>Thomas spawns a subagent ("Steve") to handle the landing page redesign — typography overhaul, mock dashboard, FAQ accordion, micro-interactions. Work continues in parallel.</p>
+            </div>
+            <div class="timeline-item compaction">
+                <div class="time">T+2:00</div>
+                <h4>⚠️ Context compaction</h4>
+                <p>Thomas's main session hits its context limit. The runtime compresses the conversation — most working memory is stripped. This is where agents normally fall apart.</p>
+            </div>
+            <div class="timeline-item recovery">
+                <div class="time">T+2:05</div>
+                <h4>✓ Seamless recovery</h4>
+                <p>The subagent completes and reports back. Thomas picks up seamlessly — relays full results to the founder with complete context. No confusion. No "wait, what were we doing?"</p>
+            </div>
+            <div class="timeline-item work">
+                <div class="time">T+2:05 → T+5:00+</div>
+                <h4>3+ hours of uninterrupted work</h4>
+                <p>Thomas and the founder continue working at full speed — shipping features, configuring DNS, publishing to PyPI, building integrations, running market analysis. Zero context loss.</p>
+            </div>
+        </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- The Numbers -->
+    <section class="section fade-in">
+        <h2>The Numbers</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="number">5+</div>
+                <div class="label">Hours in session</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">15+</div>
+                <div class="label">Tasks completed</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">6</div>
+                <div class="label">Subagents spawned</div>
+            </div>
+            <div class="stat-card">
+                <div class="number" style="color: var(--green);">0</div>
+                <div class="label">Context lost</div>
+            </div>
+        </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- What Was Remembered -->
+    <section class="section fade-in">
+        <h2>What happened after compaction</h2>
+        <div class="two-col">
+            <div class="col-card">
+                <h3>🧠 What was remembered</h3>
+                <ul>
+                    <li>Business context across 3 companies</li>
+                    <li>Founder's communication preferences</li>
+                    <li>Ongoing project states and decisions</li>
+                    <li>Technical architecture choices</li>
+                    <li>Team members and their roles</li>
+                    <li>API credential locations</li>
+                    <li>Pricing strategy in progress</li>
+                    <li>DNS configuration details</li>
+                    <li>Brand voice and copy decisions</li>
+                    <li>Active customer relationships</li>
+                </ul>
+            </div>
+            <div class="col-card">
+                <h3>🚢 What was shipped</h3>
+                <ul>
+                    <li>Landing page redesign</li>
+                    <li>Python SDK published to PyPI</li>
+                    <li>Google OAuth setup</li>
+                    <li>Cloudflare DNS + email routing</li>
+                    <li>@0latencyai Twitter account</li>
+                    <li>Secret scanner (26 pattern types)</li>
+                    <li>Full security page</li>
+                    <li>MCP server for Claude Code</li>
+                    <li>LangChain + CrewAI integrations</li>
+                    <li>Marketing agent ("Loop")</li>
+                </ul>
+            </div>
+        </div>
+
+        <h3 style="margin-top: 2.5rem; margin-bottom: 0.75rem;">Full deliverables list</h3>
+        <ul class="accomplish-list">
+            <li>Fixed competing hero taglines</li>
+            <li>Fixed orphaned subtitle word</li>
+            <li>Replaced internal metric with customer-facing one</li>
+            <li>Published Python SDK to PyPI</li>
+            <li>Set up Google OAuth credentials</li>
+            <li>Configured Cloudflare DNS (www CNAME, email routing, DMARC)</li>
+            <li>Created @0latencyai on Twitter</li>
+            <li>Built secret scanner (26 pattern types)</li>
+            <li>Created full security page</li>
+            <li>Restructured pricing via Gemini Deep Research</li>
+            <li>Built MCP server integration</li>
+            <li>Built LangChain, CrewAI, AutoGen integrations</li>
+            <li>Ran comprehensive market evaluation</li>
+            <li>Built marketing agent based on Elena Verna's framework</li>
+            <li>Maintained context for PFL Academy + Oklahoma bids</li>
+        </ul>
+    </section>
+
+    <hr class="divider">
+
+    <!-- Quote -->
+    <div class="quote-section fade-in">
+        <blockquote>I was scared someone would launch this ahead of me. Then I realized — it's already running. It's been running all week. On my own agent.</blockquote>
+        <div class="attribution">— Justin Ghiglia, Founder</div>
+    </div>
+
+    <!-- CTA -->
+    <section class="cta-section fade-in">
+        <h2>Give your agent the same memory.</h2>
+        <p>Three lines of code. Persistent memory that survives context compaction, session restarts, and model switches.</p>
+        <div class="cta-code"><span class="prompt">$</span> <span class="cmd">pip install</span> <span class="pkg">zerolatency</span></div>
+        <div class="cta-buttons">
+            <a href="/login" class="primary">Get Your API Key →</a>
+            <a href="https://github.com/jghiglia2380" class="secondary">View on GitHub</a>
+            <a href="https://pypi.org/project/zerolatency/" class="secondary">PyPI Package</a>
+        </div>
+    </section>
+
+    <footer>
+        <p>© 2026 <a href="/">0Latency</a> · Built by <a href="https://x.com/0latencyai">@0latencyai</a></p>
+    </footer>
+
+    <script>
+        // Intersection Observer for fade-in
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+        document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+    </script>
+</body>
+</html>

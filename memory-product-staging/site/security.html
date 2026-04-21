@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security — 0Latency</title>
+    <meta name="description" content="0Latency security practices: tenant isolation, automatic secret detection, encrypted storage, audit logging, and more.">
+    <link rel="canonical" href="https://0latency.ai/security.html">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #fafafa;
+            --surface: #ffffff;
+            --border: #e5e7eb;
+            --text: #111827;
+            --text-dim: #6b7280;
+            --accent: #f97316;
+            --accent-hover: #ea580c;
+            --green: #059669;
+            --red: #dc2626;
+            --radius: 12px;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+            --font-heading: 'Plus Jakarta Sans', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+        body { font-family: var(--font-body); background: var(--bg); color: var(--text); line-height: 1.7; }
+
+        /* Nav */
+        nav {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(250,250,250,0.85); backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex; align-items: center; justify-content: space-between;
+            max-width: 1200px; margin: 0 auto;
+        }
+        nav a { color: var(--text-dim); text-decoration: none; font-size: 0.9rem; margin-left: 1.5rem; transition: color 0.2s; }
+        nav a:hover { color: var(--accent); }
+        .nav-brand { font-family: var(--font-heading); font-weight: 800; font-size: 1.1rem; color: var(--text); text-decoration: none; }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 4rem 2rem; }
+
+        h1 {
+            font-family: var(--font-heading);
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 1rem;
+        }
+        .subtitle {
+            font-size: 1.15rem;
+            color: var(--text-dim);
+            margin-bottom: 3rem;
+            max-width: 600px;
+        }
+
+        h2 {
+            font-family: var(--font-heading);
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin: 3rem 0 1rem;
+            letter-spacing: -0.02em;
+        }
+
+        .security-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .security-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.75rem;
+            box-shadow: var(--shadow-sm);
+            transition: box-shadow 0.3s, transform 0.3s;
+        }
+        .security-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+        .security-card h3 {
+            font-family: var(--font-heading);
+            font-size: 1.05rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .security-card p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+        .security-card ul {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            line-height: 1.8;
+            padding-left: 1.25rem;
+            margin-top: 0.5rem;
+        }
+
+        .badge {
+            display: inline-block;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            margin-left: 0.5rem;
+        }
+        .badge-green { background: #ecfdf5; color: var(--green); }
+        .badge-orange { background: #fff7ed; color: var(--accent); }
+
+        .pattern-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.85rem;
+        }
+        .pattern-table th {
+            font-family: var(--font-heading);
+            font-weight: 700;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            background: var(--surface);
+            border-bottom: 2px solid var(--border);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--text-dim);
+        }
+        .pattern-table td {
+            padding: 0.6rem 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .pattern-table tr:hover { background: #f9fafb; }
+        .pattern-table code {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            background: #f3f4f6;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+
+        .cta-section {
+            margin: 4rem 0 2rem;
+            padding: 2.5rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            text-align: center;
+        }
+        .cta-section h2 { margin-top: 0; }
+        .cta-section p { color: var(--text-dim); margin-bottom: 1.5rem; }
+        .btn-primary {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            padding: 0.75rem 2rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: background 0.2s;
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 2rem;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 1.8rem; }
+            .security-grid { grid-template-columns: 1fr; }
+            .pattern-table { font-size: 0.75rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/" class="nav-brand">0Latency</a>
+        <div>
+            <a href="/#features">Features</a>
+            <a href="/#pricing">Pricing</a>
+            <a href="/login">Docs</a>
+            <a href="/security.html" style="color:var(--accent);">Security</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>Security</h1>
+        <p class="subtitle">Your agent's memories are sensitive data. We treat them that way. Here's how 0Latency protects your data at every layer.</p>
+
+        <div class="security-grid">
+            <div class="security-card">
+                <h3>🔒 Tenant Isolation <span class="badge badge-green">Verified</span></h3>
+                <p>Every API request is scoped to your tenant via Row-Level Security (RLS) policies on all 13+ database tables. Cross-tenant data access is architecturally impossible — verified by automated SQL injection testing.</p>
+                <ul>
+                    <li>RLS policies on every table</li>
+                    <li>Parameterized SQL everywhere — zero f-string queries</li>
+                    <li>Tenant context set via <code>SET LOCAL</code> per request</li>
+                    <li>Cross-tenant read tests return empty results</li>
+                </ul>
+            </div>
+
+            <div class="security-card">
+                <h3>🛡️ Automatic Secret Detection <span class="badge badge-orange">New</span></h3>
+                <p>Every memory submitted to 0Latency is automatically scanned for API keys, tokens, passwords, and other secrets. If a secret is detected, the memory is rejected before storage — your keys never touch our database.</p>
+                <ul>
+                    <li>25+ secret patterns (AWS, GitHub, Stripe, OpenAI, etc.)</li>
+                    <li>Inline scanning on every <code>/extract</code> call</li>
+                    <li>Rejected with clear error — never stored</li>
+                    <li>Pattern list publicly available via API</li>
+                </ul>
+            </div>
+
+            <div class="security-card">
+                <h3>🔑 API Key Management</h3>
+                <p>SHA-256 hashed keys with instant rotation and revocation. Compromised key? Rotate in one API call. Old key is immediately invalid across all workers via Redis cache invalidation.</p>
+                <ul>
+                    <li>SHA-256 hashed storage (Stripe pattern)</li>
+                    <li>Instant key rotation: <code>POST /admin/rotate-key</code></li>
+                    <li>Instant revocation: <code>POST /admin/revoke-key</code></li>
+                    <li>Cross-worker invalidation via Redis pub/sub</li>
+                </ul>
+            </div>
+
+            <div class="security-card">
+                <h3>🚦 Rate Limiting</h3>
+                <p>Redis-backed rate limiting that survives restarts. Per-tenant limits based on plan tier. No abuse, no overload, no surprise bills.</p>
+                <ul>
+                    <li>Free: 20 RPM / Pro: 100 RPM / Enterprise: 500 RPM</li>
+                    <li>Redis-backed (persists across restarts)</li>
+                    <li>In-memory fallback if Redis is unavailable</li>
+                    <li>Per-tenant, not per-IP</li>
+                </ul>
+            </div>
+
+            <div class="security-card">
+                <h3>📝 Audit Logging</h3>
+                <p>Every memory operation is logged with tenant ID, request ID, timestamp, and action type. Full audit trail for compliance and debugging.</p>
+                <ul>
+                    <li>Structured JSON logging</li>
+                    <li>X-Request-ID on every response</li>
+                    <li>Tenant ID in all request logs</li>
+                    <li>Webhook delivery audit log with HMAC verification</li>
+                </ul>
+            </div>
+
+            <div class="security-card">
+                <h3>🔐 Webhooks with HMAC Signing</h3>
+                <p>Every webhook payload is signed with HMAC-SHA256. Verify the signature to confirm it came from 0Latency and hasn't been tampered with. Failed deliveries retry with exponential backoff.</p>
+                <ul>
+                    <li>HMAC-SHA256 signature on every payload</li>
+                    <li>Async delivery with retry + backoff</li>
+                    <li>Delivery status tracking and audit log</li>
+                    <li>Per-tenant webhook secrets</li>
+                </ul>
+            </div>
+
+            <div class="security-card">
+                <h3>🧱 Input Validation & Sanitization</h3>
+                <p>All inputs are validated and sanitized before processing. Error messages are generic — no database internals, no stack traces, no information leakage.</p>
+                <ul>
+                    <li>Request size limits enforced</li>
+                    <li>Pagination with max limits</li>
+                    <li>Generic error messages (no DB error leakage)</li>
+                    <li>SQL injection test suite (automated regression)</li>
+                </ul>
+            </div>
+
+            <div class="security-card">
+                <h3>🏗️ Infrastructure</h3>
+                <p>HTTPS everywhere. Security headers on all responses. Admin endpoints restricted to localhost. Automated database backups.</p>
+                <ul>
+                    <li>HTTPS with Cloudflare SSL termination</li>
+                    <li>X-Content-Type-Options, X-Frame-Options headers</li>
+                    <li>Admin endpoints: localhost-only IP allowlist</li>
+                    <li>Automated daily database backups</li>
+                </ul>
+            </div>
+        </div>
+
+        <h2>Secret Detection Patterns</h2>
+        <p style="color:var(--text-dim);margin-bottom:1rem;">The following patterns are automatically scanned on every memory submission. This list is also available programmatically via <code style="font-family:var(--font-mono);font-size:0.85rem;background:#f3f4f6;padding:0.15rem 0.4rem;border-radius:4px;">GET /api/v1/security/patterns</code>.</p>
+
+        <table class="pattern-table">
+            <thead>
+                <tr>
+                    <th>Pattern</th>
+                    <th>Prefix / Format</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>PyPI Token</td><td><code>pypi-...</code></td><td>PyPI API token</td></tr>
+                <tr><td>GitHub PAT</td><td><code>ghp_...</code></td><td>GitHub personal access token</td></tr>
+                <tr><td>GitHub OAuth</td><td><code>gho_...</code></td><td>GitHub OAuth access token</td></tr>
+                <tr><td>OpenAI Key</td><td><code>sk-...</code></td><td>OpenAI API key</td></tr>
+                <tr><td>Anthropic Key</td><td><code>sk-ant-...</code></td><td>Anthropic API key</td></tr>
+                <tr><td>Stripe Secret</td><td><code>sk_live_...</code> / <code>sk_test_...</code></td><td>Stripe secret key</td></tr>
+                <tr><td>AWS Access Key</td><td><code>AKIA...</code></td><td>AWS access key ID</td></tr>
+                <tr><td>Slack Token</td><td><code>xoxb-...</code> / <code>xoxp-...</code></td><td>Slack bot or user token</td></tr>
+                <tr><td>Twilio</td><td><code>AC...</code> / <code>SK...</code></td><td>Twilio account SID or API key</td></tr>
+                <tr><td>SendGrid</td><td><code>SG....</code></td><td>SendGrid API key</td></tr>
+                <tr><td>Google API</td><td><code>AIza...</code></td><td>Google API key</td></tr>
+                <tr><td>Supabase</td><td><code>sbp_...</code> / <code>sb_secret_...</code></td><td>Supabase project or service role key</td></tr>
+                <tr><td>Bearer Token</td><td><code>Bearer ...</code></td><td>Authorization header token</td></tr>
+                <tr><td>Generic Secret</td><td><code>api_key=...</code></td><td>Key-value secret assignments</td></tr>
+            </tbody>
+        </table>
+
+        <h2>Testing & Verification</h2>
+        <div class="security-grid" style="grid-template-columns:1fr;">
+            <div class="security-card">
+                <h3>147 Automated Tests <span class="badge badge-green">All Passing</span></h3>
+                <p>Our test suite covers authentication, extraction, recall, SQL injection prevention, tenant isolation, pagination, input validation, key rotation, revocation, data export, batch operations, graph memory, webhooks, versioning, criteria scoring, custom schemas, organization memory, and security regression. Every commit runs the full suite.</p>
+            </div>
+        </div>
+
+        <div class="cta-section">
+            <h2>Questions about security?</h2>
+            <p>We're happy to discuss our security practices, provide additional documentation, or walk through our architecture with your team.</p>
+            <a href="mailto:hello@0latency.ai" class="btn-primary">Contact Us</a>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 0Latency. All rights reserved.</p>
+    </footer>
+</body>
+</html>

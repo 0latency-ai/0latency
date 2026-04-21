@@ -1,0 +1,182 @@
+{
+  "name": "Python Developer",
+  "description": "Best practices, patterns, and gotchas for modern Python development including async, type hints, FastAPI, and testing.",
+  "version": "1.0.0",
+  "facts": [
+    {
+      "text": "Use 'uv' instead of pip/pip-tools/poetry for Python package management. It's written in Rust, 10-100x faster, handles virtual environments, lockfiles, and Python version management. One tool replaces pip, pyenv, poetry, and pipx.",
+      "category": "tooling",
+      "importance": 0.9
+    },
+    {
+      "text": "Always use virtual environments. Never install packages globally. With uv: 'uv venv' creates one, 'uv pip install' respects it. With stdlib: 'python -m venv .venv && source .venv/bin/activate'. Put .venv in .gitignore.",
+      "category": "best-practice",
+      "importance": 0.9
+    },
+    {
+      "text": "Type hints are documentation that gets checked. Use them everywhere in function signatures. Modern syntax (3.10+): 'def fetch(url: str, timeout: int = 30) -> dict[str, Any]'. For older Python, import from __future__ import annotations.",
+      "category": "best-practice",
+      "importance": 0.9
+    },
+    {
+      "text": "Use Pydantic v2 for data validation — it's 5-50x faster than v1 (Rust core). Define models: class User(BaseModel): name: str; email: EmailStr. Then User(name='Alice', email='alice@example.com') validates at runtime. FastAPI uses Pydantic natively.",
+      "category": "pattern",
+      "importance": 0.9
+    },
+    {
+      "text": "FastAPI dependency injection is incredibly powerful. Define deps as functions: async def get_db() -> AsyncGenerator[Session, None]. Then use them in routes: async def get_user(db: Session = Depends(get_db)). Dependencies are cached per-request, composable, and testable.",
+      "category": "fastapi",
+      "importance": 0.9
+    },
+    {
+      "text": "FastAPI middleware order matters — middleware is applied in reverse order of definition. The last app.add_middleware() call wraps the outermost layer. Put CORS middleware last (so it wraps everything), auth middleware before route-specific middleware.",
+      "category": "fastapi",
+      "importance": 0.8
+    },
+    {
+      "text": "Use FastAPI's BackgroundTasks for fire-and-forget work (sending emails, logging). Don't spawn raw asyncio.create_task in request handlers — those tasks can get garbage collected. BackgroundTasks are properly managed by the framework.",
+      "category": "fastapi",
+      "importance": 0.85
+    },
+    {
+      "text": "FastAPI lifespan context manager (3.0+) replaces on_event('startup')/on_event('shutdown'). Use it for database connections, ML model loading, etc: @asynccontextmanager async def lifespan(app: FastAPI): db = await connect(); yield {'db': db}; await db.close()",
+      "category": "fastapi",
+      "importance": 0.8
+    },
+    {
+      "text": "async def vs def in FastAPI routes: use 'async def' only if your function actually awaits something. A sync 'def' route runs in a thread pool automatically. Using 'async def' with blocking I/O (no await) blocks the entire event loop.",
+      "category": "fastapi",
+      "importance": 0.95
+    },
+    {
+      "text": "Python's GIL means threads don't help for CPU-bound work. Use multiprocessing or ProcessPoolExecutor for CPU tasks. asyncio is for I/O-bound work (network, disk). Mixing them: loop.run_in_executor(process_pool, cpu_function).",
+      "category": "performance",
+      "importance": 0.9
+    },
+    {
+      "text": "List comprehensions are 20-50% faster than for loops with append. [x**2 for x in range(1000)] beats the loop version. But don't nest more than 2 levels — readability matters more than micro-optimization.",
+      "category": "performance",
+      "importance": 0.75
+    },
+    {
+      "text": "Use __slots__ in classes that create many instances. class Point: __slots__ = ('x', 'y'). This reduces memory by 40-60% and speeds up attribute access by preventing the creation of __dict__ per instance.",
+      "category": "performance",
+      "importance": 0.75
+    },
+    {
+      "text": "Generator expressions for large sequences: sum(x**2 for x in range(10_000_000)) uses constant memory. A list comprehension [x**2 for x in range(10_000_000)] allocates the entire list first. For one-pass operations, always prefer generators.",
+      "category": "performance",
+      "importance": 0.8
+    },
+    {
+      "text": "asyncio.gather(*tasks) runs awaitables concurrently. But if one fails, all results are lost unless you pass return_exceptions=True. Use asyncio.TaskGroup (3.11+) instead — it handles cancellation properly and gives structured concurrency.",
+      "category": "async",
+      "importance": 0.85
+    },
+    {
+      "text": "Never use time.sleep() in async code — it blocks the event loop. Use await asyncio.sleep(). Similarly, never use requests library in async code. Use httpx (async-native) or aiohttp instead.",
+      "category": "async",
+      "importance": 0.95
+    },
+    {
+      "text": "asyncio.Semaphore limits concurrency. When making 1000 HTTP requests, don't fire all at once — create a semaphore: sem = asyncio.Semaphore(50), then async with sem: await fetch(url). This caps concurrent connections at 50.",
+      "category": "async",
+      "importance": 0.85
+    },
+    {
+      "text": "Use pytest fixtures instead of setUp/tearDown. @pytest.fixture(scope='function') for per-test, 'session' for once. Fixtures are composable (a fixture can use other fixtures), support async (pytest-asyncio), and are the Pythonic testing pattern.",
+      "category": "testing",
+      "importance": 0.9
+    },
+    {
+      "text": "pytest parametrize eliminates test duplication: @pytest.mark.parametrize('input,expected', [(1, 1), (2, 4), (3, 9)]). Each tuple becomes a separate test case with clear reporting. Better than a loop inside a test.",
+      "category": "testing",
+      "importance": 0.85
+    },
+    {
+      "text": "For testing FastAPI, use httpx.AsyncClient with app=app, not requests. TestClient (sync) works but async tests catch real async bugs: async with AsyncClient(app=app, base_url='http://test') as ac: response = await ac.get('/users')",
+      "category": "testing",
+      "importance": 0.85
+    },
+    {
+      "text": "Use conftest.py for shared fixtures. pytest auto-discovers it. Put database setup, test client factories, and auth fixtures there. You can have conftest.py at multiple directory levels — inner ones override outer ones.",
+      "category": "testing",
+      "importance": 0.8
+    },
+    {
+      "text": "Python string concatenation in a loop is O(n²). Use ''.join(parts) or f-strings instead. For building large strings incrementally, append to a list and join at the end: parts = []; parts.append(chunk); result = ''.join(parts).",
+      "category": "performance",
+      "importance": 0.75
+    },
+    {
+      "text": "dataclasses vs Pydantic: dataclasses are stdlib and lightweight — use for internal data structures. Pydantic validates at runtime and serializes to JSON — use at API boundaries. Don't use Pydantic for everything, it's overkill for internal DTOs.",
+      "category": "pattern",
+      "importance": 0.8
+    },
+    {
+      "text": "Use Protocol classes (typing.Protocol) for structural subtyping instead of ABCs. class Closeable(Protocol): def close(self) -> None: ... Any class with a close() method satisfies this — no inheritance required. This is Python's equivalent of Go interfaces or TypeScript structural types.",
+      "category": "pattern",
+      "importance": 0.8
+    },
+    {
+      "text": "Default mutable arguments are a classic Python trap. def append_to(item, lst=[]): lst.append(item); return lst — the list is shared across calls! Use None as default: def append_to(item, lst=None): lst = lst if lst is not None else []; ...",
+      "category": "gotcha",
+      "importance": 0.9
+    },
+    {
+      "text": "Use contextlib.asynccontextmanager for async resource management. @asynccontextmanager async def db_session(): session = await create_session(); try: yield session; finally: await session.close(). This pattern ensures cleanup even on exceptions.",
+      "category": "async",
+      "importance": 0.8
+    },
+    {
+      "text": "ruff replaces flake8, isort, pyflakes, and many other linters. It's 10-100x faster (Rust), covers 800+ lint rules, and auto-fixes most issues. Use ruff check . && ruff format . in CI. It's the new standard.",
+      "category": "tooling",
+      "importance": 0.85
+    },
+    {
+      "text": "pyproject.toml is the modern Python project config. Put everything there: project metadata, dependencies, tool config (ruff, pytest, mypy). setup.py and setup.cfg are legacy. requirements.txt is still fine for deployment pinning alongside pyproject.toml.",
+      "category": "tooling",
+      "importance": 0.8
+    },
+    {
+      "text": "Use functools.lru_cache for memoization of pure functions: @lru_cache(maxsize=128). For async functions, use aiocache or a simple dict cache. Note: lru_cache args must be hashable — won't work with lists or dicts as arguments.",
+      "category": "performance",
+      "importance": 0.75
+    },
+    {
+      "text": "Exception handling: catch specific exceptions, never bare except: or except Exception:. Use exception groups (3.11+, ExceptionGroup) for concurrent error handling. Create custom exception hierarchies for your application: class AppError(Exception); class NotFoundError(AppError).",
+      "category": "best-practice",
+      "importance": 0.85
+    },
+    {
+      "text": "Use pathlib.Path instead of os.path for file operations. Path is object-oriented, composable, and more readable: path = Path('data') / 'users' / 'export.csv'; path.read_text(); path.exists(). It's been in stdlib since 3.4 — there's no reason to use os.path anymore.",
+      "category": "best-practice",
+      "importance": 0.8
+    },
+    {
+      "text": "SQLAlchemy 2.0 style uses select() instead of query(). session.execute(select(User).where(User.id == 1)).scalar_one(). The 1.x query API still works but is legacy. New projects should use 2.0 style exclusively — it's type-safe and more explicit.",
+      "category": "pattern",
+      "importance": 0.8
+    },
+    {
+      "text": "For async database access, use asyncpg (PostgreSQL) or databases library. SQLAlchemy supports async with create_async_engine. Never use synchronous database drivers in async code — it blocks the event loop for the entire query duration.",
+      "category": "async",
+      "importance": 0.85
+    },
+    {
+      "text": "Use typing.TypeVar and typing.Generic for reusable generic classes. T = TypeVar('T'); class Repository(Generic[T]): def get(self, id: str) -> T: ... Then UserRepo(Repository[User]) is fully typed. This is Python's equivalent of generics in other languages.",
+      "category": "pattern",
+      "importance": 0.75
+    },
+    {
+      "text": "Docker: use multi-stage builds for Python. Stage 1: install deps into a venv. Stage 2: copy only the venv and your code. This cuts image size by 50-70%. Use python:3.12-slim as the final base, not the full python:3.12 image.",
+      "category": "tooling",
+      "importance": 0.8
+    },
+    {
+      "text": "Python imports are cached — importing a module runs its top-level code once, then re-imports return the cached module. This means module-level side effects (database connections, API clients) happen once. Use this for singleton patterns, but be aware it makes testing harder.",
+      "category": "gotcha",
+      "importance": 0.75
+    }
+  ]
+}
