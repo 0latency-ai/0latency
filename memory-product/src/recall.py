@@ -109,7 +109,7 @@ def _sanitize_bm25_query(query: str) -> str:
     return query
 
 
-def _bm25_search(agent_id: str, query: str, tenant_id: str = None, limit: int = 50) -> list[dict]:
+def _bm25_search(agent_id: str, query: str, tenant_id: str = None, limit: int = 50, project_id: str = None) -> list[dict]:
     """
     BM25 full-text search using PostgreSQL tsvector/tsquery.
     Returns results in <100ms for keyword-dominant queries.
@@ -133,7 +133,9 @@ def _bm25_search(agent_id: str, query: str, tenant_id: str = None, limit: int = 
         
         # Use websearch_to_tsquery for better tolerance to spaces/special chars
         # This handles "April 2026", "Sequoia Capital", etc. better than plainto_tsquery
-        rows = _db_execute("""
+        _bm25_project_filter = "AND project_id = %s" if project_id else ""
+        _bm25_params = (clean_query, agent_id, _tid) + ((project_id,) if project_id else ()) + (clean_query, limit)
+        rows = _db_execute(f"""
             SELECT id, headline, context, full_content, memory_type,
                    importance, access_count, reinforcement_count,
                    created_at, superseded_at,
@@ -142,10 +144,11 @@ def _bm25_search(agent_id: str, query: str, tenant_id: str = None, limit: int = 
             WHERE agent_id = %s 
               AND tenant_id = %s::UUID
               AND superseded_at IS NULL
+              {_bm25_project_filter}
               AND search_text @@ websearch_to_tsquery('english', %s)
             ORDER BY bm25_score DESC, importance DESC
             LIMIT %s
-        """, (clean_query, agent_id, _tid, clean_query, limit),
+        """, _bm25_params,
             tenant_id=_tid)
         
         elapsed_ms = (_time.time() - _start) * 1000
@@ -177,6 +180,7 @@ def recall_hybrid(
     budget_tokens: int = 4000,
     tenant_id: str = None,
     bm25_threshold: float = 0.15,  # Min BM25 score to skip vector search
+    project_id: str = None,
 ) -> dict:
     """
     Hybrid recall: tries BM25 first, falls back to vector search.
@@ -204,7 +208,7 @@ def recall_hybrid(
     # 0.6 chosen empirically — see Checkpoint 5 prep, BM25 was running on weak signals and wasting ~280ms with zero recall contribution.
     if classification['is_keyword_dominant'] and classification['confidence'] > 0.6:
         _bm25_start = _time.time()
-        bm25_results = _bm25_search(agent_id, conversation_context, tenant_id=_tid, limit=50)
+        bm25_results = _bm25_search(agent_id, conversation_context, tenant_id=_tid, limit=50, project_id=project_id)
         bm25_time = (_time.time() - _bm25_start) * 1000
         
         if bm25_results:
@@ -246,6 +250,7 @@ def recall_hybrid(
         conversation_context=conversation_context,
         budget_tokens=budget_tokens,
         tenant_id=_tid,
+        project_id=project_id,
     )
     vector_time = (_time.time() - _vector_start) * 1000
     
@@ -362,7 +367,7 @@ def _build_always_include(agent_id: str, tenant_id: str = None, config: dict = N
     return always_block, _estimate_tokens(always_block)
 
 
-def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_text: str, tenant_id: str = None) -> list[dict]:
+def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_text: str, tenant_id: str = None, project_id: str = None):
     """Retrieve candidate memories using multiple strategies — fully parameterized."""
     # SECURITY: Use provided tenant_id for all queries
     _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
@@ -374,9 +379,15 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     candidates = {}
     embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
     
+    # CP6 PREFLIGHT: Instrument vector subphases
+    import time as _time_cp6
+    _t_db_start = _time_cp6.perf_counter()
+    
     # Strategy 1: Semantic similarity search (top 200)
+    _project_filter = "AND project_id = %s" if project_id else ""
     try:
-        rows = _db_execute("""
+        _s1_params = (embedding_str, agent_id, _tid) + ((project_id,) if project_id else ()) + (embedding_str,)
+        rows = _db_execute(f"""
             SELECT id, headline, context, full_content, memory_type,
                    importance, access_count, reinforcement_count,
                    created_at, superseded_at,
@@ -385,9 +396,10 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             WHERE agent_id = %s AND tenant_id = %s::UUID
               AND superseded_at IS NULL
               AND local_embedding IS NOT NULL
+              {_project_filter}
             ORDER BY local_embedding <=> %s::extensions.vector
             LIMIT 200
-        """, (embedding_str, agent_id, _tid, embedding_str),
+        """, _s1_params,
             tenant_id=_tid)
         
         logger.info(f"✅ Semantic search returned {len(rows) if rows else 0} rows")
@@ -401,11 +413,18 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     except Exception as e:
         logger.error(f"❌ Semantic search failed: {e}")
         print(f"Warning: Semantic search failed: {e}")
+    
+    _t_db_end = _time_cp6.perf_counter()
+    _t_db_ms = int((_t_db_end - _t_db_start) * 1000)
+    
+    _t_post_start = _time_cp6.perf_counter()
+    
     # Strategy 2: High-importance memories (always consider)
     try:
         existing_ids = list(candidates.keys()) if candidates else ["00000000-0000-0000-0000-000000000000"]
 
-        rows2 = _db_execute("""
+        _s2_params = (agent_id, _tid) + ((project_id,) if project_id else ()) + (existing_ids,)
+        rows2 = _db_execute(f"""
             SELECT id, headline, context, full_content, memory_type,
                    importance, access_count, reinforcement_count,
                    created_at, superseded_at, 0.5 as similarity
@@ -413,10 +432,11 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             WHERE agent_id = %s AND tenant_id = %s::UUID
               AND superseded_at IS NULL
               AND importance > 0.8
+              {_project_filter}
               AND id NOT IN (SELECT unnest(%s::uuid[]))
             ORDER BY importance DESC
             LIMIT 50
-        """, (agent_id, _tid, existing_ids),
+        """, _s2_params,
             tenant_id=_tid)
         
         for row in rows2:
@@ -468,11 +488,12 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                     WHERE agent_id = %s AND tenant_id = %s::UUID
                       AND superseded_at IS NULL
                       AND ({condition_str})
+                      {_project_filter}
                       AND id NOT IN (SELECT unnest(%s::uuid[]))
                     ORDER BY importance DESC
                     LIMIT 100
                 """  # nosec B608 — all values parameterized via %s
-                params = [agent_id, _tid] + keyword_params + [existing_ids]
+                params = [agent_id, _tid] + keyword_params + ([project_id] if project_id else []) + [existing_ids]
                 cur.execute(query, params)
                 
                 if cur.description:
@@ -493,8 +514,13 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                 pool.putconn(conn)
     except Exception as e:
         print(f"Warning: Keyword search failed: {e}")
+    
+    _t_post_end = _time_cp6.perf_counter()
+    _t_post_ms = int((_t_post_end - _t_post_start) * 1000)
+    
+    logger.info(f"[VECTOR SUBPHASES] db={_t_db_ms}ms post={_t_post_ms}ms")
 
-    return list(candidates.values())
+    return list(candidates.values()), {"db_ms": _t_db_ms, "post_ms": _t_post_ms}
 
 
 def _parse_candidate_row(parts: list[str]) -> dict:
@@ -537,6 +563,7 @@ def recall_fixed(
     conversation_context: str,
     budget_tokens: int = 4000,
     tenant_id: str = None,
+    project_id: str = None,
 ) -> dict:
     """
     Recall relevant memories for agent context injection.
@@ -626,9 +653,10 @@ def recall_fixed(
     
     # Step 4: Retrieve candidates (tenant-scoped)
     _search_t0 = _time.time()
-    candidates = _retrieve_candidates(agent_id, query_embedding, conversation_context, tenant_id=_tid)
+    candidates, _vector_timing = _retrieve_candidates(agent_id, query_embedding, conversation_context, tenant_id=_tid, project_id=project_id)
     _search_t1 = _time.time()
     _search_ms = (_search_t1 - _search_t0) * 1000
+    logger.info(f"[VECTOR SUBPHASES] embed={_embed_ms:.0f}ms db={_vector_timing["db_ms"]}ms post={_vector_timing["post_ms"]}ms")
     logger.info(f"📦 Retrieved {len(candidates)} candidates")
     
     if not candidates:
@@ -1066,6 +1094,7 @@ def recall_with_fallback(
     budget_tokens: int = 4000,
     confidence_threshold: float = 0.6,
     tenant_id: str = None,
+    project_id: str = None,
 ) -> dict:
     """Recall with automatic cross-agent fallback.
     
@@ -1078,7 +1107,7 @@ def recall_with_fallback(
     logger.info(f"🎯 Recall with fallback: agent={agent_id}, threshold={confidence_threshold}")
     
     # Step 1: Try primary agent first
-    primary_result = recall_fixed(agent_id, conversation_context, budget_tokens, tenant_id)
+    primary_result = recall_fixed(agent_id, conversation_context, budget_tokens, tenant_id, project_id=project_id)
     
     # Step 2: Check confidence
     if primary_result["recall_details"]:
