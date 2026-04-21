@@ -419,6 +419,10 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     
     _t_post_start = _time_cp6.perf_counter()
     
+    # CP6 PART 2: Per-strategy timing
+    _t_s2_start = _time_cp6.perf_counter()
+    _s2_count = 0
+    
     # Strategy 2: High-importance memories (always consider)
     try:
         existing_ids = list(candidates.keys()) if candidates else ["00000000-0000-0000-0000-000000000000"]
@@ -445,8 +449,16 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                 mem_id = parts[0]
                 if mem_id not in candidates:
                     candidates[mem_id] = _parse_candidate_row(parts)
+                    _s2_count += 1
+        
+        _t_s2_end = _time_cp6.perf_counter()
+        _t_s2_ms = int((_t_s2_end - _t_s2_start) * 1000)
     except Exception as e:
         print(f"Warning: High-importance search failed: {e}")
+    
+    _t_s3_start = _time_cp6.perf_counter()
+    _s3_count = 0
+    _s3_skipped = True  # Will be set to False if keyword search runs
     
     # Strategy 3: Keyword search — parameterized ILIKE
     try:
@@ -459,6 +471,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
         keywords = [w for w in words if w not in stop_words][:5]
         
         if keywords:
+            _s3_skipped = False  # Keywords found, search will run
             existing_ids = list(candidates.keys()) if candidates else ["00000000-0000-0000-0000-000000000000"]
             
             # Build parameterized OR conditions for keywords
@@ -504,6 +517,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                             mem_id = parts[0]
                             if mem_id not in candidates:
                                 candidates[mem_id] = _parse_candidate_row(parts)
+                                _s3_count += 1
                 
                 cur.execute("COMMIT")
             except Exception as e:
@@ -515,10 +529,14 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     except Exception as e:
         print(f"Warning: Keyword search failed: {e}")
     
+    _t_s3_end = _time_cp6.perf_counter()
+    _t_s3_ms = int((_t_s3_end - _t_s3_start) * 1000)
+    
     _t_post_end = _time_cp6.perf_counter()
     _t_post_ms = int((_t_post_end - _t_post_start) * 1000)
     
     logger.info(f"[VECTOR SUBPHASES] db={_t_db_ms}ms post={_t_post_ms}ms")
+    logger.info(f"[POST SUBPHASES] s2={_t_s2_ms}ms s2_rows={_s2_count} s3={_t_s3_ms}ms s3_rows={_s3_count} s3_skipped={_s3_skipped}")
 
     return list(candidates.values()), {"db_ms": _t_db_ms, "post_ms": _t_post_ms}
 
