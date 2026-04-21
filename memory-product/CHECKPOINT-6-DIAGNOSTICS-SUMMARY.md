@@ -1,20 +1,22 @@
 # CHECKPOINT 6 — DIAGNOSTICS SUMMARY
 
-**Date:** 2026-04-21  
-**Git HEAD:** 11c6803 (S3 subphase profiling) → updated to include S1/S2 instrumentation  
+**Date:** 2026-04-21
+**Git HEAD:** 11c6803 (S3 subphase profiling) → updated to include S1/S2 instrumentation
 **Warm P50 Recall Latency:** 2204ms (unchanged from CP5 baseline)
 
 ---
 
 ## Executive Summary
 
-Four rounds of CP6 optimization diagnostics on April 21, 2026 identified **psycopg2 driver overhead** as the dominant bottleneck across all three recall strategies. Total driver overhead (connection setup + exec overhead + commit) accounts for approximately **1109ms of the 2204ms median recall time** (~50% of total latency). Specifically:
+Four rounds of CP6 optimization diagnostics on April 21, 2026 identified **psycopg2 driver overhead** as a major bottleneck across all three recall strategies. The S1, S2, and S3 execution phases total approximately **1108ms of the 2204ms median recall time** (~50% of total latency). Specifically:
 
-- **S1 (vector search):** 428ms median (pure exec time via _db_execute wrapper)
-- **S2 (high importance):** 336ms median (pure exec time via _db_execute wrapper)
+- **S1 (vector search):** 428ms median exec time via _db_execute wrapper (includes pgvector HNSW query execution + unquantified driver overhead)
+- **S2 (high importance):** 336ms median exec time via _db_execute wrapper (includes query execution + unquantified driver overhead)
 - **S3 (keyword search):** 344ms median, decomposed as 134ms conn + 141ms exec + 67ms commit
 
-The colocation optimization (original CP6 hypothesis) addresses ~134ms of S3 connection setup overhead. An asyncpg migration would eliminate approximately **342ms** of psycopg2 overhead in S3 alone, plus hidden overhead in S1/S2 (currently masked by the _db_execute wrapper). The database itself is not the bottleneck — EXPLAIN ANALYZE confirmed sub-40ms query execution times for S3 after GIN indexing.
+Of these three phases, only S3 has been fully decomposed to measure driver overhead. S3's breakdown reveals **342ms of psycopg2-specific overhead** (134ms conn + 106ms driver overhead within exec + 67ms commit), with just 35ms of actual database query time. The driver overhead within S1 and S2 exec times remains unquantified because the _db_execute wrapper masks the split between driver cost and actual query execution.
+
+The colocation optimization (original CP6 hypothesis) addresses ~134ms of S3 connection setup overhead. An asyncpg migration would eliminate approximately **342ms of measured psycopg2 overhead in S3**, plus unmeasured overhead hidden in S1 and S2 exec times. The database itself is not the bottleneck — EXPLAIN ANALYZE confirmed sub-40ms query execution times for S3 after GIN indexing.
 
 ---
 
@@ -73,7 +75,7 @@ The colocation optimization (original CP6 hypothesis) addresses ~134ms of S3 con
 
 2. **SQL query construction is negligible.** Extract/sanitize/build phases all measured < 1ms (rounded to 0ms). No optimization opportunity here.
 
-3. **psycopg2 driver overhead dominates.** Connection setup (134ms) + exec overhead (~106ms = 141ms exec - 35ms DB) + commit (67ms) = ~307ms of pure driver overhead in S3 alone.
+3. **psycopg2 driver overhead dominates S3.** For the keyword search strategy, connection setup (134ms) + exec overhead (~106ms = 141ms exec - 35ms DB) + commit (67ms) = ~307ms of measured driver overhead out of 344ms total. S1 and S2 exec times (428ms and 336ms respectively) also contain driver overhead, but the split between driver cost and actual query execution is unquantified for these strategies.
 
 4. **S1 and S2 hide connection overhead.** Both use _db_execute wrapper, which masks conn/commit timing. The 428ms S1 exec and 336ms S2 exec include hidden psycopg2 overhead similar to S3's breakdown.
 
@@ -86,10 +88,10 @@ The colocation optimization (original CP6 hypothesis) addresses ~134ms of S3 con
 | Path                                    | Estimated Savings | Scope                                                                 |
 |-----------------------------------------|-------------------|-----------------------------------------------------------------------|
 | **Colocation (CP6 original)**           | ~134ms            | Eliminates S3 conn phase only (network + pool acquisition)            |
-| **asyncpg migration**                   | ~342ms (S3 only)  | Eliminates S3 conn (134ms) + reduces exec overhead + eliminates commit (67ms). S1/S2 savings TBD (currently masked by _db_execute). |
+| **asyncpg migration**                   | ~342ms minimum (S3 measured) | Eliminates S3 conn (134ms) + reduces exec overhead + eliminates commit (67ms). **Lower bound:** 342ms is S3-only measurement; asyncpg would likely also reduce S1 (428ms) and S2 (336ms) exec times by unmeasured amounts. |
 | **Parallelization retry (larger pool)** | ~max(336, 344) = 344ms | Theoretical max: overlap S2 and S3 execution. Requires thread pool tuning. Previous CP5 attempt failed due to pool contention. |
 
-**Note:** These are independent paths. Colocation + asyncpg would stack (~476ms total savings). Parallelization + asyncpg would also stack but requires testing pool behavior under async.
+**Note:** These are independent paths. Colocation + asyncpg would stack (~476ms+ total savings, with unmeasured S1/S2 gains). Parallelization + asyncpg would also stack but requires testing pool behavior under async.
 
 ---
 
