@@ -561,6 +561,11 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             # No keywords found
             _t_s3_extract_ms = _t_s3_sanitize_ms = _t_s3_build_ms = _t_s3_conn_ms = _t_s3_exec_ms = _t_s3_fetch_ms = _t_s3_commit_ms = 0
             _s3_rows_fetched = 0
+    except Exception as e:
+        print(f"Warning: Keyword search failed: {e}")
+        _t_s3_extract_ms = _t_s3_sanitize_ms = _t_s3_build_ms = _t_s3_conn_ms = _t_s3_exec_ms = _t_s3_fetch_ms = _t_s3_commit_ms = 0
+        _s3_rows_fetched = 0
+    
     _t_s3_end = _time_cp6.perf_counter()
     _t_s3_ms = int((_t_s3_end - _t_s3_start) * 1000)
     
