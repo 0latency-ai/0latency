@@ -7,37 +7,13 @@ SECURITY HARDENED: Uses psycopg2 with parameterized queries to prevent SQL injec
 
 import json
 import os
-import numpy as np
 import requests
 import psycopg2
 import psycopg2.pool
 from datetime import datetime, timezone
 from typing import Optional
 import threading
-import sys
-import os
-
-# Import similarity scanner for Phase 1
-try:
-    from similarity_scanner import trigger_similarity_scan
-except ImportError:
-    # Fallback if not in same directory
-    sys.path.insert(0, os.path.dirname(__file__))
-    from similarity_scanner import trigger_similarity_scan
-
 import time
-
-# Local embedding model for fast CPU inference
-_local_embedding_model = None
-_local_model_lock = threading.Lock()
-
-def _get_local_model():
-    """Lazy-load local embedding model (all-MiniLM-L6-v2, 384 dims, ~10-20ms CPU inference)."""
-    global _local_embedding_model
-    if _local_embedding_model is None:
-        from sentence_transformers import SentenceTransformer
-        _local_embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-    return _local_embedding_model
 
 
 # --- Configuration ---
@@ -112,47 +88,30 @@ def _embed_text(text: str) -> list[float]:
     return vec
 
 
-def _embed_text_local(text: str) -> list[float]:
-    """Generate embedding using local model (all-MiniLM-L6-v2).
-    
-    Fast CPU inference (~10-20ms), no external API dependency.
-    Returns 384-dimensional vector (vs 768 for OpenAI).
-    Accepts ~5-8% accuracy reduction for 100x speed improvement.
-    """
-    with _local_model_lock:
-        model = _get_local_model()
-        # encode() returns numpy array, convert to list
-        embedding = model.encode(text, convert_to_numpy=True, show_progress_bar=False)
-        # Normalize for cosine similarity (pgvector expects normalized vectors)
-        embedding = embedding / np.linalg.norm(embedding)
-        return embedding.tolist()
-
-
 def _embed_text_uncached(text: str) -> list[float]:
     """Generate embedding for text using configured model."""
     
-    # TEMP: Gemini suspended, revert when reinstated
-    #     # Try Google first (cheaper)
-    #     if GOOGLE_API_KEY:
-    #         try:
-    #             model_name = "gemini-embedding-001"
-    #             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:embedContent"
-    #             resp = requests.post(
-    #                 url,
-    #                 params={"key": GOOGLE_API_KEY},
-    #                 json={
-    #                     "model": f"models/{model_name}",
-    #                     "content": {"parts": [{"text": text}]},
-    #                     "outputDimensionality": 768
-    #                 },
-    #                 timeout=15
-    #             )
-    #             resp.raise_for_status()
-    #             return resp.json()["embedding"]["values"]
-    #         except Exception as e:
-    #             print(f"Google embedding failed: {e}")
-    #     
-    # OpenAI embeddings (primary)
+    # Try Google first (cheaper)
+    if GOOGLE_API_KEY:
+        try:
+            model_name = "gemini-embedding-001"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:embedContent"
+            resp = requests.post(
+                url,
+                params={"key": GOOGLE_API_KEY},
+                json={
+                    "model": f"models/{model_name}",
+                    "content": {"parts": [{"text": text}]},
+                    "outputDimensionality": 768
+                },
+                timeout=15
+            )
+            resp.raise_for_status()
+            return resp.json()["embedding"]["values"]
+        except Exception as e:
+            print(f"Google embedding failed: {e}")
+    
+    # Fallback to OpenAI
     if OPENAI_API_KEY:
         try:
             resp = requests.post(
@@ -163,7 +122,6 @@ def _embed_text_uncached(text: str) -> list[float]:
                 },
                 json={
                     "model": EMBEDDING_MODEL,
-                    "dimensions": 768,
                     "input": text,
                 },
                 timeout=15
@@ -172,15 +130,7 @@ def _embed_text_uncached(text: str) -> list[float]:
             return resp.json()["data"][0]["embedding"]
         except Exception as e:
             print(f"OpenAI embedding failed: {e}")
-    # Local fallback — sentence-transformers (384 dims, zero-padded to 768)
-    try:
-        model = _get_local_model()
-        vec = model.encode(text).tolist()
-        if len(vec) < 768:
-            vec = vec + [0.0] * (768 - len(vec))
-        return vec
-    except Exception as e:
-        print(f"Local embedding also failed: {e}")
+    
     raise RuntimeError("No embedding provider available")
 
 
@@ -228,7 +178,7 @@ def warm_embedding_cache():
             
             # Get 10 most recent memory headlines
             cur.execute("""
-                SELECT DISTINCT headline, created_at 
+                SELECT DISTINCT headline 
                 FROM memory_service.memories 
                 WHERE superseded_at IS NULL 
                   AND headline IS NOT NULL
@@ -334,14 +284,15 @@ def _db_execute_rows(query: str, params: tuple = None, tenant_id: str = None, fe
     return []
 
 
-def store_memory(memory: dict, tenant_id: str = None) -> dict:
+def store_memory(memory: dict, tenant_id: str = None) -> str:
     """
     Store a single extracted memory with embedding and tenant isolation.
     
     Args:
+        memory: Structured memory object from extraction layer
+        tenant_id: UUID of the tenant (uses global context if not provided)
     
     Returns:
-        dict with keys: 'id' (UUID of stored/existing memory) and 'deduplicated' (bool)
         UUID of stored memory
     """
     current_tenant = tenant_id or _current_tenant_id
@@ -351,7 +302,6 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
     # Generate embedding from headline + context (not full_content — saves tokens)
     embed_text = f"{memory['headline']}. {memory['context']}"
     embedding = _embed_text(embed_text)
-    local_embedding = _embed_text_local(embed_text)  # Local model (384d) for fast reads
     
     # Check for duplicate/reinforcement within this tenant
     existing = _check_duplicate(memory['agent_id'], memory['headline'], embedding, 
@@ -384,8 +334,8 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
         except Exception:
             pass
         
-        print(f"  ↑ Reinforced existing memory (deduplicated): {existing}")
-        return {"id": existing, "deduplicated": True}
+        print(f"  ↑ Reinforced existing memory: {existing}")
+        return existing
     
     # Check for potential contradiction with existing memories in this tenant
     if memory['memory_type'] != 'correction':
@@ -409,15 +359,13 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
         INSERT INTO memory_service.memories 
             (tenant_id, agent_id, headline, context, full_content, memory_type, 
              entities, project, categories, scope,
-             importance, confidence, embedding, local_embedding,
-             source_session, source_turn, metadata,
-             project_id, thread_id, project_name, thread_title)
+             importance, confidence, embedding,
+             source_session, source_turn, metadata)
         VALUES 
             (%s::UUID, %s, %s, %s, %s, %s,
              %s, %s, %s, %s,
-             %s, %s, %s::extensions.vector, %s::extensions.vector,
-             %s, %s, %s::jsonb,
-             %s, %s, %s, %s)
+             %s, %s, %s::extensions.vector,
+             %s, %s, %s::jsonb)
         RETURNING id;
     """
     
@@ -435,14 +383,9 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
         memory.get('importance', 0.5),
         memory.get('confidence', 0.8),
         embedding,
-        local_embedding,
         memory.get('source_session'),
         memory.get('source_turn'),
-        json.dumps(memory.get('metadata', {})),
-        memory.get('project_id'),
-        memory.get('thread_id'),
-        memory.get('project_name'),
-        memory.get('thread_title')
+        json.dumps(memory.get('metadata', {}))
     )
     
     rows = _db_execute(query, params, tenant_id=current_tenant)
@@ -462,7 +405,6 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
     if mem_id:
         try:
             from graph import extract_relationships_from_memory
-            memory["id"] = mem_id  # Overwrite temp dedup hash with real DB UUID
             extract_relationships_from_memory(memory, memory['agent_id'], tenant_id=current_tenant)
         except Exception as e:
             print(f"  ⚠ Graph extraction failed (non-fatal): {e}")
@@ -491,13 +433,7 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
         json.dumps({"headline": memory["headline"], "type": memory["memory_type"]})
     ), tenant_id=current_tenant, fetch_results=False)
     
-    # Phase 1: Trigger similarity scanner (non-blocking)
-    try:
-        trigger_similarity_scan(mem_id, current_tenant, memory['agent_id'], embedding)
-    except Exception:
-        pass  # Fire-and-forget, don't break on scanner failure
-    
-    return {"id": mem_id, "deduplicated": False}
+    return mem_id
 
 
 def _check_duplicate(agent_id: str, headline: str, embedding: list[float], 
@@ -628,31 +564,18 @@ def _handle_correction(memory: dict, correction_id: str, tenant_id: str):
             break  # Only supersede top match
 
 
-def store_memories(memories: list[dict], tenant_id: str = None) -> dict:
-    """Store multiple memories with tenant isolation. Returns dict with ids, deduplicated_ids, and new_ids."""
+def store_memories(memories: list[dict], tenant_id: str = None) -> list[str]:
+    """Store multiple memories with tenant isolation. Returns list of UUIDs."""
     ids = []
-    deduplicated_ids = []
-    new_ids = []
-    
     for mem in memories:
         try:
-            result = store_memory(mem, tenant_id)
-            ids.append(result["id"])
-            
-            if result["deduplicated"]:
-                deduplicated_ids.append(result["id"])
-                print(f"  🔄 Deduplicated [{mem['memory_type']}]: {mem['headline']}")
-            else:
-                new_ids.append(result["id"])
-                print(f"  💾 Stored [{mem['memory_type']}]: {mem['headline']}")
+            mem_id = store_memory(mem, tenant_id)
+            ids.append(mem_id)
+            print(f"  💾 Stored [{mem['memory_type']}]: {mem['headline']}")
         except Exception as e:
             print(f"  ❌ Failed to store: {mem['headline']} — {e}")
-    
-    return {
-        "ids": ids,
-        "deduplicated_ids": deduplicated_ids,
-        "new_ids": new_ids
-    }
+    return ids
+
 
 def store_handoff(handoff: dict, tenant_id: str = None) -> str:
     """Store a session handoff record with tenant isolation."""
@@ -733,7 +656,7 @@ def _index_entities(agent_id: str, memory_id: str, entities: list[str], tenant_i
             _db_execute("""
                 INSERT INTO memory_service.entity_index (tenant_id, agent_id, entity, memory_id)
                 VALUES (%s::UUID, %s, %s, %s)
-                ON CONFLICT (agent_id, entity, memory_id) DO NOTHING
+                ON CONFLICT (tenant_id, agent_id, entity, memory_id) DO NOTHING
             """, (tenant_id, agent_id, entity_clean, memory_id), tenant_id=tenant_id, fetch_results=False)
         except Exception:
             pass  # Skip duplicates silently

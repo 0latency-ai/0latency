@@ -109,7 +109,7 @@ def _call_anthropic(prompt: str) -> str:
     }
     
     body = {
-        "model": "claude-haiku-4-5-20251001",
+        "model": "claude-3-5-haiku-latest",
         "max_tokens": 4096,
         "temperature": 0.1,
         "system": [

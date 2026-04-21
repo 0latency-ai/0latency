@@ -16,11 +16,8 @@ import hashlib
 import uuid
 import logging
 from datetime import datetime, timezone
-from typing import Optional, List
-from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query, BackgroundTasks
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
-from api.analytics import track_posthog_event, is_first_api_call, is_first_memory_stored, is_first_memory_recalled, check_activation_milestone
-from api.email_service import email_service
+from typing import Optional
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -37,14 +34,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from extraction import extract_memories
 from storage_multitenant import (
-    store_memory, store_memories, set_tenant_context,
+    store_memory, store_memories, set_tenant_context, 
     get_tenant_by_api_key, create_tenant, track_api_usage,
-    _db_execute_rows, _embed_text_local,
+    _db_execute_rows,
 )
-from recall import recall_fixed as recall, recall_hybrid, recall_with_fallback, recall_cross_agent, _bm25_search, _retrieve_candidates
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
-from recall_telemetry import trigger_recall_telemetry
+from recall import recall_fixed as recall
 from graph import (
     get_entity_subgraph, list_entities, get_entity_memories, 
     find_path, upsert_entity, add_relationship,
@@ -73,25 +67,6 @@ except ImportError:
     def track_critical_errors(func):
         return func
 
-# Initialize Sentry for error tracking
-import sentry_sdk
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-
-_sentry_dsn = os.environ.get('SENTRY_DSN')
-if _sentry_dsn:
-    sentry_sdk.init(
-        dsn=_sentry_dsn,
-        integrations=[FastApiIntegration()],
-        traces_sample_rate=0.1,
-        profiles_sample_rate=0.0,
-        environment=os.environ.get('ENVIRONMENT', 'development'),
-        attach_stacktrace=True,
-        send_default_pii=False,
-    )
-    logger.info('✓ Sentry error tracking initialized')
-else:
-    logger.warning('⚠ SENTRY_DSN not set - error tracking disabled')
-
 # --- App ---
 app = FastAPI(
     title="Zero Latency Memory API",
@@ -109,38 +84,15 @@ app.add_middleware(
     allow_credentials=True,
 )
 
-# Global exception handler
-from fastapi.responses import JSONResponse
-import traceback
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    logging.error(f"Unhandled exception: {traceback.format_exc()}")
-    return JSONResponse(
-        status_code=500,
-        content={"error": "Internal server error", "detail": str(exc)}
-    )
-
 # --- Auth Module ---
 
 # Warm embedding cache on startup
-from storage_multitenant import warm_embedding_cache, _get_local_model
+from storage_multitenant import warm_embedding_cache
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup."""
     warm_embedding_cache()
-    
-    # Sprint 4: Pre-warm local embedding model
-    try:
-        import time as _time
-        print("[STARTUP] Pre-warming local embedding model...")
-        _start = _time.time()
-        model = _get_local_model()
-        _load_time = _time.time() - _start
-        print(f"[STARTUP] Local model ready in {_load_time:.2f}s")
-    except Exception as e:
-        print(f"[STARTUP] Warning: Failed to pre-warm local model: {e}")
 
 from api.auth import router as auth_router
 app.include_router(auth_router)
@@ -324,25 +276,6 @@ def _check_cache_bust():
     except Exception as e:
         logger.debug(f"Redis cache-bust check failed: {e}")
 
-def auto_resolve_agent_id(tenant_id: str, provided_agent_id: Optional[str] = None) -> str:
-    """Auto-resolve agent_id when not provided. Returns the agent with the highest memory count."""
-    if provided_agent_id:
-        return provided_agent_id
-
-    rows = _db_execute_rows("""
-        SELECT a.agent_id, COUNT(m.id) as memory_count
-        FROM (SELECT DISTINCT agent_id FROM memory_service.memories
-              WHERE tenant_id = %s AND superseded_at IS NULL) a
-        LEFT JOIN memory_service.memories m ON a.agent_id = m.agent_id
-            AND m.tenant_id = %s AND m.superseded_at IS NULL
-        GROUP BY a.agent_id ORDER BY memory_count DESC LIMIT 1
-    """, (tenant_id, tenant_id), tenant_id=tenant_id)
-
-    if not rows:
-        raise HTTPException(status_code=404, detail="No agents found for this tenant")
-
-    return rows[0][0]
-
 async def require_admin_key(request: Request, x_admin_key: str = Header(..., alias="X-Admin-Key")):
     """Admin authentication for tenant management. Restricted to localhost."""
     # IP allowlist: admin endpoints only accessible from localhost
@@ -376,65 +309,44 @@ class SeedFact(BaseModel):
     importance: float = Field(default=0.5, ge=0.0, le=1.0)
 
 class SeedRequest(BaseModel):
-    agent_id: Optional[str] = Field(None, min_length=1, max_length=128)
+    agent_id: str = Field(..., min_length=1, max_length=128)
     facts: list[SeedFact] = Field(..., min_length=1, max_length=500)
 
 class SeedResponse(BaseModel):
     memories_stored: int
     memory_ids: list[str]
-    deduplicated_count: int = 0
-    new_count: int = 0
 
 
 class ExtractRequest(BaseModel):
-    agent_id: Optional[str] = Field(None, min_length=1, max_length=128)
+    agent_id: str = Field(..., min_length=1, max_length=128)
     human_message: str = Field(..., min_length=1, max_length=50000)
     agent_message: str = Field(..., min_length=1, max_length=50000)
     session_key: Optional[str] = Field(None, max_length=256)
     turn_id: Optional[str] = Field(None, max_length=256)
-    project_id: Optional[str] = Field(None, max_length=256)
-    thread_id: Optional[str] = Field(None, max_length=256)
-    project_name: Optional[str] = Field(None, max_length=512)
-    thread_title: Optional[str] = Field(None, max_length=512)
 
 class AsyncExtractRequest(BaseModel):
-    agent_id: Optional[str] = Field(None, min_length=1, max_length=128)
+    agent_id: str = Field(..., min_length=1, max_length=128)
     content: str = Field(..., min_length=1, max_length=100000)
     session_key: Optional[str] = Field(None, max_length=256)
 
 class ExtractResponse(BaseModel):
     memories_stored: int
     memory_ids: list[str]
-    deduplicated_count: int = 0
-    new_count: int = 0
     entities_extracted: int = 0
     relationships_created: int = 0
     sentiment_analyzed: bool = False
     tier_features_used: list[str] = []
 
 class RecallRequest(BaseModel):
-    agent_id: Optional[str] = Field(None, min_length=1, max_length=128)
+    agent_id: str = Field(..., min_length=1, max_length=128)
     conversation_context: str = Field(..., min_length=1, max_length=50000)
     budget_tokens: int = Field(default=4000, ge=500, le=16000)
-    cross_agent: bool = Field(default=False, description="Enable cross-agent namespace search")
-    confidence_threshold: float = Field(default=0.6, ge=0.0, le=1.0, description="Min confidence before cross-agent fallback")
     dynamic_budget: bool = False
-    project_id: Optional[str] = Field(None, max_length=256, description="Filter recall to a specific project")
 
 class RecallResponse(BaseModel):
     context_block: str
     memories_used: int
     tokens_used: int
-    memory_ids: List[str] = []
-
-class FeedbackRequest(BaseModel):
-    agent_id: Optional[str] = Field(None, min_length=1, max_length=128, description="Agent namespace (auto-resolved if not provided)")
-    memory_id: Optional[str] = Field(None, description="UUID of specific memory (required for used/ignored/contradicted)")
-    feedback_type: str = Field(..., description="One of: used, ignored, contradicted, miss")
-    context: Optional[str] = Field(None, max_length=1000, description="Optional context (required for miss type)")
-
-class FeedbackResponse(BaseModel):
-    status: str
 
 class MemoryItem(BaseModel):
     id: str
@@ -464,11 +376,6 @@ class TenantInfo(BaseModel):
     rate_limit_rpm: int
     api_calls_count: int
 
-class AgentCount(BaseModel):
-    agent_id: str
-    memory_count: int
-    last_active: Optional[datetime] = None
-
 class HealthResponse(BaseModel):
     status: str
     version: str
@@ -485,9 +392,6 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
     # Secret scanning — reject if secrets detected in inbound content
     check_for_secrets(req.human_message, "human_message")
     check_for_secrets(req.agent_message, "agent_message")
-    
-    # Resolve agent_id default: use tenant_id if not provided
-    agent_id = req.agent_id or tenant["id"]
     
     start_time = time.time()
     try:
@@ -507,7 +411,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
                 SELECT headline FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
                 ORDER BY created_at DESC LIMIT 20
-            """, (agent_id, tenant["id"]), tenant_id=tenant["id"])
+            """, (req.agent_id, tenant["id"]), tenant_id=tenant["id"])
             if recent:
                 existing_context = "\n".join(f"- {row[0]}" for row in recent)
         except Exception as e:
@@ -516,7 +420,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
         memories = extract_memories(
             human_message=req.human_message,
             agent_message=req.agent_message,
-            agent_id=agent_id,
+            agent_id=req.agent_id,
             session_key=req.session_key,
             turn_id=req.turn_id,
             existing_context=existing_context,
@@ -524,19 +428,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
         if not memories:
             response = ExtractResponse(memories_stored=0, memory_ids=[])
         else:
-            # Inject project/thread metadata from request into each memory dict
-            if req.project_id or req.thread_id or req.project_name or req.thread_title:
-                for mem in memories:
-                    if req.project_id:
-                        mem['project_id'] = req.project_id
-                    if req.thread_id:
-                        mem['thread_id'] = req.thread_id
-                    if req.project_name:
-                        mem['project_name'] = req.project_name
-                    if req.thread_title:
-                        mem['thread_title'] = req.thread_title
-            result = store_memories(memories, tenant["id"])
-            ids = result["ids"]
+            ids = store_memories(memories, tenant["id"])
             
             # Tier-based auto-enablement of premium features
             entities_extracted = 0
@@ -559,7 +451,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
                         memory_dict["id"] = memory_id
                         
                         # Extract entities and relationships using existing graph function
-                        extract_relationships_from_memory(memory_dict, agent_id, tenant_id=tenant["id"])
+                        extract_relationships_from_memory(memory_dict, req.agent_id, tenant_id=tenant["id"])
                         
                         # Count entities for response
                         entity_count = len(memory_dict.get("entities", []))
@@ -593,24 +485,10 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
         
         # Track usage
         response_time = int((time.time() - start_time) * 1000)
-        track_api_usage(tenant["id"], "/extract",
-                       tokens_used=len(req.human_message + req.agent_message),
+        track_api_usage(tenant["id"], "/extract", 
+                       tokens_used=len(req.human_message + req.agent_message), 
                        response_time_ms=response_time)
         
-        # Track PostHog events
-        if is_first_api_call(tenant["id"]):
-            track_posthog_event(
-                tenant_id=tenant["id"],
-                event_name="first_api_call",
-                properties={"endpoint": "/extract"}
-            )
-        
-        if is_first_memory_stored(tenant["id"]):
-            track_posthog_event(
-                tenant_id=tenant["id"],
-                event_name="first_memory_stored",
-                properties={"input_length": len(req.human_message + req.agent_message)}
-            )
         return response
     except HTTPException:
         raise  # Re-raise HTTP exceptions (429, 401, etc.) as-is
@@ -633,9 +511,6 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
         # Secret scanning on each fact
         for i, fact in enumerate(req.facts):
             check_for_secrets(fact.text, f"facts[{i}].text")
-        
-        # Resolve agent_id default: use tenant_id if not provided
-        agent_id = req.agent_id or tenant["id"]
 
         # Enforce memory limit
         count_rows = _db_execute_rows("""
@@ -654,7 +529,7 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
         for fact in req.facts:
             categories = [fact.category] if fact.category else []
             memories.append({
-                "agent_id": agent_id,
+                "agent_id": req.agent_id,
                 "headline": fact.text,
                 "context": fact.text,
                 "full_content": fact.text,
@@ -669,20 +544,15 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
                 "metadata": {"source": "seed_api"},
             })
 
-        result = store_memories(memories, tenant["id"])
-        response = SeedResponse(
-            memories_stored=len(result["ids"]),
-            memory_ids=result["ids"],
-            deduplicated_count=len(result["deduplicated_ids"]),
-            new_count=len(result["new_ids"])
-        )
+        ids = store_memories(memories, tenant["id"])
+        response = SeedResponse(memories_stored=len(ids), memory_ids=ids)
 
         # Track usage
         response_time = int((time.time() - start_time) * 1000)
         track_api_usage(tenant["id"], "/memories/seed",
                        tokens_used=sum(len(f.text) for f in req.facts),
                        response_time_ms=response_time)
-        
+
         return response
     except HTTPException:
         raise
@@ -708,16 +578,13 @@ async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depend
     # Secret scanning — reject if secrets detected in inbound content
     check_for_secrets(req.content, "content")
     
-    # Resolve agent_id default: use tenant_id if not provided
-    agent_id = req.agent_id or tenant["id"]
-    
     import threading
     
     job_id = str(uuid.uuid4())
     _extract_jobs[job_id] = {
         "status": "accepted",
         "tenant_id": tenant["id"],
-        "agent_id": agent_id,
+        "agent_id": req.agent_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "memories_stored": 0,
         "memory_ids": [],
@@ -729,12 +596,11 @@ async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depend
             memories = extract_memories(
                 human_message=req.content,
                 agent_message="",
-                agent_id=agent_id,
+                agent_id=req.agent_id,
                 session_key=req.session_key,
             )
             if memories:
-                result = store_memories(memories, tenant["id"])
-                ids = result["ids"]
+                ids = store_memories(memories, tenant["id"])
                 _extract_jobs[job_id].update({
                     "status": "complete",
                     "memories_stored": len(ids),
@@ -776,225 +642,65 @@ async def get_extract_job(job_id: str, tenant: dict = Depends(require_api_key)):
     return {k: v for k, v in job.items() if k != "tenant_id"}
 
 
-# Analytics executor — true fire-and-forget background tasks
-_analytics_executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="analytics-bg-")
-def _analytics_fire_and_forget(func, *args):
-    """Submit analytics task to background executor — don't wait, returns immediately"""
-    try:
-        _analytics_executor.submit(func, *args)
-    except Exception:
-        pass  # Executor full or other error — silently skip
-
-
 @app.post("/recall", response_model=RecallResponse)
 @track_critical_errors
-async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api_key), background_tasks: BackgroundTasks = BackgroundTasks()):
-    """Recall relevant memories for a conversation context.
-    
-    Supports multi-agent orchestration via cross-agent recall:
-    - Set cross_agent=true for automatic fallback to cross-agent search
-    - Adjust confidence_threshold (default 0.6) to tune fallback sensitivity
-    """
+async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api_key)):
+    """Recall relevant memories for a conversation context."""
     start_time = time.time()
     try:
-        # Auto-resolve agent_id if not provided
-        _t0 = time.time()
-        agent_id = auto_resolve_agent_id(tenant["id"], req.agent_id)
-        _t1 = time.time()
-
-        # Choose recall strategy based on cross_agent parameter
-        if req.cross_agent:
-            # Use recall_with_fallback for automatic cross-agent search
-            result = recall_with_fallback(
-                agent_id=agent_id,
-                conversation_context=req.conversation_context,
-                budget_tokens=req.budget_tokens,
-                confidence_threshold=req.confidence_threshold,
-                tenant_id=tenant["id"],
-                project_id=req.project_id
-            )
-        else:
-            # Standard single-agent recall
-            result = recall_hybrid(
-                agent_id=agent_id,
-                conversation_context=req.conversation_context,
-                budget_tokens=req.budget_tokens,
-                tenant_id=tenant["id"],
-                project_id=req.project_id
-            )
-
-        _t2 = time.time()
-
-        # Extract memory_ids from recall_details
-        memory_ids = []
-        if result.get("recall_details"):
-            memory_ids = [detail.get("id") for detail in result["recall_details"] if detail.get("id")]
-
+        result = recall(
+            agent_id=req.agent_id,
+            conversation_context=req.conversation_context,
+            budget_tokens=req.budget_tokens,
+            # dynamic_budget=req.dynamic_budget,  # TODO: add to recall_fixed
+        )
         response = RecallResponse(
             context_block=result["context_block"],
             memories_used=result["memories_used"],
             tokens_used=result["tokens_used"],
-            memory_ids=memory_ids,
         )
-
-        # Phase 1: Log recall telemetry (non-blocking)
-        try:
-            trigger_recall_telemetry(
-                tenant["id"],
-                agent_id,
-                req.conversation_context,
-                memory_ids,
-                int((time.time() - start_time) * 1000)
-            )
-        except Exception:
-            pass  # Fire-and-forget, don't break on telemetry failure
         
-        # Track usage — run after response is sent (was blocking ~800ms on sync DB writes)
+        # Track usage
         response_time = int((time.time() - start_time) * 1000)
-        background_tasks.add_task(track_api_usage, tenant["id"], "/recall",
-                                  tokens_used=result["tokens_used"],
-                                  response_time_ms=response_time)
-
-        # Fire activation check in background (executor) — has genuine side effect
-        _analytics_fire_and_forget(check_activation_milestone, tenant["id"])
-
-        _t3 = time.time()
-        _phases = {
-            "agent_resolve_ms": round((_t1 - _t0) * 1000, 1),
-            "recall_exec_ms": round((_t2 - _t1) * 1000, 1),
-            "telemetry_ms": round((_t3 - _t2) * 1000, 1),
-            "total_ms": round((_t3 - start_time) * 1000, 1),
-        }
-        # Merge inner timing from recall_hybrid
-        _inner = result.get("_timing", {})
-        _phases["bm25_ms"] = round(_inner.get("bm25_ms", 0), 1) if isinstance(_inner.get("bm25_ms"), (int, float)) else 0
-        _phases["vector_ms"] = round(_inner.get("vector_ms", 0), 1) if isinstance(_inner.get("vector_ms"), (int, float)) else 0
-        _phases["path"] = _inner.get("path", "unknown")
-        logger.info(f"[RECALL PHASES] agent_resolve={_phases['agent_resolve_ms']:.0f}ms recall_exec={_phases['recall_exec_ms']:.0f}ms bm25={_phases['bm25_ms']:.0f}ms vector={_phases['vector_ms']:.0f}ms telemetry={_phases['telemetry_ms']:.0f}ms total={_phases['total_ms']:.0f}ms path={_phases['path']}")
+        track_api_usage(tenant["id"], "/recall", 
+                       tokens_used=result["tokens_used"], 
+                       response_time_ms=response_time)
+        
         return response
     except Exception as e:
-        background_tasks.add_task(track_api_usage, tenant["id"], "/recall", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
+        track_api_usage(tenant["id"], "/recall", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
         raise HTTPException(500, detail="Recall failed. Please check your input and try again.")
 
 
-
-
-@app.post("/feedback", response_model=FeedbackResponse)
-@track_critical_errors
-async def feedback_endpoint(req: FeedbackRequest, tenant: dict = Depends(require_api_key)):
-    """Submit feedback on recalled memories.
-    
-    Feedback types:
-    - used: Memory was recalled and used by agent
-    - ignored: Memory was recalled but not used
-    - contradicted: Memory conflicts with agent's current knowledge
-    - miss: Agent needed information that wasn't recalled (memory_id optional)
-    
-    This data powers importance score adjustments for self-improvement.
-    """
-    from storage_multitenant import _get_connection_pool
-    
-    # Validate feedback_type
-    valid_types = {'used', 'ignored', 'contradicted', 'miss'}
-    if req.feedback_type not in valid_types:
-        raise HTTPException(400, f"feedback_type must be one of {valid_types}")
-    
-    # For non-miss feedback, memory_id is required
-    if req.feedback_type != 'miss' and not req.memory_id:
-        raise HTTPException(400, f"memory_id required for feedback_type={req.feedback_type}")
-    
-    # For miss feedback, context is required
-    if req.feedback_type == 'miss' and not req.context:
-        raise HTTPException(400, "context required for feedback_type=miss")
-    
-    # Auto-resolve agent_id if not provided
-    agent_id = auto_resolve_agent_id(tenant["id"], req.agent_id)
-    
-    try:
-        pool = _get_connection_pool()
-        conn = pool.getconn()
-        try:
-            cur = conn.cursor()
-            
-            # Find the most recent telemetry entry for this agent (within last 5 minutes)
-            # to link feedback to a specific recall operation
-            cur.execute("""
-                SELECT id FROM memory_service.recall_telemetry
-                WHERE agent_id = %s AND tenant_id = %s
-                AND created_at > NOW() - INTERVAL '5 minutes'
-                ORDER BY created_at DESC LIMIT 1
-            """, (agent_id, tenant["id"]))
-            
-            row = cur.fetchone()
-            telemetry_id = row[0] if row else None
-            
-            # Insert feedback (telemetry_id can be NULL for miss feedback)
-            cur.execute("""
-                INSERT INTO memory_service.recall_feedback 
-                (telemetry_id, tenant_id, agent_id, memory_id, feedback_type, context)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (telemetry_id, tenant["id"], agent_id, 
-                    req.memory_id, req.feedback_type, req.context))
-            
-            conn.commit()
-            cur.close()
-            
-            # Track usage analytics
-            track_api_usage(tenant["id"], "feedback")
-            
-            logger.info(f"Feedback recorded: agent={agent_id} type={req.feedback_type} memory={req.memory_id}")
-            
-            return FeedbackResponse(status="ok")
-            
-        finally:
-            pool.putconn(conn)
-            
-    except Exception as e:
-        logger.error(f"Feedback endpoint failed: {e}")
-        raise HTTPException(500, f"Failed to record feedback: {str(e)}")
-
 @app.get("/memories", response_model=list[MemoryItem])
 async def list_memories(
-    agent_id: Optional[str] = Query(None, min_length=1, max_length=128),
+    agent_id: str = Query(..., min_length=1, max_length=128),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     memory_type: Optional[str] = Query(None, max_length=32),
-    project_id: Optional[str] = Query(None, max_length=256),
     tenant: dict = Depends(require_api_key),
 ):
     """List memories for an agent with pagination."""
     start_time = time.time()
     try:
         tenant_id = tenant["id"]
-
-        # Auto-resolve agent_id if not provided
-        agent_id = auto_resolve_agent_id(tenant_id, agent_id)
-
-        # Build optional filters
-        project_filter = "AND project_id = %s" if project_id else ""
         
         if memory_type:
-            query = f"""
+            rows = _db_execute_rows("""
                 SELECT id, headline, memory_type, importance, created_at
                 FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s AND superseded_at IS NULL AND memory_type = %s
-                {project_filter}
                 ORDER BY created_at DESC
                 LIMIT %s OFFSET %s
-            """
-            params = (agent_id, tenant_id, memory_type) + ((project_id,) if project_id else ()) + (limit, offset)
-            rows = _db_execute_rows(query, params, tenant_id=tenant_id)
+            """, (agent_id, tenant_id, memory_type, limit, offset), tenant_id=tenant_id)
         else:
-            query = f"""
+            rows = _db_execute_rows("""
                 SELECT id, headline, memory_type, importance, created_at
                 FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s AND superseded_at IS NULL
-                {project_filter}
                 ORDER BY created_at DESC
                 LIMIT %s OFFSET %s
-            """
-            params = (agent_id, tenant_id) + ((project_id,) if project_id else ()) + (limit, offset)
-            rows = _db_execute_rows(query, params, tenant_id=tenant_id)
+            """, (agent_id, tenant_id, limit, offset), tenant_id=tenant_id)
         
         items = []
         for row in (rows or []):
@@ -1053,94 +759,40 @@ async def delete_memory(memory_id: str, tenant: dict = Depends(require_api_key))
 
 @app.get("/memories/search")
 async def search_memories(
-    agent_id: Optional[str] = Query(None, min_length=1, max_length=128),
+    agent_id: str = Query(..., min_length=1, max_length=128),
     q: str = Query(..., min_length=1, max_length=500),
     limit: int = Query(20, ge=1, le=100),
-    project_id: Optional[str] = Query(None, max_length=256),
     tenant: dict = Depends(require_api_key),
 ):
-    """Search memories using hybrid BM25 + vector search with RRF fusion. Tenant-isolated."""
+    """Search memories by keyword. Tenant-isolated."""
     try:
-        # Auto-resolve agent_id if not provided
-        agent_id = auto_resolve_agent_id(tenant["id"], agent_id)
-
-        # Run BM25 search (limit 50)
-        bm25_results = []
-        try:
-            bm25_results = _bm25_search(
-                agent_id=agent_id,
-                query=q,
-                tenant_id=tenant["id"],
-                limit=50,
-                project_id=project_id
-            ) or []
-        except Exception as e:
-            logging.warning(f"BM25 search failed: {e}")
-
-        # Run vector search (limit 50)
-        vector_results = []
-        try:
-            query_embedding = _embed_text_local(q)
-            candidates = _retrieve_candidates(
-                agent_id=agent_id,
-                query_embedding=query_embedding,
-                context_text=q,
-                tenant_id=tenant["id"],
-                project_id=project_id
-            ) or []
-            vector_results = candidates[:50]
-        except Exception as e:
-            logging.warning(f"Vector search failed: {e}")
-
-        # Fuse results using Reciprocal Rank Fusion (k=60)
-        K = 60
-        fused_scores = {}
-
-        # Add BM25 scores
-        for rank, result in enumerate(bm25_results):
-            mem_id = result.get("id")
-            if mem_id:
-                fused_scores[mem_id] = fused_scores.get(mem_id, 0.0) + 1.0 / (K + rank + 1)
-
-        # Add vector scores
-        for rank, result in enumerate(vector_results):
-            mem_id = result.get("id")
-            if mem_id:
-                fused_scores[mem_id] = fused_scores.get(mem_id, 0.0) + 1.0 / (K + rank + 1)
-
-        # Build lookup map for memory details
-        memory_map = {}
-        for result in bm25_results + vector_results:
-            mem_id = result.get("id")
-            if mem_id and mem_id not in memory_map:
-                memory_map[mem_id] = result
-
-        # Sort by fused score descending and take top limit
-        ranked_ids = sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)[:limit]
-
-        # Build final results
+        pattern = f"%{q}%"
+        rows = _db_execute_rows("""
+            SELECT id, headline, memory_type, importance, created_at, context
+            FROM memory_service.memories
+            WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+              AND (headline ILIKE %s OR context ILIKE %s)
+            ORDER BY importance DESC, created_at DESC
+            LIMIT %s
+        """, (agent_id, tenant["id"], pattern, pattern, limit), tenant_id=tenant["id"])
+        
         results = []
-        for mem_id, score in ranked_ids:
-            mem = memory_map.get(mem_id, {})
+        for row in (rows or []):
             results.append({
-                "id": str(mem.get("id", "")),
-                "headline": str(mem.get("headline", "")),
-                "memory_type": str(mem.get("memory_type", "fact")),
-                "importance": float(mem.get("importance", 0.5)) if mem.get("importance") is not None else 0.5,
-                "created_at": str(mem.get("created_at", "")),
-                "context": str(mem.get("context", "")),
-                "score": round(score, 6),
+                "id": str(row[0]),
+                "headline": str(row[1]),
+                "memory_type": str(row[2]),
+                "importance": float(row[3]) if row[3] is not None else 0.5,
+                "created_at": str(row[4]),
+                "context": str(row[5]) if row[5] else "",
             })
-
         return results
-
-    except Exception as e:
-        logging.error(f"Search failed: {e}")
+    except Exception:
         raise HTTPException(500, detail="Search failed.")
 
 
 class BatchExtractItem(BaseModel):
-    agent_id: Optional[str] = Field(None, min_length=1, max_length=128)
+    agent_id: str = Field(..., min_length=1, max_length=128)
     human_message: str = Field(..., min_length=1, max_length=50000)
     agent_message: str = Field(..., min_length=1, max_length=50000)
     session_key: Optional[str] = Field(None, max_length=256)
@@ -1152,9 +804,6 @@ class BatchExtractRequest(BaseModel):
 @app.post("/extract/batch")
 async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require_api_key)):
     """Extract memories from multiple conversation turns in one request."""
-    import traceback as _tb
-    logger.info(f"[BATCH DEBUG] /extract/batch called with {len(req.turns)} turns, tenant={tenant['id']}")
-
     # Secret scanning — reject entire batch if any turn contains secrets
     for i, turn in enumerate(req.turns):
         check_for_secrets(turn.human_message, f"turns[{i}].human_message")
@@ -1166,62 +815,32 @@ async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require
     errors = []
     
     for i, turn in enumerate(req.turns):
-        logger.info(f"[BATCH DEBUG] Turn {i}: agent_id={turn.agent_id!r}, human_len={len(turn.human_message)}, agent_len={len(turn.agent_message)}, session_key={turn.session_key!r}")
-        
-        # Resolve agent_id default for this turn
-        agent_id = turn.agent_id or tenant["id"]
         try:
-            # Fetch existing headlines for dedup (matches /extract behavior)
-            existing_context = ""
-            try:
-                recent = _db_execute_rows("""
-                    SELECT headline FROM memory_service.memories
-                    WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
-                    ORDER BY created_at DESC LIMIT 20
-                """, (agent_id, tenant["id"]), tenant_id=tenant["id"])
-                if recent:
-                    existing_context = "\n".join(f"- {row[0]}" for row in recent)
-                    logger.info(f"[BATCH DEBUG] Turn {i}: loaded {len(recent)} existing headlines for dedup")
-            except Exception as ctx_err:
-                logger.warning(f"[BATCH DEBUG] Turn {i}: failed to load dedup context: {ctx_err}")
-
             memories = extract_memories(
                 human_message=turn.human_message,
                 agent_message=turn.agent_message,
-                agent_id=agent_id,
+                agent_id=turn.agent_id,
                 session_key=turn.session_key,
                 turn_id=turn.turn_id,
-                existing_context=existing_context,
             )
-            logger.info(f"[BATCH DEBUG] Turn {i}: extract_memories returned {len(memories) if memories else 0} memories")
             if memories:
-                for j, mem in enumerate(memories):
-                    logger.info(f"[BATCH DEBUG]   mem[{j}]: type={mem.get('memory_type')}, headline={mem.get('headline', '')[:80]!r}")
-                result = store_memories(memories, tenant["id"])
-                ids = result["ids"]
-                logger.info(f"[BATCH DEBUG] Turn {i}: store_memories returned {len(ids)} ids: {ids}")
+                ids = store_memories(memories, tenant["id"])
                 total_stored += len(ids)
                 all_ids.extend(ids)
-            else:
-                logger.warning(f"[BATCH DEBUG] Turn {i}: extract_memories returned empty/None — no memories to store")
         except Exception as e:
-            logger.error(f"[BATCH DEBUG] Turn {i}: EXCEPTION: {type(e).__name__}: {e}")
-            logger.error(f"[BATCH DEBUG] Turn {i}: traceback:\n{_tb.format_exc()}")
-            errors.append({"turn": i, "error": f"extraction failed: {type(e).__name__}: {str(e)[:200]}"})
+            errors.append({"turn": i, "error": "extraction failed"})
     
     response_time = int((time.time() - start_time) * 1000)
     track_api_usage(tenant["id"], "/extract/batch", 
                    tokens_used=sum(len(t.human_message + t.agent_message) for t in req.turns),
                    response_time_ms=response_time)
     
-    resp = {
+    return {
         "turns_processed": len(req.turns),
         "memories_stored": total_stored,
         "memory_ids": all_ids,
         "errors": errors if errors else None,
     }
-    logger.info(f"[BATCH DEBUG] Final response: turns_processed={resp['turns_processed']}, memories_stored={resp['memories_stored']}, errors={resp['errors']}")
-    return resp
 
 
 # === BULK IMPORT & THREAD IMPORT ENDPOINTS ===
@@ -1326,8 +945,7 @@ async def bulk_import_endpoint(req: BulkImportRequest, tenant: dict = Depends(re
                 existing_context=existing_context,
             )
             if memories:
-                result = store_memories(memories, tenant["id"])
-                ids = result["ids"]
+                ids = store_memories(memories, tenant["id"])
                 total_stored += len(ids)
                 all_ids.extend(ids)
                 # Update dedup context with new headlines
@@ -1431,8 +1049,7 @@ async def thread_import_endpoint(req: ThreadImportRequest, tenant: dict = Depend
                 recent_turns=recent_pairs[-4:] if recent_pairs else None,
             )
             if memories:
-                result = store_memories(memories, tenant["id"])
-                ids = result["ids"]
+                ids = store_memories(memories, tenant["id"])
                 total_stored += len(ids)
                 all_ids.extend(ids)
                 for mem in memories:
@@ -1447,6 +1064,7 @@ async def thread_import_endpoint(req: ThreadImportRequest, tenant: dict = Depend
     track_api_usage(tenant["id"], "/memories/import-thread",
                    tokens_used=sum(len(t.content) for t in req.conversation),
                    response_time_ms=response_time)
+    
     return {
         "memories_stored": total_stored,
         "memory_ids": all_ids,
@@ -1574,7 +1192,7 @@ async def demo_extract_endpoint(req: DemoExtractRequest, request: Request):
         raise HTTPException(500, detail="Extraction failed. Please try again.")
 
 
-@app.api_route("/health", methods=["GET", "HEAD"], response_model=HealthResponse)
+@app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check — no auth required. Verifies DB connectivity and pool status."""
     try:
@@ -2062,40 +1680,6 @@ async def get_tenant_info(tenant: dict = Depends(require_api_key)):
     )
 
 
-
-@app.get("/agents", response_model=list[AgentCount])
-async def list_agents(tenant: dict = Depends(require_api_key)):
-    """List all distinct agent_id values for the authenticated tenant with memory counts."""
-    start_time = time.time()
-    try:
-        tenant_id = tenant["id"]
-        
-        rows = _db_execute_rows("""
-            SELECT agent_id, COUNT(*) as memory_count,
-                   MAX(GREATEST(created_at, COALESCE(last_accessed, created_at))) as last_active
-            FROM memory_service.memories
-            WHERE tenant_id = %s::UUID AND superseded_at IS NULL
-            GROUP BY agent_id
-            ORDER BY memory_count DESC
-        """, (tenant_id,), tenant_id=tenant_id)
-        
-        agents = []
-        for row in (rows or []):
-            agents.append(AgentCount(
-                agent_id=str(row[0]),
-                memory_count=int(row[1]),
-                last_active=row[2]
-            ))
-        
-        # Track usage
-        response_time = int((time.time() - start_time) * 1000)
-        track_api_usage(tenant["id"], "/agents", response_time_ms=response_time)
-        
-        return agents
-    except Exception as e:
-        track_api_usage(tenant["id"], "/agents", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
-        raise HTTPException(500, detail="Failed to list agents. Please try again.")
-
 @app.get("/usage")
 async def get_usage(
     days: int = Query(7, ge=1, le=90),
@@ -2150,16 +1734,6 @@ async def create_api_key(req: CreateTenantRequest, admin: bool = Depends(require
     """Create a new tenant and API key. Requires admin authentication."""
     try:
         tenant = create_tenant(req.name, req.plan)
-        
-        # Track API key creation
-        track_posthog_event(
-            tenant_id=tenant["tenant_id"],
-            event_name="api_key_created",
-            properties={
-                "method": "admin_create",
-                "name": req.name
-            }
-        )
         return CreateTenantResponse(**tenant)
     except Exception as e:
         raise HTTPException(500, detail="Failed to create tenant.")
@@ -2316,232 +1890,3 @@ async def fix_github_tenant():
     )
     
     return {"fixed": True, "tenant_id": tenant_id, "api_key": api_key}
-
-
-# ═══════════════════════════════════════════════════════════════════════════
-# Admin Analytics Endpoints (v1)
-# ═══════════════════════════════════════════════════════════════════════════
-
-@app.get("/admin/analytics/summary")
-async def admin_analytics_summary(admin: bool = Depends(require_admin_key)):
-    """Admin endpoint: Platform-wide usage summary."""
-    try:
-        # Total active tenants
-        total_tenants_rows = _db_execute_rows(
-            "SELECT COUNT(*) FROM memory_service.tenants WHERE active = true",
-            tenant_id="00000000-0000-0000-0000-000000000000"
-        )
-        total_tenants = total_tenants_rows[0][0] if total_tenants_rows else 0
-        
-        # MAU - tenants active in last 30 days
-        mau_rows = _db_execute_rows(
-            """SELECT COUNT(DISTINCT tenant_id) 
-               FROM memory_service.tenant_usage_daily 
-               WHERE day >= CURRENT_DATE - INTERVAL '30 days'
-                 AND (memories_added_today > 0 OR recalls_today > 0)""",
-            tenant_id="00000000-0000-0000-0000-000000000000"
-        )
-        mau = mau_rows[0][0] if mau_rows and mau_rows[0][0] else 0
-        
-        # DAU - tenants active yesterday
-        dau_rows = _db_execute_rows(
-            """SELECT COUNT(DISTINCT tenant_id) 
-               FROM memory_service.tenant_usage_daily 
-               WHERE day = CURRENT_DATE - INTERVAL '1 day'
-                 AND (memories_added_today > 0 OR recalls_today > 0)""",
-            tenant_id="00000000-0000-0000-0000-000000000000"
-        )
-        dau = dau_rows[0][0] if dau_rows and dau_rows[0][0] else 0
-        
-        # Median memories per user
-        median_rows = _db_execute_rows(
-            """SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY memories_total)
-               FROM (
-                   SELECT DISTINCT ON (tenant_id) memories_total
-                   FROM memory_service.tenant_usage_daily
-                   ORDER BY tenant_id, day DESC
-               ) AS latest_memories""",
-            tenant_id="00000000-0000-0000-0000-000000000000"
-        )
-        median_memories = median_rows[0][0] if median_rows and median_rows[0][0] else 0
-        
-        # P95 recalls per day
-        p95_rows = _db_execute_rows(
-            """SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY recalls_today)
-               FROM memory_service.tenant_usage_daily
-               WHERE day >= CURRENT_DATE - INTERVAL '30 days'""",
-            tenant_id="00000000-0000-0000-0000-000000000000"
-        )
-        p95_recalls = p95_rows[0][0] if p95_rows and p95_rows[0][0] else 0
-        
-        # Total cost last 30 days
-        cost_rows = _db_execute_rows(
-            """SELECT SUM(estimated_cost_usd)
-               FROM memory_service.tenant_usage_daily
-               WHERE day >= CURRENT_DATE - INTERVAL '30 days'""",
-            tenant_id="00000000-0000-0000-0000-000000000000"
-        )
-        total_cost_30d = cost_rows[0][0] if cost_rows and cost_rows[0][0] else 0
-        
-        # Breakdown by tier
-        tier_rows = _db_execute_rows(
-            """SELECT t.plan, SUM(u.estimated_cost_usd) as tier_cost
-               FROM memory_service.tenant_usage_daily u
-               JOIN memory_service.tenants t ON u.tenant_id = t.id
-               WHERE u.day >= CURRENT_DATE - INTERVAL '30 days'
-               GROUP BY t.plan
-               ORDER BY tier_cost DESC""",
-            tenant_id="00000000-0000-0000-0000-000000000000"
-        )
-        tier_breakdown = [
-            {"tier": row[0], "cost_30d": float(row[1] or 0)}
-            for row in (tier_rows or [])
-        ]
-        
-        return {
-            "total_tenants": int(total_tenants),
-            "mau": int(mau),
-            "dau": int(dau),
-            "median_memories_per_user": float(median_memories),
-            "p95_recalls_per_day": float(p95_recalls),
-            "total_cost_last_30d": float(total_cost_30d),
-            "cost_by_tier": tier_breakdown
-        }
-    except Exception as e:
-        logger.error(f"Admin analytics summary failed: {e}")
-        raise HTTPException(500, detail="Failed to fetch analytics summary")
-
-
-@app.get("/admin/analytics/tenants")
-async def admin_analytics_tenants(
-    admin: bool = Depends(require_admin_key),
-    sort_by: str = Query(default="estimated_cost_usd", regex="^(estimated_cost_usd|memories_total|recalls_today|last_active_at)$"),
-    limit: int = Query(default=100, ge=1, le=1000),
-    promo_code: Optional[str] = None
-):
-    """Admin endpoint: List all tenants with usage data."""
-    try:
-        # Build query - note: _db_execute_rows doesn't support parameterized WHERE clauses easily
-        # so we'll filter in Python if needed
-        rows = _db_execute_rows(
-            """WITH latest_usage AS (
-                   SELECT DISTINCT ON (tenant_id)
-                       tenant_id, day, memories_total, estimated_cost_usd, last_active_at
-                   FROM memory_service.tenant_usage_daily
-                   ORDER BY tenant_id, day DESC
-               ),
-               recalls_7d AS (
-                   SELECT tenant_id, SUM(recalls_today) as recalls_last_7d
-                   FROM memory_service.tenant_usage_daily
-                   WHERE day >= CURRENT_DATE - INTERVAL '7 days'
-                   GROUP BY tenant_id
-               )
-               SELECT 
-                   t.id, t.email, t.plan, t.promo_code, t.created_at,
-                   COALESCE(u.memories_total, 0) as memories_total,
-                   COALESCE(r.recalls_last_7d, 0) as recalls_7d,
-                   u.last_active_at,
-                   COALESCE(u.estimated_cost_usd, 0) * 30 as estimated_monthly_cost
-               FROM memory_service.tenants t
-               LEFT JOIN latest_usage u ON t.id = u.tenant_id
-               LEFT JOIN recalls_7d r ON t.id = r.tenant_id
-               WHERE t.active = true
-               ORDER BY estimated_monthly_cost DESC
-               LIMIT 200""",
-            tenant_id="00000000-0000-0000-0000-000000000000"
-        )
-        
-        tenants = []
-        for row in (rows or []):
-            # Apply promo_code filter if specified
-            if promo_code and row[3] != promo_code:
-                continue
-            
-            tenants.append({
-                "tenant_id": str(row[0]),
-                "email": row[1],
-                "tier": row[2],
-                "promo_code": row[3],
-                "signup_date": str(row[4]) if row[4] else None,
-                "memories_total": int(row[5]),
-                "recalls_7d": int(row[6]),
-                "last_active_at": str(row[7]) if row[7] else None,
-                "estimated_monthly_cost_usd": float(row[8])
-            })
-            
-            if len(tenants) >= limit:
-                break
-        
-        return {"tenants": tenants, "count": len(tenants)}
-    except Exception as e:
-        logger.error(f"Admin analytics tenants list failed: {e}")
-        raise HTTPException(500, detail="Failed to fetch tenants analytics")
-
-
-@app.get("/admin/analytics/tenants/{tenant_id}")
-async def admin_analytics_tenant_detail(
-    tenant_id: str,
-    admin: bool = Depends(require_admin_key)
-):
-    """Admin endpoint: Per-tenant usage detail."""
-    try:
-        # Get tenant info
-        tenant_rows = _db_execute_rows(
-            """SELECT id, email, plan, promo_code, created_at, active
-               FROM memory_service.tenants
-               WHERE id = %s::UUID""",
-            tenant_id="00000000-0000-0000-0000-000000000000",
-            params=(tenant_id,)
-        )
-        
-        if not tenant_rows:
-            raise HTTPException(404, detail="Tenant not found")
-        
-        tenant_row = tenant_rows[0]
-        tenant_info = {
-            "tenant_id": str(tenant_row[0]),
-            "email": tenant_row[1],
-            "tier": tenant_row[2],
-            "promo_code": tenant_row[3],
-            "signup_date": str(tenant_row[4]) if tenant_row[4] else None,
-            "active": tenant_row[5]
-        }
-        
-        # Get last 30 days of usage data
-        usage_rows = _db_execute_rows(
-            """SELECT day, memories_total, memories_added_today, recalls_today,
-                      extractions_today, api_calls_today, agents_active, storage_bytes,
-                      estimated_cost_usd, last_active_at
-               FROM memory_service.tenant_usage_daily
-               WHERE tenant_id = %s::UUID
-                 AND day >= CURRENT_DATE - INTERVAL '30 days'
-               ORDER BY day DESC""",
-            tenant_id="00000000-0000-0000-0000-000000000000",
-            params=(tenant_id,)
-        )
-        
-        daily_usage = []
-        for row in (usage_rows or []):
-            daily_usage.append({
-                "day": str(row[0]),
-                "memories_total": int(row[1]),
-                "memories_added_today": int(row[2]),
-                "recalls_today": int(row[3]),
-                "extractions_today": int(row[4]),
-                "api_calls_today": int(row[5]),
-                "agents_active": int(row[6]),
-                "storage_bytes": int(row[7]),
-                "estimated_cost_usd": float(row[8]),
-                "last_active_at": str(row[9]) if row[9] else None
-            })
-        
-        return {
-            "tenant": tenant_info,
-            "usage_last_30d": daily_usage,
-            "total_days": len(daily_usage)
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Admin analytics tenant detail failed: {e}")
-        raise HTTPException(500, detail="Failed to fetch tenant detail")

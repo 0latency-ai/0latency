@@ -1,7 +1,0 @@
-Store this memory: I prefer working with Python and FastAPI for backend development
-
-Recall everything about my programming preferences
-
-Search my memories for "Python"
-
-Show me my recent memories from the past week
