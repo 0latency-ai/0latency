@@ -460,10 +460,10 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     _s3_count = 0
     _s3_skipped = True  # Will be set to False if keyword search runs
     
-    # Strategy 3: Keyword search — parameterized ILIKE
+    # Strategy 3: Keyword search — full-text search with GIN index
     try:
-        import re
-        words = re.findall(r'\b[a-zA-Z]{3,}\b', context_text.lower())
+        import re as re_inner
+        words = re_inner.findall(r'\b[a-zA-Z]{3,}\b', context_text.lower())
         stop_words = {'this', 'that', 'with', 'from', 'what', 'when', 'where', 'which', 'about',
                       'have', 'been', 'will', 'would', 'could', 'should', 'their', 'there',
                       'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her',
@@ -474,58 +474,62 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             _s3_skipped = False  # Keywords found, search will run
             existing_ids = list(candidates.keys()) if candidates else ["00000000-0000-0000-0000-000000000000"]
             
-            # Build parameterized OR conditions for keywords
-            keyword_conditions = []
-            keyword_params = []
+            # Sanitize keywords for tsquery (remove special chars)
+            sanitized_keywords = []
             for kw in keywords:
-                keyword_conditions.append("(headline ILIKE %s OR context ILIKE %s)")
-                pattern = f"%{kw}%"
-                keyword_params.extend([pattern, pattern])
+                clean_kw = re_inner.sub(r'[^a-zA-Z0-9\s]', '', kw).strip()
+                if clean_kw:
+                    sanitized_keywords.append(clean_kw)
             
-            condition_str = " OR ".join(keyword_conditions)
-            
-            # Use a direct psycopg2 query for the complex parameterized keyword search
-            pool = _get_connection_pool()
-            conn = pool.getconn()
-            cur = conn.cursor()
-            try:
-                cur.execute("BEGIN")
-                cur.execute("SELECT memory_service.set_tenant_context(%s)", (_tid,))
+            if sanitized_keywords:
+                # Build tsquery: keyword1 OR keyword2 OR keyword3 ...
+                tsquery_str = ' OR '.join(sanitized_keywords)
                 
-                # condition_str is built from hardcoded "ILIKE %s" templates — safe
-                query = f"""
-                    SELECT id, headline, context, full_content, memory_type,
-                           importance, access_count, reinforcement_count,
-                           created_at, superseded_at, 0.35 as similarity
-                    FROM memory_service.memories
-                    WHERE agent_id = %s AND tenant_id = %s::UUID
-                      AND superseded_at IS NULL
-                      AND ({condition_str})
-                      {_project_filter}
-                      AND id NOT IN (SELECT unnest(%s::uuid[]))
-                    ORDER BY importance DESC
-                    LIMIT 100
-                """  # nosec B608 — all values parameterized via %s
-                params = [agent_id, _tid] + keyword_params + ([project_id] if project_id else []) + [existing_ids]
-                cur.execute(query, params)
-                
-                if cur.description:
-                    for row_tuple in cur.fetchall():
-                        row_str = "|||".join(str(val) if val is not None else "" for val in row_tuple)
-                        parts = row_str.split("|||")
-                        if len(parts) >= 11:
-                            mem_id = parts[0]
-                            if mem_id not in candidates:
-                                candidates[mem_id] = _parse_candidate_row(parts)
-                                _s3_count += 1
-                
-                cur.execute("COMMIT")
-            except Exception as e:
-                cur.execute("ROLLBACK")
-                print(f"Warning: Keyword search query failed: {e}")
-            finally:
-                cur.close()
-                pool.putconn(conn)
+                # Use direct psycopg2 query with full-text search
+                pool = _get_connection_pool()
+                conn = pool.getconn()
+                cur = conn.cursor()
+                try:
+                    cur.execute("BEGIN")
+                    cur.execute("SELECT memory_service.set_tenant_context(%s)", (_tid,))
+                    
+                    # Use existing search_text GIN index for fast full-text search
+                    query = f"""
+                        SELECT id, headline, context, full_content, memory_type,
+                               importance, access_count, reinforcement_count,
+                               created_at, superseded_at, 0.35 as similarity
+                        FROM memory_service.memories
+                        WHERE agent_id = %s AND tenant_id = %s::UUID
+                          AND superseded_at IS NULL
+                          AND search_text @@ websearch_to_tsquery('english', %s)
+                          {_project_filter}
+                          AND id NOT IN (SELECT unnest(%s::uuid[]))
+                        ORDER BY importance DESC
+                        LIMIT 100
+                    """  # nosec B608 — all values parameterized via %s
+                    params = [agent_id, _tid, tsquery_str] + ([project_id] if project_id else []) + [existing_ids]
+                    cur.execute(query, params)
+                    
+                    if cur.description:
+                        for row_tuple in cur.fetchall():
+                            row_str = "|||".join(str(val) if val is not None else "" for val in row_tuple)
+                            parts = row_str.split("|||")
+                            if len(parts) >= 11:
+                                mem_id = parts[0]
+                                if mem_id not in candidates:
+                                    candidates[mem_id] = _parse_candidate_row(parts)
+                                    _s3_count += 1
+                    
+                    cur.execute("COMMIT")
+                except Exception as e:
+                    cur.execute("ROLLBACK")
+                    print(f"Warning: Keyword search query failed: {e}")
+                finally:
+                    cur.close()
+                    pool.putconn(conn)
+            else:
+                # No valid keywords after sanitization
+                _s3_skipped = True
     except Exception as e:
         print(f"Warning: Keyword search failed: {e}")
     
