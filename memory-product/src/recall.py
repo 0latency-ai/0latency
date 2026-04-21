@@ -462,6 +462,8 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     
     # Strategy 3: Keyword search — full-text search with GIN index
     try:
+        # Phase 1: Keyword extraction
+        _t_s3_extract_start = _time_cp6.perf_counter()
         import re as re_inner
         words = re_inner.findall(r'\b[a-zA-Z]{3,}\b', context_text.lower())
         stop_words = {'this', 'that', 'with', 'from', 'what', 'when', 'where', 'which', 'about',
@@ -469,49 +471,66 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                       'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her',
                       'was', 'one', 'our', 'out'}
         keywords = [w for w in words if w not in stop_words][:5]
+        _t_s3_extract_ms = int((_time_cp6.perf_counter() - _t_s3_extract_start) * 1000)
         
         if keywords:
             _s3_skipped = False  # Keywords found, search will run
             existing_ids = list(candidates.keys()) if candidates else ["00000000-0000-0000-0000-000000000000"]
             
-            # Sanitize keywords for tsquery (remove special chars)
+            # Phase 2: Keyword sanitization
+            _t_s3_sanitize_start = _time_cp6.perf_counter()
             sanitized_keywords = []
             for kw in keywords:
                 clean_kw = re_inner.sub(r'[^a-zA-Z0-9\s]', '', kw).strip()
                 if clean_kw:
                     sanitized_keywords.append(clean_kw)
+            _t_s3_sanitize_ms = int((_time_cp6.perf_counter() - _t_s3_sanitize_start) * 1000)
             
             if sanitized_keywords:
+                # Phase 3: Query build
+                _t_s3_build_start = _time_cp6.perf_counter()
                 # Build tsquery: keyword1 OR keyword2 OR keyword3 ...
                 tsquery_str = ' OR '.join(sanitized_keywords)
                 
                 # Use direct psycopg2 query with full-text search
+                # Build SQL query string
+                query = f"""
+                    SELECT id, headline, context, full_content, memory_type,
+                           importance, access_count, reinforcement_count,
+                           created_at, superseded_at, 0.35 as similarity
+                    FROM memory_service.memories
+                    WHERE agent_id = %s AND tenant_id = %s::UUID
+                      AND superseded_at IS NULL
+                      AND search_text @@ websearch_to_tsquery('english', %s)
+                      {_project_filter}
+                      AND id NOT IN (SELECT unnest(%s::uuid[]))
+                    ORDER BY importance DESC
+                    LIMIT 100
+                """  # nosec B608 — all values parameterized via %s
+                params = [agent_id, _tid, tsquery_str] + ([project_id] if project_id else []) + [existing_ids]
+                _t_s3_build_ms = int((_time_cp6.perf_counter() - _t_s3_build_start) * 1000)
+                
+                # Phase 4: DB connection setup
+                _t_s3_conn_start = _time_cp6.perf_counter()
                 pool = _get_connection_pool()
                 conn = pool.getconn()
                 cur = conn.cursor()
+                cur.execute("BEGIN")
+                cur.execute("SELECT memory_service.set_tenant_context(%s)", (_tid,))
+                _t_s3_conn_ms = int((_time_cp6.perf_counter() - _t_s3_conn_start) * 1000)
+                
                 try:
-                    cur.execute("BEGIN")
-                    cur.execute("SELECT memory_service.set_tenant_context(%s)", (_tid,))
-                    
-                    # Use existing search_text GIN index for fast full-text search
-                    query = f"""
-                        SELECT id, headline, context, full_content, memory_type,
-                               importance, access_count, reinforcement_count,
-                               created_at, superseded_at, 0.35 as similarity
-                        FROM memory_service.memories
-                        WHERE agent_id = %s AND tenant_id = %s::UUID
-                          AND superseded_at IS NULL
-                          AND search_text @@ websearch_to_tsquery('english', %s)
-                          {_project_filter}
-                          AND id NOT IN (SELECT unnest(%s::uuid[]))
-                        ORDER BY importance DESC
-                        LIMIT 100
-                    """  # nosec B608 — all values parameterized via %s
-                    params = [agent_id, _tid, tsquery_str] + ([project_id] if project_id else []) + [existing_ids]
+                    # Phase 5: DB execute
+                    _t_s3_exec_start = _time_cp6.perf_counter()
                     cur.execute(query, params)
+                    _t_s3_exec_ms = int((_time_cp6.perf_counter() - _t_s3_exec_start) * 1000)
                     
+                    # Phase 6: Row fetch + materialize
+                    _t_s3_fetch_start = _time_cp6.perf_counter()
+                    _s3_rows_fetched = 0
                     if cur.description:
                         for row_tuple in cur.fetchall():
+                            _s3_rows_fetched += 1
                             row_str = "|||".join(str(val) if val is not None else "" for val in row_tuple)
                             parts = row_str.split("|||")
                             if len(parts) >= 11:
@@ -519,20 +538,29 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                                 if mem_id not in candidates:
                                     candidates[mem_id] = _parse_candidate_row(parts)
                                     _s3_count += 1
+                    _t_s3_fetch_ms = int((_time_cp6.perf_counter() - _t_s3_fetch_start) * 1000)
                     
+                    # Phase 7: Commit
+                    _t_s3_commit_start = _time_cp6.perf_counter()
                     cur.execute("COMMIT")
+                    _t_s3_commit_ms = int((_time_cp6.perf_counter() - _t_s3_commit_start) * 1000)
                 except Exception as e:
                     cur.execute("ROLLBACK")
                     print(f"Warning: Keyword search query failed: {e}")
+                    _t_s3_sanitize_ms = _t_s3_build_ms = _t_s3_conn_ms = _t_s3_exec_ms = _t_s3_fetch_ms = _t_s3_commit_ms = 0
+                    _s3_rows_fetched = 0
                 finally:
                     cur.close()
                     pool.putconn(conn)
             else:
                 # No valid keywords after sanitization
                 _s3_skipped = True
-    except Exception as e:
-        print(f"Warning: Keyword search failed: {e}")
-    
+                _t_s3_sanitize_ms = _t_s3_build_ms = _t_s3_conn_ms = _t_s3_exec_ms = _t_s3_fetch_ms = _t_s3_commit_ms = 0
+                _s3_rows_fetched = 0
+        else:
+            # No keywords found
+            _t_s3_extract_ms = _t_s3_sanitize_ms = _t_s3_build_ms = _t_s3_conn_ms = _t_s3_exec_ms = _t_s3_fetch_ms = _t_s3_commit_ms = 0
+            _s3_rows_fetched = 0
     _t_s3_end = _time_cp6.perf_counter()
     _t_s3_ms = int((_t_s3_end - _t_s3_start) * 1000)
     
@@ -541,6 +569,11 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     
     logger.info(f"[VECTOR SUBPHASES] db={_t_db_ms}ms post={_t_post_ms}ms")
     logger.info(f"[POST SUBPHASES] s2={_t_s2_ms}ms s2_rows={_s2_count} s3={_t_s3_ms}ms s3_rows={_s3_count} s3_skipped={_s3_skipped}")
+    logger.info(
+        f"[S3 SUBPHASES] extract={_t_s3_extract_ms}ms sanitize={_t_s3_sanitize_ms}ms "
+        f"build={_t_s3_build_ms}ms conn={_t_s3_conn_ms}ms exec={_t_s3_exec_ms}ms "
+        f"fetch={_t_s3_fetch_ms}ms commit={_t_s3_commit_ms}ms rows_fetched={_s3_rows_fetched}"
+    )
 
     return list(candidates.values()), {"db_ms": _t_db_ms, "post_ms": _t_post_ms}
 
