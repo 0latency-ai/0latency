@@ -1396,6 +1396,7 @@ Prior checkpoints (newest first):
     }
     
     try:
+        import requests
         resp = requests.post(url, headers=headers, json=body, timeout=60)
         resp.raise_for_status()
         result = resp.json()
