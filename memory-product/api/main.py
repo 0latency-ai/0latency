@@ -151,6 +151,7 @@ app.include_router(billing_router)
 
 # --- Security Module (secret scanning) ---
 from api.security import router as security_router, check_for_secrets
+from api.checkpoint_validation import validate_session_checkpoint_metadata
 app.include_router(security_router)
 
 @app.middleware("http")
@@ -372,8 +373,10 @@ async def dashboard(request: Request, tenant=Depends(require_api_key)):
 
 class SeedFact(BaseModel):
     text: str = Field(..., min_length=1, max_length=5000)
-    category: Optional[str] = Field(None, max_length=64)
+    category: Optional[str] = Field(None, max_length=64, deprecated=True, description="Deprecated: use memory_type instead")
     importance: float = Field(default=0.5, ge=0.0, le=1.0)
+    memory_type: Optional[str] = Field(None, max_length=64, description="Memory type (fact, preference, event, instruction, etc.)")
+    metadata: Optional[dict] = Field(default_factory=dict, description="Optional metadata as JSONB object")
 
 class SeedRequest(BaseModel):
     agent_id: Optional[str] = Field(None, min_length=1, max_length=128)
@@ -397,6 +400,38 @@ class AsyncExtractRequest(BaseModel):
     agent_id: Optional[str] = Field(None, min_length=1, max_length=128)
     content: str = Field(..., min_length=1, max_length=100000)
     session_key: Optional[str] = Field(None, max_length=256)
+
+
+# CP7b Phase 2: Checkpoint models
+class CheckpointRequest(BaseModel):
+    project_id: Optional[str] = Field(None, description="Project UUID")
+    thread_id: str = Field(..., description="Thread UUID")
+    turn_range: List[int] = Field(..., description="[start_turn, end_turn]")
+    parent_memory_ids: List[str] = Field(..., description="UUIDs of atoms to summarize")
+    parent_checkpoint_id: Optional[str] = Field(None, description="Previous checkpoint UUID")
+    thread_title: Optional[str] = None
+    project_name: Optional[str] = None
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    source: Optional[str] = Field("server_job", description="Checkpoint source: server_job | agent | extension")
+
+class CheckpointResponse(BaseModel):
+    checkpoint_id: str
+    job_id: Optional[str] = None
+    deduplicated: bool = False
+
+class ResumeRequest(BaseModel):
+    agent_id: str
+    project_id: str  # UUID
+    project_name: Optional[str] = None
+    thread_id: str  # new thread's UUID
+    thread_title: Optional[str] = None
+
+class ResumeResponse(BaseModel):
+    resume_checkpoint_id: Optional[str]  # None if no prior checkpoints exist
+    status: str  # "written" | "no_prior_context" | "deduplicated"
+    prior_checkpoints_used: int
+    tail_recoveries_written: List[str]  # IDs of any tail_recovery checkpoints written this call
+    tail_recoveries_deferred: int  # Count of eligible orphans skipped due to cap
 
 class ExtractResponse(BaseModel):
     memories_stored: int
@@ -618,6 +653,13 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
         for i, fact in enumerate(req.facts):
             check_for_secrets(fact.text, f"facts[{i}].text")
         
+        # CP7b Phase 1: Validate session_checkpoint metadata
+        for i, fact in enumerate(req.facts):
+            validate_session_checkpoint_metadata(
+                fact.metadata or {},
+                fact.memory_type or fact.category or "fact"
+            )
+        
         # Resolve agent_id default: use tenant_id if not provided
         agent_id = req.agent_id or tenant["id"]
 
@@ -642,7 +684,7 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
                 "headline": fact.text,
                 "context": fact.text,
                 "full_content": fact.text,
-                "memory_type": fact.category or "fact",
+                "memory_type": fact.memory_type or fact.category or "fact",
                 "importance": fact.importance,
                 "confidence": 0.9,
                 "entities": [],
@@ -650,7 +692,7 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
                 "scope": "/",
                 "source_session": "seed",
                 "source_turn": None,
-                "metadata": {"source": "seed_api"},
+                "metadata": {**(fact.metadata or {}), "source": (fact.metadata or {}).get("source", "seed_api")},
             })
 
         result = store_memories(memories, tenant["id"])
@@ -758,6 +800,678 @@ async def get_extract_job(job_id: str, tenant: dict = Depends(require_api_key)):
     if job["tenant_id"] != tenant["id"]:
         raise HTTPException(404, detail="Job not found")
     return {k: v for k, v in job.items() if k != "tenant_id"}
+
+
+
+@app.post("/memories/checkpoint", response_model=CheckpointResponse)
+async def create_checkpoint(req: CheckpointRequest, tenant: dict = Depends(require_api_key)):
+    """
+    CP7b Phase 2: Mid-thread rollup checkpoint creation.
+    Dedup guard → Haiku summarization → session_checkpoint memory write.
+    """
+    import threading
+    import requests
+
+    # Dedup guard: check for existing checkpoint with overlapping turn_range
+    try:
+        existing = _db_execute_rows(f"""
+            SELECT id, metadata
+            FROM memory_service.memories
+            WHERE tenant_id = %s::UUID
+              AND agent_id = %s
+              AND memory_type = 'session_checkpoint'
+              AND metadata->>'thread_id' = %s
+              AND (metadata->>'turn_range')::jsonb IS NOT NULL
+        """, (tenant["id"], req.agent_id, req.thread_id), tenant_id=tenant["id"])
+
+        # Check for range overlap: [a,b] overlaps [c,d] if a <= d AND c <= b
+        for row in existing:
+            existing_range = row[1].get("turn_range", [])
+            if len(existing_range) == 2:
+                if req.turn_range[0] <= existing_range[1] and existing_range[0] <= req.turn_range[1]:
+                    logger.info(f"Dedup: checkpoint for thread {req.thread_id} range {req.turn_range} already exists")
+                    return CheckpointResponse(
+                        checkpoint_id=str(row[0]),
+                        job_id=None,
+                        deduplicated=True
+                    )
+    except Exception as e:
+        logger.warning(f"Dedup check failed (continuing): {e}")
+
+    # Fetch parent atoms
+    try:
+        parent_atoms = _db_execute_rows(f"""
+            SELECT id, context AS content, metadata, created_at
+            FROM memory_service.memories
+            WHERE id = ANY(%s::UUID[])
+            ORDER BY created_at ASC
+        """, (req.parent_memory_ids,), tenant_id=tenant["id"])
+    except Exception as e:
+        logger.error(f"Failed to fetch parent atoms: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch parent memories")
+
+    if not parent_atoms:
+        raise HTTPException(status_code=400, detail="No parent memories found")
+
+    # Assemble turns_text
+    turns_text = ""
+    for i, atom in enumerate(parent_atoms):
+        # Infer role from position (alternating user/assistant)
+        role = "user" if i % 2 == 0 else "assistant"
+        content = atom[1]  # content field
+        turns_text += f"{role}: {content}\n\n"
+
+    # Fetch prior checkpoint if provided
+    prior_rollup_text = ""
+    if req.parent_checkpoint_id:
+        try:
+            prior = _db_execute_rows(f"""
+                SELECT content FROM memory_service.memories
+                WHERE id = %s::UUID AND tenant_id = %s::UUID
+            """, (req.parent_checkpoint_id, tenant["id"]), tenant_id=tenant["id"])
+            if prior:
+                prior_content = prior[0][0]
+                # Truncate to ≤200 tokens (rough: ~4 chars/token)
+                if len(prior_content) > 800:
+                    half = 400
+                    prior_content = prior_content[:half] + "\n\n[...]\n\n" + prior_content[-half:]
+                prior_rollup_text = f"Prior rollup:\n{prior_content}\n\n---\n\n"
+        except Exception as e:
+            logger.warning(f"Failed to fetch prior checkpoint: {e}")
+
+    # Build prompt from CP7b-OPUS-PROMPTS.md section 1
+    system_prompt = """You are a summarization engine for 0Latency's session_checkpoint memory type. Your job is to compress a window of turns from an ongoing AI-assistant conversation into one dense, structured record that a future agent — possibly in a different session — can read to reconstruct what happened and pick up work cleanly.
+
+You are writing for another AI, not for a human reader. Favor information density over prose polish. No hedging, no throat-clearing, no meta-commentary about the summary itself. Every sentence must carry a fact, a decision, or an open question that would cost the next agent time to recover from raw turns.
+
+You receive a slice of conversation — typically 20 turns — from somewhere in the middle of a longer thread. Earlier context may exist but is not shown. Do not speculate about what came before. Do not invent continuity. Summarize only what is present.
+
+Output exactly four labeled sections, in this order, in plain markdown. No preamble. No closing line. If a section has nothing worth recording, write "None in this window." — do not omit the section.
+
+**topic** — One to two sentences naming what this window was actually about. Not "the user and assistant discussed X" — just the subject and the frame (e.g., "Debugging a 504 on the /memories/checkpoint endpoint; traced to uvicorn worker timeout, not DB.").
+
+**decisions** — Bullet list of concrete decisions made in this window. A decision is a commitment to an approach, a value, a name, a deferral, or a rejection. Include the reasoning clause when it's short ("Chose N=20 over N=10 because..."). Skip decisions that were revisited and reversed in the same window — record only the final state.
+
+**open_questions** — Bullet list of unresolved items explicitly raised and not closed. Include who or what the resolution depends on when stated ("Waiting on Denis for Supabase RLS check"). Do not manufacture questions from absence — only record questions the turns actually raised.
+
+**next_steps** — Bullet list of actions either committed to or clearly implied as immediate next moves. Include ownership when stated. If a step has a gate or dependency, note it inline ("Kick off migration after vector-phase subinstrumentation — gate is DB ≥1,500ms").
+
+Constraints:
+- Total output ≤500 tokens. Bias toward ≤350.
+- Never quote verbatim from the turns unless the exact wording is the point (a name, an ID, a command). Paraphrase everything else.
+- Proper nouns, file paths, commit hashes, identifiers, and numeric thresholds are load-bearing — reproduce them exactly.
+- Use past tense for decisions and discussion, future tense for next_steps, present tense for open_questions.
+- No apologies, no caveats about summary limitations, no "based on the provided turns" framing."""
+
+    user_prompt = f"""Summarize the following conversation window.
+
+Thread: {req.thread_title or "(untitled)"}
+Project: {req.project_name or "(none)"}
+Turn range: {req.turn_range[0]}–{req.turn_range[1]} of this thread
+Prior checkpoint in this thread: {"present" if req.parent_checkpoint_id else "none — this is the first rollup"}
+
+{prior_rollup_text}Turns:
+{turns_text}"""
+
+    # Call Haiku (reuse extraction pattern)
+    def _get_anthropic_key():
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        return key.strip('"\'') if key else ""
+
+    # checkpoint_id will be returned by store_memory
+    job_id = None  # Synchronous operation
+
+    def _process_checkpoint():
+        try:
+            # Call Haiku
+            url = "https://api.anthropic.com/v1/messages"
+            headers = {
+                "x-api-key": _get_anthropic_key(),
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            }
+            body = {
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 2048,
+                "temperature": 0.1,
+                "messages": [
+                    {"role": "user", "content": f"{system_prompt}\n\n{user_prompt}"}
+                ]
+            }
+
+            resp = requests.post(url, headers=headers, json=body, timeout=60)
+            resp.raise_for_status()
+            result = resp.json()
+            summary_content = result["content"][0]["text"]
+
+            # Validate output shape (must have 4 headers)
+            required_headers = ["**topic**", "**decisions**", "**open_questions**", "**next_steps**"]
+            has_all_headers = all(h in summary_content for h in required_headers)
+            prompt_retry = False
+
+            if not has_all_headers:
+                logger.warning(f"Checkpoint summary missing headers, retrying once")
+                resp = requests.post(url, headers=headers, json=body, timeout=60)
+                resp.raise_for_status()
+                result = resp.json()
+                summary_content = result["content"][0]["text"]
+                has_all_headers = all(h in summary_content for h in required_headers)
+                prompt_retry = True
+
+                if not has_all_headers:
+                    logger.warning(f"Checkpoint summary still malformed after retry, proceeding anyway")
+
+            # Compute checkpoint_sequence
+            try:
+                seq_result = _db_execute_rows(f"""
+                    SELECT COALESCE(MAX((metadata->>'checkpoint_sequence')::int), 0)
+                    FROM memory_service.memories
+                    WHERE tenant_id = %s::UUID
+                      AND agent_id = %s
+                      AND metadata->>'thread_id' = %s
+                      AND memory_type = 'session_checkpoint'
+                """, (tenant["id"], req.agent_id, req.thread_id), tenant_id=tenant["id"])
+                checkpoint_sequence = (seq_result[0][0] if seq_result and seq_result[0][0] else 0) + 1
+            except Exception as e:
+                logger.warning(f"Failed to compute checkpoint_sequence: {e}, defaulting to 1")
+                checkpoint_sequence = 1
+
+            # Compute time_span_seconds
+            time_span_seconds = 0
+            if len(parent_atoms) >= 2:
+                try:
+                    first_ts = parent_atoms[0][3]  # created_at
+                    last_ts = parent_atoms[-1][3]
+                    time_span_seconds = int((last_ts - first_ts).total_seconds())
+                except Exception as e:
+                    logger.warning(f"Failed to compute time_span: {e}")
+
+            # Build metadata
+            metadata = {
+                "level": 1,
+                "thread_id": req.thread_id,
+                "project_id": req.project_id,
+                "thread_title": req.thread_title,
+                "project_name": req.project_name,
+                "checkpoint_sequence": checkpoint_sequence,
+                "checkpoint_type": "mid_thread",
+                "turn_range": req.turn_range,
+                "turn_count": req.turn_range[1] - req.turn_range[0] + 1,
+                "time_span_seconds": time_span_seconds,
+                "parent_memory_ids": req.parent_memory_ids,
+                "child_memory_ids": [],
+                "parent_checkpoint_id": req.parent_checkpoint_id,
+                "source": req.source or "server_job",
+                "prompt_version": "mid_thread_v1",
+            }
+            if prompt_retry:
+                metadata["prompt_retry"] = True
+
+            # Write checkpoint memory
+            from api.checkpoint_validation import validate_session_checkpoint_metadata
+            validate_session_checkpoint_metadata(metadata, "session_checkpoint")
+
+            checkpoint_mem = {
+                "memory_type": "session_checkpoint",
+                "headline": f"Mid-thread rollup {req.turn_range[0]}-{req.turn_range[1]}: {req.thread_title or '(untitled)'}",
+                "context": summary_content[:500],  # First 500 chars as summary
+                "full_content": summary_content,  # Full summary content
+                "agent_id": req.agent_id,
+                "importance": 0.7,
+                "confidence": 0.9,
+                "entities": [],
+                "categories": ["checkpoint", "mid_thread"],
+                "project": req.project_id,
+                "scope": "/",
+                "source_session": req.thread_id,
+                "source_turn": None,
+                "metadata": metadata,
+            # NEW top-level scope fields:
+            "thread_id": req.thread_id,
+            "project_id": req.project_id,
+            "thread_title": req.thread_title,
+            "project_name": req.project_name,
+            }
+
+            result = store_memory(checkpoint_mem, tenant["id"])
+            actual_checkpoint_id = result["id"]
+            logger.info(f"Checkpoint {actual_checkpoint_id} created for thread {req.thread_id} range {req.turn_range}")
+            return actual_checkpoint_id
+
+        except Exception as e:
+            logger.error(f"Checkpoint creation failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+    # Run synchronously to ensure DB commit before returning
+    try:
+        actual_checkpoint_id = _process_checkpoint()
+        return CheckpointResponse(
+            checkpoint_id=actual_checkpoint_id,
+            job_id=None,  # Completed synchronously
+            deduplicated=False
+        )
+    except Exception as e:
+        logger.error(f"Synchronous checkpoint creation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Checkpoint creation failed: {str(e)}")
+
+
+
+@app.post("/memories/resume", response_model=ResumeResponse)
+async def create_resume_checkpoint(req: ResumeRequest, tenant: dict = Depends(require_api_key)):
+    """
+    CP7b Phase 4: Auto-resume meta-summary endpoint
+    
+    Orchestrates tail recovery on orphaned prior threads, then generates
+    a meta-summary checkpoint across all end_of_thread checkpoints in the project.
+    """
+    # Load env config
+    orphan_threshold_hours = int(os.getenv("CP7B_ORPHAN_THRESHOLD_HOURS", "24"))
+    max_tail_recoveries = int(os.getenv("CP7B_RESUME_MAX_TAIL_RECOVERIES", "3"))
+    max_prior_checkpoints = int(os.getenv("CP7B_RESUME_MAX_PRIOR_CHECKPOINTS", "10"))
+    input_token_cap = int(os.getenv("CP7B_RESUME_INPUT_TOKEN_CAP", "8000"))
+    
+    
+    from api.resume_helpers import write_tail_recovery
+    
+    # Nested helper (mirrors checkpoint pattern)
+    def _get_anthropic_key():
+        key = os.environ.get("ANTHROPIC_API_KEY")
+        return key.strip('"' + "'") if key else ""
+    
+    # ===== STEP A: ORPHAN DETECTION AND TAIL RECOVERY =====
+    
+    # A.1: Query for orphaned threads (exclude those with end_of_thread OR tail_recovery)
+    orphan_query = f"""
+        WITH threads_with_activity AS (
+            SELECT DISTINCT thread_id, MAX(created_at) AS last_activity
+            FROM memory_service.memories
+            WHERE tenant_id = %s::UUID
+              AND project_id = %s
+              AND thread_id IS NOT NULL
+              AND thread_id != %s
+              AND (
+                  memory_type IN ('fact', 'task', 'decision', 'preference', 'identity', 'event')
+                  OR (memory_type = 'session_checkpoint' AND metadata->>'checkpoint_type' = 'mid_thread')
+              )
+            GROUP BY thread_id
+        ),
+        threads_with_prior_closure AS (
+            SELECT DISTINCT thread_id
+            FROM memory_service.memories
+            WHERE memory_type = 'session_checkpoint'
+              AND metadata->>'checkpoint_type' IN ('end_of_thread', 'tail_recovery')
+              AND thread_id IS NOT NULL
+        )
+        SELECT t.thread_id, t.last_activity
+        FROM threads_with_activity t
+        LEFT JOIN threads_with_prior_closure c ON t.thread_id = c.thread_id
+        WHERE c.thread_id IS NULL
+          AND t.last_activity < NOW() - INTERVAL '{orphan_threshold_hours} hours'
+        ORDER BY t.last_activity DESC;
+    """
+    
+    orphan_rows = _db_execute_rows(
+        orphan_query,
+        (tenant["id"], req.project_id, req.thread_id),
+        tenant_id=tenant["id"]
+    )
+    
+    total_eligible_orphans = len(orphan_rows)
+    tail_recovery_ids = []
+    
+    # A.2: Process top N orphans by recency (cap at max_tail_recoveries)
+    orphans_to_process = orphan_rows[:max_tail_recoveries]
+    
+    for orphan_row in orphans_to_process:
+        orphan_thread_id = orphan_row[0]
+        
+        # Fetch thread metadata for this orphan
+        meta_query = """
+            SELECT DISTINCT project_name, thread_title
+            FROM memory_service.memories
+            WHERE tenant_id = %s::UUID AND thread_id = %s
+            LIMIT 1;
+        """
+        meta_rows = _db_execute_rows(meta_query, (tenant["id"], orphan_thread_id), tenant_id=tenant["id"])
+        project_name_orphan = meta_rows[0][0] if meta_rows and len(meta_rows[0]) > 0 else req.project_name
+        thread_title_orphan = meta_rows[0][1] if meta_rows and len(meta_rows[0]) > 1 else None
+        
+        try:
+            result = write_tail_recovery(
+                thread_id=orphan_thread_id,
+                project_id=req.project_id,
+                agent_id=req.agent_id,
+                thread_title=thread_title_orphan,
+                project_name=project_name_orphan,
+                tenant_id=tenant["id"]
+            )
+            if result.get("written"):
+                tail_recovery_ids.append(result["checkpoint_id"])
+                logger.info(f"Tail recovery {result['checkpoint_id']} written for thread {orphan_thread_id}")
+        except Exception as e:
+            # Fault-tolerant: log warning, skip this orphan, continue
+            logger.warning(f"Tail recovery failed for thread {orphan_thread_id}: {e}")
+            continue
+    
+    tail_recoveries_deferred = total_eligible_orphans - len(tail_recovery_ids)
+    
+    # ===== STEP B: META-SUMMARY GENERATION =====
+    
+    # B.1: Query prior checkpoints (all end_of_thread/tail_recovery + mid_thread from most recent prior thread)
+    
+    # First, find the most recent prior thread (excluding the resuming thread)
+    recent_thread_query = """
+        SELECT thread_id, MAX(created_at) as last_activity
+        FROM memory_service.memories
+        WHERE tenant_id = %s::UUID
+          AND project_id = %s
+          AND thread_id IS NOT NULL
+          AND thread_id != %s
+        GROUP BY thread_id
+        ORDER BY last_activity DESC
+        LIMIT 1;
+    """
+    recent_thread_rows = _db_execute_rows(
+        recent_thread_query,
+        (tenant["id"], req.project_id, req.thread_id),
+        tenant_id=tenant["id"]
+    )
+    most_recent_prior_thread = recent_thread_rows[0][0] if recent_thread_rows else None
+    
+    # Build checkpoint query
+    if most_recent_prior_thread:
+        checkpoint_query = """
+            SELECT id, full_content, created_at, thread_id, thread_title,
+                   metadata->>'checkpoint_type' AS checkpoint_type,
+                   metadata->>'turn_range' AS turn_range
+            FROM memory_service.memories
+            WHERE tenant_id = %s::UUID
+              AND project_id = %s
+              AND memory_type = 'session_checkpoint'
+              AND (
+                  metadata->>'checkpoint_type' IN ('end_of_thread', 'tail_recovery')
+                  OR (metadata->>'checkpoint_type' = 'mid_thread' AND thread_id = %s)
+              )
+            ORDER BY created_at DESC;
+        """
+        checkpoint_rows = _db_execute_rows(
+            checkpoint_query,
+            (tenant["id"], req.project_id, most_recent_prior_thread),
+            tenant_id=tenant["id"]
+        )
+    else:
+        # No prior threads - just get end_of_thread/tail_recovery
+        checkpoint_query = """
+            SELECT id, full_content, created_at, thread_id, thread_title,
+                   metadata->>'checkpoint_type' AS checkpoint_type,
+                   metadata->>'turn_range' AS turn_range
+            FROM memory_service.memories
+            WHERE tenant_id = %s::UUID
+              AND project_id = %s
+              AND memory_type = 'session_checkpoint'
+              AND metadata->>'checkpoint_type' IN ('end_of_thread', 'tail_recovery')
+            ORDER BY created_at DESC;
+        """
+        checkpoint_rows = _db_execute_rows(
+            checkpoint_query,
+            (tenant["id"], req.project_id),
+            tenant_id=tenant["id"]
+        )
+    
+    # B.2: If zero prior checkpoints, return no_prior_context
+    if not checkpoint_rows:
+        return ResumeResponse(
+            resume_checkpoint_id=None,
+            status="no_prior_context",
+            prior_checkpoints_used=0,
+            tail_recoveries_written=tail_recovery_ids,
+            tail_recoveries_deferred=tail_recoveries_deferred
+        )
+    
+    # Parse checkpoints
+    parsed_checkpoints = []
+    for row in checkpoint_rows:
+        parsed_checkpoints.append({
+            'id': row[0],
+            'content': row[1],
+            'created_at': row[2],
+            'thread_id': row[3],
+            'thread_title': row[4] or "(untitled)",
+            'checkpoint_type': row[5],
+            'turn_range': row[6] or "unknown"
+        })
+    
+    # B.1 (cont): Token-based filtering with preservation rules
+    # Estimate tokens as chars // 4
+    selected_checkpoints = []
+    total_tokens = 0
+    
+    # Always preserve: end_of_thread, tail_recovery, and checkpoints from most_recent_prior_thread
+    preserved = []
+    droppable = []
+    
+    for ckpt in parsed_checkpoints:
+        if ckpt['checkpoint_type'] in ('end_of_thread', 'tail_recovery'):
+            preserved.append(ckpt)
+        elif most_recent_prior_thread and ckpt['thread_id'] == most_recent_prior_thread:
+            preserved.append(ckpt)
+        else:
+            droppable.append(ckpt)
+    
+    # Add preserved first
+    for ckpt in preserved:
+        estimated_tokens = len(ckpt['content']) // 4
+        total_tokens += estimated_tokens
+        selected_checkpoints.append(ckpt)
+    
+    # Add droppable if budget allows
+    for ckpt in droppable:
+        estimated_tokens = len(ckpt['content']) // 4
+        if total_tokens + estimated_tokens <= input_token_cap and len(selected_checkpoints) < max_prior_checkpoints:
+            total_tokens += estimated_tokens
+            selected_checkpoints.append(ckpt)
+    
+    # Hard ceiling fallback
+    if len(selected_checkpoints) > max_prior_checkpoints:
+        selected_checkpoints = selected_checkpoints[:max_prior_checkpoints]
+    
+    # B.3: Build checkpoints_text for prompt (newest first, but chronological within-thread)
+    checkpoints_by_thread = {}
+    for ckpt in selected_checkpoints:
+        tid = ckpt['thread_id']
+        if tid not in checkpoints_by_thread:
+            checkpoints_by_thread[tid] = []
+        checkpoints_by_thread[tid].append(ckpt)
+    
+    # Sort each thread's checkpoints chronologically (oldest first within thread)
+    for tid in checkpoints_by_thread:
+        checkpoints_by_thread[tid].sort(key=lambda c: c['created_at'])
+    
+    # Now build text: threads in reverse chronological order (newest thread first)
+    thread_order = sorted(
+        checkpoints_by_thread.keys(),
+        key=lambda tid: max(c['created_at'] for c in checkpoints_by_thread[tid]),
+        reverse=True
+    )
+    
+    checkpoints_text_lines = []
+    for tid in thread_order:
+        for ckpt in checkpoints_by_thread[tid]:
+            thread_id_short = ckpt['thread_id'][:8]
+            created_str = str(ckpt['created_at'])[:19] if ckpt['created_at'] else "unknown"
+            header = f"## Checkpoint [{ckpt['thread_title']} | {thread_id_short}] — {ckpt['checkpoint_type']} — {ckpt['turn_range']} — {created_str}"
+            checkpoints_text_lines.append(header)
+            checkpoints_text_lines.append(ckpt['content'])
+            checkpoints_text_lines.append("")
+    
+    checkpoints_text = "\n".join(checkpoints_text_lines)
+    
+    # B.4: Content-hash dedup
+    hash_input = req.thread_id + "\n" + "\n".join(f"{c['id']}:{c['content']}" for c in selected_checkpoints)
+    content_hash = hashlib.sha256(hash_input.encode()).hexdigest()
+    
+    # Check for existing resume checkpoint with same hash in 60s window
+    dedup_query = """
+        SELECT id FROM memory_service.memories
+        WHERE tenant_id = %s::UUID
+          AND thread_id = %s
+          AND memory_type = 'session_checkpoint'
+          AND metadata->>'checkpoint_type' = 'auto_resume_meta'
+          AND metadata->>'content_hash' = %s
+          AND created_at > NOW() - INTERVAL '60 seconds'
+        LIMIT 1;
+    """
+    dedup_rows = _db_execute_rows(dedup_query, (tenant["id"], req.thread_id, content_hash), tenant_id=tenant["id"])
+    
+    if dedup_rows:
+        existing_id = dedup_rows[0][0]
+        logger.info(f"Resume checkpoint deduplicated: {existing_id}")
+        return ResumeResponse(
+            resume_checkpoint_id=existing_id,
+            status="deduplicated",
+            prior_checkpoints_used=len(selected_checkpoints),
+            tail_recoveries_written=tail_recovery_ids,
+            tail_recoveries_deferred=tail_recoveries_deferred
+        )
+    
+    # B.5: Call Haiku with prompt § 2
+    system_prompt = """You are a session-resumption engine for 0Latency. A new conversation thread has just opened in a project that already has prior activity. Your job is to produce the single most useful piece of context that could appear at the top of the new thread — a briefing that lets the next agent pick up work without re-interrogating the user.
+
+This is not a summary of summaries. It is a handoff document. The reader is an AI assistant about to receive its first real user turn in this new thread. What does it need to know to not waste the user's time?
+
+You receive, in order:
+1. The sequence of mid-thread and end-of-thread checkpoints from the project's prior threads, newest first.
+2. Optionally: a tail-recovery block — turns from the most recent prior thread that ended without an end-of-thread checkpoint.
+3. Project metadata (name, current thread title if set).
+
+Output exactly four labeled sections, in this order, in plain markdown. No preamble. No closing line.
+
+**project_arc** — Two to four sentences. What is this project fundamentally about, based on the pattern of work across prior threads? Not a restatement of the project name — the actual arc of intent. Example: "Justin is building the context layer for agents and is currently shipping CP7b — the session_checkpoint memory type that replaces hand-written handoff docs. Prior sprints closed CP7a (memory_write) and the MCP codebase unification."
+
+**recent_context** — Bullet list. The state of things as of the end of the most recent prior thread. Blend the end-of-thread checkpoint (if present) with the tail-recovery block (if present) into one coherent view. Prefer concrete: what shipped, what broke, what's mid-flight, what commit or file matters. Reproduce identifiers, paths, and numbers exactly. If the prior thread ended abruptly, say so ("Prior thread ended mid-decision on X").
+
+**open_threads** — Bullet list. Unresolved questions, waiting-ons, and decisions pending across the project as a whole — not just the last thread. Dedup across checkpoints: if the same question has been open for three threads, list it once and note how long. Include external dependencies by name when stated (Denis, Palmer, Stripe, etc.).
+
+**likely_next_steps** — Bullet list. What the user most plausibly wants to do in this new thread, inferred from the pattern. Rank by likelihood, highest first. If the pattern is ambiguous, say so and list the top two branches. Do not invent goals the prior checkpoints don't support.
+
+Constraints:
+- Total output ≤800 tokens. Bias toward 500–650.
+- You are synthesizing across threads. If two prior checkpoints contradict each other, the newer one wins and you note the contradiction briefly in recent_context ("Earlier approach X was abandoned; current is Y").
+- Reproduce proper nouns, file paths, commit hashes, identifiers, and numeric thresholds exactly.
+- No apologies about summary limitations. No "based on the provided checkpoints" framing. Write as if you were the previous agent handing off directly.
+- If there is exactly one prior checkpoint and no tail-recovery, the arc section may be thin — that's fine, don't manufacture depth. Lean heavier on recent_context."""
+    
+    tail_recovery_included = "yes" if tail_recovery_ids else "no"
+    
+    user_prompt = f"""Produce an auto-resume briefing for a new thread.
+
+Project: {req.project_name or "(none)"}
+New thread: {req.thread_title or "(untitled)"}
+Prior checkpoints in this project: {len(selected_checkpoints)}
+Tail recovery included: {tail_recovery_included}
+
+---
+
+Prior checkpoints (newest first):
+
+{checkpoints_text}"""
+    
+    # Call Haiku
+    url = "https://api.anthropic.com/v1/messages"
+    headers = {
+        "x-api-key": _get_anthropic_key(),
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+    }
+    body = {
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 2048,
+        "temperature": 0.1,
+        "messages": [
+            {"role": "user", "content": f"{system_prompt}\n\n{user_prompt}"}
+        ]
+    }
+    
+    try:
+        resp = requests.post(url, headers=headers, json=body, timeout=60)
+        resp.raise_for_status()
+        result = resp.json()
+        meta_content = result["content"][0]["text"]
+        
+        # Validate output shape (must have 4 headers)
+        required_headers = ["**project_arc**", "**recent_context**", "**open_threads**", "**likely_next_steps**"]
+        has_all_headers = all(h in meta_content for h in required_headers)
+        
+        if not has_all_headers:
+            logger.warning(f"Meta-summary missing headers, retrying once")
+            resp = requests.post(url, headers=headers, json=body, timeout=60)
+            resp.raise_for_status()
+            result = resp.json()
+            meta_content = result["content"][0]["text"]
+            has_all_headers = all(h in meta_content for h in required_headers)
+            
+            if not has_all_headers:
+                logger.error(f"Meta-summary still malformed after retry")
+                raise HTTPException(status_code=503, detail={"detail": "resume_generation_failed", "error": "Malformed output after retry"})
+    
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Haiku call failed for resume meta-summary: {e}")
+        raise HTTPException(status_code=503, detail={"detail": "resume_generation_failed", "error": str(e)})
+    
+    # B.6: Write checkpoint via store_memory
+    parent_ids = [c['id'] for c in selected_checkpoints]
+    
+    metadata = {
+        "level": 1,
+        "checkpoint_type": "auto_resume_meta",
+        "parent_memory_ids": parent_ids,
+        "child_memory_ids": [],
+        "source": "resume_endpoint",
+        "prompt_version": "auto_resume_meta_v1",
+        "content_hash": content_hash,
+        "prior_checkpoints_count": len(selected_checkpoints),
+        "tail_recoveries_count": len(tail_recovery_ids),
+    }
+    
+    resume_mem = {
+        "memory_type": "session_checkpoint",
+        "headline": f"Auto-resume briefing: {req.project_name or '(project)'} → {req.thread_title or '(new thread)'}",
+        "context": meta_content[:500],
+        "full_content": meta_content,
+        "agent_id": req.agent_id,
+        "importance": 0.8,
+        "confidence": 0.9,
+        "entities": [],
+        "categories": ["checkpoint", "auto_resume_meta"],
+        "project": req.project_id,
+        "scope": "/",
+        "source_session": req.thread_id,
+        "source_turn": None,
+        "metadata": metadata,
+        # Top-level scope fields for P1 dual-write
+        "thread_id": req.thread_id,
+        "project_id": req.project_id,
+        "thread_title": req.thread_title,
+        "project_name": req.project_name,
+    }
+    
+    result = store_memory(resume_mem, tenant["id"])
+    resume_checkpoint_id = result["id"]
+    
+    logger.info(f"Resume checkpoint {resume_checkpoint_id} created for thread {req.thread_id}, {len(selected_checkpoints)} prior checkpoints, {len(tail_recovery_ids)} tail recoveries")
+    
+    # B.7: Return response
+    return ResumeResponse(
+        resume_checkpoint_id=resume_checkpoint_id,
+        status="written",
+        prior_checkpoints_used=len(selected_checkpoints),
+        tail_recoveries_written=tail_recovery_ids,
+        tail_recoveries_deferred=tail_recoveries_deferred
+    )
+
 
 
 # Analytics executor — true fire-and-forget background tasks
