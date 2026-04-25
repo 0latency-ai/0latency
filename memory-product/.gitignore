@@ -29,3 +29,20 @@ Thumbs.db
 *.log
 0latency-registry/.mcpregistry_github_token
 *.mcpregistry_github_token
+
+# Local rollback artifacts — never commit
+*.backup
+*.backup-*
+*.pre-*
+.backup-*
+
+# Agent scratch state
+checkpoint_sequence
+parent_checkpoint_id
+project_id
+project_name
+prompt_version
+source
+thread_id
+thread_title
+turn_range
