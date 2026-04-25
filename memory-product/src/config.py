@@ -27,7 +27,7 @@ def get_db_password() -> str:
 
 # --- Embedding / LLM ---
 def get_google_api_key() -> str:
-    return _require_env("GOOGLE_API_KEY")
+    raise NotImplementedError("Gemini removed 2026-04-21; reintegrate with Anthropic/OpenAI when needed")
 
 def get_openai_api_key() -> str:
     return _optional_env("OPENAI_API_KEY")

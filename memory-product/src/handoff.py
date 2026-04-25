@@ -106,22 +106,7 @@ Respond with ONLY a JSON object:
 
 
 def _call_gemini(prompt: str) -> str:
-    """Call Gemini Flash for extraction."""
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-    resp = requests.post(
-        url,
-        params={"key": get_google_api_key()},
-        json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.1,
-                "maxOutputTokens": 2000,
-            }
-        },
-        timeout=30
-    )
-    resp.raise_for_status()
-    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    raise NotImplementedError("Gemini removed 2026-04-21; reintegrate with Anthropic/OpenAI when needed")
 
 
 def _extract_json(text: str) -> dict:

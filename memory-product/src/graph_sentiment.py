@@ -29,22 +29,7 @@ def _openrouter_key():
 
 def _call_gemini(prompt: str, model: str = "gemini-2.0-flash", max_tokens: int = 2048) -> str:
     """Call Gemini API with JSON output."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-    headers = {"Content-Type": "application/json"}
-    params = {"key": _google_key()}
-    
-    body = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.1,
-            "maxOutputTokens": max_tokens,
-            "responseMimeType": "application/json"
-        }
-    }
-    
-    resp = requests.post(url, headers=headers, params=params, json=body, timeout=30)
-    resp.raise_for_status()
-    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    raise NotImplementedError("Gemini removed 2026-04-21; reintegrate with Anthropic/OpenAI when needed")
 
 
 def _call_openai(prompt: str, model: str = "gpt-4o-mini", max_tokens: int = 2048) -> str:
