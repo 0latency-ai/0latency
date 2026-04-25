@@ -129,51 +129,11 @@ def _embed_text_local(text: str) -> list[float]:
 
 
 def _embed_text_uncached(text: str) -> list[float]:
-    """Generate embedding for text using configured model."""
-    
-    # TEMP: Gemini suspended, revert when reinstated
-    #     # Try Google first (cheaper)
-    #     if GOOGLE_API_KEY:
-    #         try:
-    #             model_name = "gemini-embedding-001"
-    #             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:embedContent"
-    #             resp = requests.post(
-    #                 url,
-    #                 params={"key": GOOGLE_API_KEY},
-    #                 json={
-    #                     "model": f"models/{model_name}",
-    #                     "content": {"parts": [{"text": text}]},
-    #                     "outputDimensionality": 768
-    #                 },
-    #                 timeout=15
-    #             )
-    #             resp.raise_for_status()
-    #             return resp.json()["embedding"]["values"]
-    #         except Exception as e:
-    #             print(f"Google embedding failed: {e}")
-    #     
-    # OpenAI embeddings (primary)
-    if OPENAI_API_KEY:
-        try:
-            resp = requests.post(
-                "https://api.openai.com/v1/embeddings",
-                headers={
-                    "Authorization": f"Bearer {OPENAI_API_KEY}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": EMBEDDING_MODEL,
-                    "dimensions": 768,
-                    "input": text,
-                },
-                timeout=15
-            )
-            resp.raise_for_status()
-            return resp.json()["data"][0]["embedding"]
-        except Exception as e:
-            print(f"OpenAI embedding failed: {e}")
-    
-    raise RuntimeError("No embedding provider available")
+    """Generate embedding using local model (all-MiniLM-L6-v2, 384d).
+    OpenAI write-path removed 2026-04-25 — local embeddings used for both
+    read and write paths to eliminate API cost. Schema migrated to vector(384).
+    """
+    return _embed_text_local(text)
 
 
 def warm_embedding_cache():
@@ -285,13 +245,13 @@ def _db_execute_rows(query: str, params: tuple = None, tenant_id: str = None, fe
         cur = None
         try:
             conn = pool.getconn()
+            conn.autocommit = True  # CP6: Enable autocommit to eliminate BEGIN/COMMIT round trips
             cur = conn.cursor()
             
-            # Start transaction and set tenant context
-            cur.execute("BEGIN")
+            # Set tenant context (round trip 1 of 2)
             cur.execute("SELECT memory_service.set_tenant_context(%s)", (current_tenant,))
             
-            # Execute the actual query with parameters
+            # Execute the actual query with parameters (round trip 2 of 2)
             if params:
                 cur.execute(query, params)
             else:
@@ -301,15 +261,10 @@ def _db_execute_rows(query: str, params: tuple = None, tenant_id: str = None, fe
             if fetch_results and cur.description:
                 results = cur.fetchall()
             
-            cur.execute("COMMIT")
             return results
             
         except psycopg2.Error as e:
-            if cur:
-                try:
-                    cur.execute("ROLLBACK")
-                except Exception:
-                    pass
+            # CP6: No ROLLBACK needed in autocommit mode - connection is in clean state
             retries += 1
             if retries >= max_retries:
                 import logging
@@ -339,6 +294,13 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
     current_tenant = tenant_id or _current_tenant_id
     if not current_tenant:
         raise ValueError("No tenant context set")
+    
+    # Extract scope fields from top-level or metadata (dual-source for compatibility)
+    meta_dict = memory.get('metadata', {})
+    thread_id_val = memory.get('thread_id') or meta_dict.get('thread_id')
+    project_id_val = memory.get('project_id') or meta_dict.get('project_id')
+    thread_title_val = memory.get('thread_title') or meta_dict.get('thread_title')
+    project_name_val = memory.get('project_name') or meta_dict.get('project_name')
     
     # Generate embedding from headline + context (not full_content — saves tokens)
     embed_text = f"{memory['headline']}. {memory['context']}"
@@ -402,12 +364,14 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
             (tenant_id, agent_id, headline, context, full_content, memory_type, 
              entities, project, categories, scope,
              importance, confidence, embedding, local_embedding,
-             source_session, source_turn, metadata)
+             source_session, source_turn, metadata,
+             thread_id, project_id, thread_title, project_name)
         VALUES 
             (%s::UUID, %s, %s, %s, %s, %s,
              %s, %s, %s, %s,
              %s, %s, %s::extensions.vector, %s::extensions.vector,
-             %s, %s, %s::jsonb)
+             %s, %s, %s::jsonb,
+             %s, %s, %s, %s)
         RETURNING id;
     """
     
@@ -428,7 +392,8 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
         local_embedding,
         memory.get('source_session'),
         memory.get('source_turn'),
-        json.dumps(memory.get('metadata', {}))
+        json.dumps(memory.get('metadata', {})),
+        thread_id_val, project_id_val, thread_title_val, project_name_val
     )
     
     rows = _db_execute(query, params, tenant_id=current_tenant)
