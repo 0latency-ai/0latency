@@ -741,6 +741,7 @@ async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depend
     
     job_id = str(uuid.uuid4())
     _extract_jobs[job_id] = {
+        "job_type": "extract",
         "status": "accepted",
         "tenant_id": tenant["id"],
         "agent_id": agent_id,
@@ -793,7 +794,7 @@ async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depend
 
 @app.get("/memories/extract/{job_id}")
 async def get_extract_job(job_id: str, tenant: dict = Depends(require_api_key)):
-    """Check status of an async extraction job."""
+    """Check status of an async job (extract or resume). Job type indicated by job_type field."""
     job = _extract_jobs.get(job_id)
     if not job:
         raise HTTPException(404, detail="Job not found")
@@ -1059,10 +1060,14 @@ Prior checkpoint in this thread: {"present" if req.parent_checkpoint_id else "no
 
 
 
-@app.post("/memories/resume", response_model=ResumeResponse)
-async def create_resume_checkpoint(req: ResumeRequest, tenant: dict = Depends(require_api_key)):
+# ======================================================================
+# Resume checkpoint - shared logic
+# ======================================================================
+
+def _do_resume_work(req: ResumeRequest, tenant: dict) -> ResumeResponse:
     """
-    CP7b Phase 4: Auto-resume meta-summary endpoint
+    CP7b Phase 4: Auto-resume meta-summary - pure logic extraction.
+    Called by both sync and async endpoints.
     
     Orchestrates tail recovery on orphaned prior threads, then generates
     a meta-summary checkpoint across all end_of_thread checkpoints in the project.
@@ -1475,8 +1480,62 @@ Prior checkpoints (newest first):
 
 
 
-# Analytics executor — true fire-and-forget background tasks
-_analytics_executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="analytics-bg-")
+@app.post("/memories/resume", response_model=ResumeResponse)
+async def create_resume_checkpoint(req: ResumeRequest, tenant: dict = Depends(require_api_key)):
+    """
+    CP7b Phase 4: Auto-resume meta-summary endpoint (SYNC).
+    For long-running resume operations, use POST /memories/resume/async instead.
+    """
+    return _do_resume_work(req, tenant)
+
+
+@app.post("/memories/resume/async", status_code=202)
+async def async_resume_endpoint(req: ResumeRequest, tenant: dict = Depends(require_api_key)):
+    """
+    CP7b Phase 4: Auto-resume meta-summary endpoint (ASYNC).
+    Returns job_id immediately (202), processes in background.
+    Poll GET /memories/extract/{job_id} for status.
+    """
+    import threading
+    
+    job_id = str(uuid.uuid4())
+    _extract_jobs[job_id] = {
+        "job_type": "resume",
+        "status": "accepted",
+        "tenant_id": tenant["id"],
+        "agent_id": req.agent_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "resume_checkpoint_id": None,
+        "prior_checkpoints_used": 0,
+        "tail_recoveries_written": [],
+        "tail_recoveries_deferred": 0,
+    }
+    
+    def _process_resume():
+        try:
+            result = _do_resume_work(req, tenant)
+            _extract_jobs[job_id].update({
+                "status": "complete" if result.status == "written" else result.status,
+                "resume_checkpoint_id": result.resume_checkpoint_id,
+                "prior_checkpoints_used": result.prior_checkpoints_used,
+                "tail_recoveries_written": result.tail_recoveries_written,
+                "tail_recoveries_deferred": result.tail_recoveries_deferred,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception as e:
+            logger.error(f"Async resume failed for job {job_id}: {e}")
+            _extract_jobs[job_id].update({
+                "status": "failed",
+                "error": str(e),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            })
+    
+    thread = threading.Thread(target=_process_resume, daemon=True)
+    thread.start()
+    
+    return {"job_id": job_id, "status": "accepted"}
+
+
 def _analytics_fire_and_forget(func, *args):
     """Submit analytics task to background executor — don't wait, returns immediately"""
     try:

@@ -85,3 +85,11 @@
 - [x] HANDOFF.md symlinked for auto-injection (compaction fix)
 - [x] Logo brief sent to Moheb
 - [x] All audit fixes deployed
+
+## CP7b Phase 3 Follow-ups
+
+- [ ] **P1:** Chrome extension thread_id=None bug — investigate before Phase 4 starts (blocks tail-recovery validity). Active turns captured with thread_id=None and project_id=None despite extension firing. Likely Phase 2b MV3 context-invalidation issue recurring. Hard-reload tabs after extension reload.
+
+- [ ] **P2:** MCP tool naming mismatch — rename seed_memories → memory_write in mcp-server/src/index.ts to match CP7a spec. Current: tool registered as 'seed_memories' but docs/brief reference 'memory_write'. Bump to v0.2.1, republish npm package.
+
+- [ ] **P2:** memory_list metadata filtering — add thread_id/project_id filter support to memory_list MCP tool. Current workaround: client-side filtering after fetching all memories (inefficient for large agents). Defer until Phase 5 recall work when filter requirements are clearer.
