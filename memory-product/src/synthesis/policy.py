@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # Default policy for Free/Pro/Scale tiers
 DEFAULT_POLICY_STANDARD: dict[str, Any] = {
     "redaction_rules": {
-        "on_source_redacted": "resynthesize_without",
+        "on_source_redacted": "mark_pending_review",
         "on_source_modified": "mark_pending_review",
         "cascade_depth": "evidence_chain_only",
     },
@@ -46,7 +46,7 @@ DEFAULT_POLICY_STANDARD: dict[str, Any] = {
 # Default policy for Enterprise tier
 DEFAULT_POLICY_ENTERPRISE: dict[str, Any] = {
     "redaction_rules": {
-        "on_source_redacted": "resynthesize_without",
+        "on_source_redacted": "mark_pending_review",
         "on_source_modified": "mark_pending_review",
         "cascade_depth": "evidence_chain_only",
     },

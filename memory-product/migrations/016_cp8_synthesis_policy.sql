@@ -20,7 +20,7 @@ BEGIN
         ALTER TABLE memory_service.tenants 
         ADD COLUMN synthesis_policy JSONB NOT NULL DEFAULT '{
             "redaction_rules": {
-                "on_source_redacted": "resynthesize_without",
+                "on_source_redacted": "mark_pending_review",
                 "on_source_modified": "mark_pending_review",
                 "cascade_depth": "evidence_chain_only"
             },
@@ -49,7 +49,7 @@ END $$;
 UPDATE memory_service.tenants
 SET synthesis_policy = '{
     "redaction_rules": {
-        "on_source_redacted": "resynthesize_without",
+        "on_source_redacted": "mark_pending_review",
         "on_source_modified": "mark_pending_review",
         "cascade_depth": "evidence_chain_only"
     },

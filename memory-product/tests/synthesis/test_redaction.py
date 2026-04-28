@@ -13,7 +13,7 @@ import psycopg2
 import psycopg2.extras
 import pytest
 
-from src.synthesis.policy import save_policy
+from src.synthesis.policy import save_policy, DEFAULT_POLICY_STANDARD
 from src.synthesis.redaction import (
     RedactionCascadeError,
     cascade_to_synthesis,
@@ -100,7 +100,7 @@ def create_test_memory(db_conn, tenant_id, memory_type='atom', **kwargs):
             """
             INSERT INTO memory_service.memories
             (id, tenant_id, agent_id, headline, context, full_content, memory_type, redaction_state, synthesis_state, source_memory_ids)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid[])
             """,
             (
                 memory_id,
@@ -432,8 +432,8 @@ class TestAuditEvents:
             # 2. Source: modified → active
             transition_source_state(atom_id, 'active', db_conn, reason='Test 2')
 
-            # 3. Synthesis: valid → pending_review (manual)
-            transition_synthesis_state(syn_id, 'pending_review', db_conn, reason='Test 3')
+            # 3. Synthesis: pending_review → valid (manual revert; cascade from Test 1 already moved it to pending_review)
+            transition_synthesis_state(syn_id, 'valid', db_conn, reason='Test 3')
 
             # Verify audit events
             with db_conn.cursor() as cur:
@@ -447,12 +447,14 @@ class TestAuditEvents:
                 )
                 final_count = cur.fetchone()[0]
 
-            # Should have written at least 5 events:
+            # Should have written exactly 4 events:
             # - 2 for atom transitions (active→modified, modified→active)
-            # - 2 for cascade from atom transitions (synthesis valid→pending_review each time)
-            # - 1 for manual synthesis transition
-            # Total: 5 minimum
-            assert final_count >= initial_count + 5
+            # - 1 cascade from Test 1 (active→modified triggers valid→pending_review).
+            #   Test 2 (modified→active) does NOT cascade — cascade only fires
+            #   when new_state is 'redacted' or 'modified' per redaction.py.
+            # - 1 for manual synthesis transition (Test 3: pending_review→valid)
+            # Total: 4
+            assert final_count >= initial_count + 4
 
             # Verify event payload structure
             with db_conn.cursor() as cur:

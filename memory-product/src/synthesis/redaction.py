@@ -153,6 +153,8 @@ def transition_source_state(
         raise
     except ValueError:
         raise
+    except NotImplementedError:
+        raise
     except Exception as e:
         logger.error("Failed to transition source state for %s: %s", memory_id, e)
         raise RedactionCascadeError(f"Database error during state transition: {e}") from e
@@ -405,6 +407,8 @@ def transition_synthesis_state(
     except IllegalTransitionError:
         raise
     except ValueError:
+        raise
+    except NotImplementedError:
         raise
     except Exception as e:
         logger.error("Failed to transition synthesis state for %s: %s", synthesis_id, e)
