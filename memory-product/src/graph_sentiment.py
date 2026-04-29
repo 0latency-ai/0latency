@@ -591,7 +591,7 @@ def run_graph_sentiment_pipeline(
                     WHERE agent_id = %s AND tenant_id = %s::UUID 
                       AND superseded_at IS NULL
                       AND id NOT IN (SELECT unnest(%s::uuid[]))
-                    ORDER BY embedding <=> %s::extensions.vector
+                    ORDER BY embedding <=> %s::vector
                     LIMIT 10
                 """, (agent_id, tenant_id, stored_ids, embedding_str),
                     tenant_id=tenant_id)

@@ -369,7 +369,7 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
         VALUES 
             (%s::UUID, %s, %s, %s, %s, %s,
              %s, %s, %s, %s,
-             %s, %s, %s::extensions.vector, %s::extensions.vector,
+             %s, %s, %s::vector, %s::vector,
              %s, %s, %s::jsonb,
              %s, %s, %s, %s)
         RETURNING id;
@@ -458,11 +458,11 @@ def _check_duplicate(agent_id: str, headline: str, embedding: list[float],
     
     query = """
         SELECT id, headline, memory_type,
-               1 - (embedding <=> %s::extensions.vector) as similarity
+               1 - (embedding <=> %s::vector) as similarity
         FROM memory_service.memories
         WHERE agent_id = %s AND tenant_id = %s
           AND superseded_at IS NULL
-        ORDER BY embedding <=> %s::extensions.vector
+        ORDER BY embedding <=> %s::vector
         LIMIT 3
     """
     
@@ -492,12 +492,12 @@ def _check_contradiction(agent_id: str, headline: str, embedding: list[float], t
     # Find semantically similar memories (high similarity = same topic)
     query = """
         SELECT id, headline, context, entities,
-               1 - (embedding <=> %s::extensions.vector) as similarity
+               1 - (embedding <=> %s::vector) as similarity
         FROM memory_service.memories
         WHERE agent_id = %s
           AND superseded_at IS NULL
           AND memory_type NOT IN ('correction', 'task')
-        ORDER BY embedding <=> %s::extensions.vector
+        ORDER BY embedding <=> %s::vector
         LIMIT 5
     """
     
@@ -549,7 +549,7 @@ def _handle_correction(memory: dict, correction_id: str, tenant_id: str):
         WHERE memory_type != 'correction'
           AND superseded_at IS NULL
           AND id != %s
-        ORDER BY embedding <=> %s::extensions.vector
+        ORDER BY embedding <=> %s::vector
         LIMIT 5
     """
     

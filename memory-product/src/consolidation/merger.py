@@ -28,7 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Database connection
-DB_CONN = "postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
+DB_CONN = os.environ["MEMORY_DB_CONN"]
 
 # Load OpenAI key
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')

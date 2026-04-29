@@ -88,7 +88,7 @@ try:
         for embedding_list, memory_id in updates:
             cursor.execute("""
                 UPDATE memory_service.memories 
-                SET local_embedding = %s::extensions.vector
+                SET local_embedding = %s::vector
                 WHERE id = %s
             """, (embedding_list, memory_id))
         

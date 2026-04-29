@@ -61,7 +61,7 @@ def store_org_memory(org_id: str, headline: str, context: str = None,
         INSERT INTO memory_service.org_memories 
             (org_id, headline, context, full_content, memory_type,
              importance, entities, categories, embedding, created_by)
-        VALUES (%s::UUID, %s, %s, %s, %s, %s, %s, %s, %s::extensions.vector, %s::UUID)
+        VALUES (%s::UUID, %s, %s, %s, %s, %s, %s, %s, %s::vector, %s::UUID)
         RETURNING id
     """, (
         org_id, headline, context, full_content, memory_type,
@@ -79,10 +79,10 @@ def recall_org_memories(org_id: str, query: str, limit: int = 10) -> list[dict]:
     rows = _db_execute_rows("""
         SELECT id, headline, context, full_content, memory_type, importance,
                entities, categories, created_at,
-               1 - (embedding <=> %s::extensions.vector) as similarity
+               1 - (embedding <=> %s::vector) as similarity
         FROM memory_service.org_memories
         WHERE org_id = %s::UUID
-        ORDER BY embedding <=> %s::extensions.vector
+        ORDER BY embedding <=> %s::vector
         LIMIT %s
     """, (embedding_str, org_id, embedding_str, limit),
         tenant_id="00000000-0000-0000-0000-000000000000")

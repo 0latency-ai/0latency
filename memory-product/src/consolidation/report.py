@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("report")
 
 def _get_db_conn_str():
-    return os.environ.get("MEMORY_DB_CONN", "postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres")
+    return os.environ["MEMORY_DB_CONN"]
 
 
 def generate_report():

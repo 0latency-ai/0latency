@@ -138,7 +138,7 @@ def run_compaction(agent_id: str, force: bool = False):
                             INSERT INTO memory_service.memory_clusters
                                 (agent_id, cluster_name, summary, member_memory_ids, member_count,
                                  importance_avg, centroid_embedding)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s::extensions.vector)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s::vector)
                             
                         """, (agent_id, cluster["cluster_key"], summary,
                               member_ids, len(member_ids), avg_importance,

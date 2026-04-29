@@ -183,7 +183,7 @@ def init_schema():
         superseded_by UUID REFERENCES memory_service.memories(id),
         
         -- Embedding (768 for Google, 1536 for OpenAI — use 768 as default)
-        embedding extensions.vector(768),
+        embedding vector(768),
         
         -- Provenance
         source_session TEXT,
@@ -332,7 +332,7 @@ def store_memory(memory: dict) -> str:
         VALUES 
             (%s::UUID, %s, %s, %s, %s, %s,
              %s, %s, %s, %s,
-             %s, %s, %s::extensions.vector,
+             %s, %s, %s::vector,
              %s, %s, %s::jsonb)
         RETURNING id;
     """
@@ -391,11 +391,11 @@ def _check_duplicate(agent_id: str, headline: str, embedding: list[float], thres
     """
     query = """
         SELECT id, headline, memory_type,
-               1 - (embedding <=> %s::extensions.vector) as similarity
+               1 - (embedding <=> %s::vector) as similarity
         FROM memory_service.memories
         WHERE agent_id = %s
           AND superseded_at IS NULL
-        ORDER BY embedding <=> %s::extensions.vector
+        ORDER BY embedding <=> %s::vector
         LIMIT 3
     """
     
@@ -426,12 +426,12 @@ def _check_contradiction(agent_id: str, headline: str, embedding: list[float]) -
     """
     query = """
         SELECT id, headline, context, entities,
-               1 - (embedding <=> %s::extensions.vector) as similarity
+               1 - (embedding <=> %s::vector) as similarity
         FROM memory_service.memories
         WHERE agent_id = %s
           AND superseded_at IS NULL
           AND memory_type NOT IN ('correction', 'task')
-        ORDER BY embedding <=> %s::extensions.vector
+        ORDER BY embedding <=> %s::vector
         LIMIT 5
     """
     
@@ -492,7 +492,7 @@ def _handle_correction(memory: dict, correction_id: str):
         WHERE memory_type != 'correction'
           AND superseded_at IS NULL
           AND id != %s
-        ORDER BY embedding <=> %s::extensions.vector
+        ORDER BY embedding <=> %s::vector
         LIMIT 5
     """
     
