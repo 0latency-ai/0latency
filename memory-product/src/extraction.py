@@ -220,6 +220,50 @@ def extract_memories(
     if len(human_message) < 20 and len(agent_message) < 50:
         return []
     
+
+    # ========================================================================
+    # Task 8b: Write raw_turn memory FIRST (verbatim preservation)
+    # ========================================================================
+    metadata = metadata or {}
+    raw_turn_id = metadata.get("raw_turn_id")
+    
+    if not raw_turn_id and tenant_id:
+        from storage_multitenant import store_memory
+        full_content = f"Human: {human_message}\\n\\nAgent: {agent_message}"
+        context_text = full_content[:500] + ("..." if len(full_content) > 500 else "")
+        timestamp_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        headline_text = f"Raw turn — {timestamp_str}"
+        
+        raw_turn_memory = {
+            "agent_id": agent_id,
+            "headline": headline_text,
+            "context": context_text,
+            "full_content": full_content,
+            "memory_type": "raw_turn",
+            "importance": 0.3,
+            "confidence": 1.0,
+            "entities": [],
+            "categories": ["raw_turn"],
+            "scope": "/",
+            "source_session": session_key,
+            "source_turn": turn_id,
+            "metadata": {
+                "source": source,
+                "thread_id": metadata.get("thread_id"),
+                "project_id": metadata.get("project_id"),
+                "turn_number": metadata.get("turn_number"),
+            },
+        }
+        
+        try:
+            result = store_memory(raw_turn_memory, tenant_id=tenant_id)
+            raw_turn_id = result["id"]
+            print(f"  Stored raw_turn: {raw_turn_id}")
+            metadata["raw_turn_id"] = raw_turn_id
+        except Exception as e:
+            print(f"  Warning: Failed to store raw_turn (non-fatal): {e}")
+            raw_turn_id = None
+
     # Build recent context string from sliding window
     recent_context = "(no prior turns)"
     if recent_turns:

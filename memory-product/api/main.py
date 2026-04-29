@@ -550,6 +550,8 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
             session_key=req.session_key,
             turn_id=req.turn_id,
             existing_context=existing_context,
+            tenant_id=tenant["id"],
+            source="api",
         )
         if not memories:
             response = ExtractResponse(memories_stored=0, memory_ids=[])
@@ -757,6 +759,8 @@ async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depend
                 human_message=req.content,
                 agent_message="",
                 agent_id=agent_id,
+                tenant_id=tenant["id"],
+                source="api",
                 session_key=req.session_key,
             )
             if memories:
