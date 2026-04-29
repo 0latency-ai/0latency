@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 # Use the hardened storage layer's DB and embedding infrastructure
-from storage_multitenant import _db_execute, _embed_text, _embed_text_local, set_tenant_context, _get_connection_pool
+from storage_multitenant import _db_execute, _db_execute_rows, _embed_text, _embed_text_local, set_tenant_context, _get_connection_pool
 
 import psycopg2
 
@@ -429,19 +429,19 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
         )
     
     try:
-        rows = _db_execute(f"""
+        rows = _db_execute_rows(f"""
             WITH vector_results AS (
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
                        created_at, superseded_at,
-                       1 - (local_embedding <=> %s::extensions.vector) as similarity,
+                       1 - (local_embedding <=> %s::vector) as similarity,
                        'vector' as strategy
                 FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s::UUID
                   AND superseded_at IS NULL
                   AND local_embedding IS NOT NULL
                   {_project_filter}
-                ORDER BY local_embedding <=> %s::extensions.vector
+                ORDER BY local_embedding <=> %s::vector
                 LIMIT 200
             ),
             importance_results AS (
@@ -491,26 +491,25 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
         
         logger.info(f"✅ Consolidated query returned {len(rows) if rows else 0} rows")
         for row in rows:
-            parts = row.split("|||")
-            if len(parts) >= 12:  # Now we have 12 columns (11 + strategy)
-                mem_id = parts[0]
-                strategy = parts[11]  # Last column is strategy
-                
+            if len(row) >= 12:  # tuple of 12 columns from cursor
+                mem_id = str(row[0])
+                strategy = row[11]
+
                 if mem_id not in candidates:
-                    candidates[mem_id] = _parse_candidate_row(parts)
-                    
-                    # Count by strategy
+                    candidates[mem_id] = _parse_candidate_row(row)
+
                     if strategy == 'vector':
                         _s1_rows_count += 1
                     elif strategy == 'importance':
                         _s2_rows_count += 1
                     elif strategy == 'keyword':
                         _s3_rows_count += 1
-                    
-                    similarity = float(parts[10]) if parts[10] else 0
-                    logger.debug(f"  • [{strategy}] Memory {parts[1][:50]}... similarity={similarity:.3f}")
+
+                    similarity = float(row[10]) if row[10] is not None else 0
+                    logger.debug(f"  • [{strategy}] Memory {str(row[1])[:50]}... similarity={similarity:.3f}")
         
     except Exception as e:
+        logger.error(f"_retrieve_candidates failed: {type(e).__name__}: {e}", exc_info=True)
         logger.error(f"❌ Consolidated query failed: {e}")
         print(f"Warning: Consolidated query failed: {e}")
         _t_db_ms = int((_time_cp6.perf_counter() - _t_db_start) * 1000)
@@ -531,20 +530,20 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
 
 
 
-def _parse_candidate_row(parts: list[str]) -> dict:
-    """Parse a raw DB row into a candidate dict."""
+def _parse_candidate_row(row: tuple) -> dict:
+    """Parse a raw DB row tuple into a candidate dict."""
     return {
-        "id": parts[0],
-        "headline": parts[1],
-        "context": parts[2],
-        "full_content": parts[3],
-        "memory_type": parts[4],
-        "importance": float(parts[5]) if parts[5] else 0.5,
-        "access_count": int(parts[6]) if parts[6] else 0,
-        "reinforcement_count": int(parts[7]) if parts[7] else 1,
-        "created_at": _parse_timestamp(parts[8]),
-        "superseded_at": parts[9] if parts[9] else None,
-        "similarity": float(parts[10]) if parts[10] else 0,
+        "id": str(row[0]),
+        "headline": row[1],
+        "context": row[2],
+        "full_content": row[3],
+        "memory_type": row[4],
+        "importance": float(row[5]) if row[5] is not None else 0.5,
+        "access_count": int(row[6]) if row[6] is not None else 0,
+        "reinforcement_count": int(row[7]) if row[7] is not None else 1,
+        "created_at": row[8] if row[8] else datetime.now(timezone.utc),
+        "superseded_at": row[9],
+        "similarity": float(row[10]) if row[10] is not None else 0,
     }
 
 
@@ -865,12 +864,12 @@ def _retrieve_candidates_cross_agent(
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
                        created_at, superseded_at,
-                       1 - (local_embedding <=> %s::extensions.vector) as similarity
+                       1 - (local_embedding <=> %s::vector) as similarity
                 FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s::UUID
                   AND superseded_at IS NULL
                   AND local_embedding IS NOT NULL
-                ORDER BY local_embedding <=> %s::extensions.vector
+                ORDER BY local_embedding <=> %s::vector
                 LIMIT 10
             """, (embedding_str, agent_id, _tid, embedding_str),
                 tenant_id=_tid)
