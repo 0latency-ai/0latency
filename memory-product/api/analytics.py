@@ -41,7 +41,7 @@ def track_event(
     """
     try:
         _db_execute("""
-            INSERT INTO analytics_events (tenant_id, event_type, metadata, created_at)
+            INSERT INTO memory_service.analytics_events (tenant_id, event_type, metadata, created_at)
             VALUES (%s, %s, %s, NOW())
         """, (tenant_id, event_type, metadata))
         logger.info(f"Tracked event: {event_type} for tenant {tenant_id}")
@@ -86,7 +86,7 @@ def is_first_api_call(tenant_id) -> bool:
     """Check if this is the first API call for a tenant"""
     try:
         result = _db_execute_rows("""
-            SELECT COUNT(*) as count FROM analytics_events
+            SELECT COUNT(*) as count FROM memory_service.analytics_events
             WHERE tenant_id = %s AND event_type = 'api_call'
         """, (tenant_id,))
         return result[0]['count'] == 0 if result else True
@@ -99,7 +99,7 @@ def is_first_memory_stored(tenant_id) -> bool:
     """Check if this is the first memory extraction for a tenant"""
     try:
         result = _db_execute_rows("""
-            SELECT COUNT(*) as count FROM analytics_events
+            SELECT COUNT(*) as count FROM memory_service.analytics_events
             WHERE tenant_id = %s
             AND event_type = 'api_call'
             AND metadata->>'endpoint' = '/extract'
@@ -114,7 +114,7 @@ def is_first_memory_recalled(tenant_id) -> bool:
     """Check if this is the first memory recall for a tenant"""
     try:
         result = _db_execute_rows("""
-            SELECT COUNT(*) as count FROM analytics_events
+            SELECT COUNT(*) as count FROM memory_service.analytics_events
             WHERE tenant_id = %s
             AND event_type = 'api_call'
             AND metadata->>'endpoint' = '/recall'
@@ -133,7 +133,7 @@ def check_activation_milestone(tenant_id) -> bool:
     try:
         # Check if activation already tracked
         activation_check = _db_execute_rows("""
-            SELECT COUNT(*) as count FROM analytics_events
+            SELECT COUNT(*) as count FROM memory_service.analytics_events
             WHERE tenant_id = %s AND event_type = 'activation'
         """, (tenant_id,))
 
@@ -142,7 +142,7 @@ def check_activation_milestone(tenant_id) -> bool:
 
         # Count recalls today
         recall_count = _db_execute_rows("""
-            SELECT COUNT(*) as count FROM analytics_events
+            SELECT COUNT(*) as count FROM memory_service.analytics_events
             WHERE tenant_id = %s
             AND event_type = 'api_call'
             AND metadata->>'endpoint' = '/recall'
@@ -150,7 +150,7 @@ def check_activation_milestone(tenant_id) -> bool:
         """, (tenant_id,))
 
         if recall_count and recall_count[0]['count'] >= 10:
-            # Track activation in analytics_events to prevent duplicate triggers
+            # Track activation in memory_service.analytics_events to prevent duplicate triggers
             track_event(tenant_id, "activation", {"recalls_today": recall_count[0]['count']})
             return True
 
@@ -187,26 +187,26 @@ def get_dashboard_stats(tenant_id: Optional[int] = None) -> Dict[str, Any]:
         where_clause = f"WHERE tenant_id = {tenant_id}" if tenant_id else ""
         
         api_calls_24h = _db_execute_rows(f"""
-            SELECT COUNT(*) as count FROM analytics_events 
+            SELECT COUNT(*) as count FROM memory_service.analytics_events 
             {where_clause} {'AND' if where_clause else 'WHERE'} event_type = 'api_call'
             AND created_at > NOW() - INTERVAL '24 hours'
-        """, ())[0]['count'] if _db_execute_rows(f"SELECT COUNT(*) as count FROM analytics_events {where_clause} {'AND' if where_clause else 'WHERE'} event_type = 'api_call' AND created_at > NOW() - INTERVAL '24 hours'", ()) else 0
+        """, ())[0]['count'] if _db_execute_rows(f"SELECT COUNT(*) as count FROM memory_service.analytics_events {where_clause} {'AND' if where_clause else 'WHERE'} event_type = 'api_call' AND created_at > NOW() - INTERVAL '24 hours'", ()) else 0
         
         api_calls_7d = _db_execute_rows(f"""
-            SELECT COUNT(*) as count FROM analytics_events 
+            SELECT COUNT(*) as count FROM memory_service.analytics_events 
             {where_clause} {'AND' if where_clause else 'WHERE'} event_type = 'api_call'
             AND created_at > NOW() - INTERVAL '7 days'
-        """, ())[0]['count'] if _db_execute_rows(f"SELECT COUNT(*) as count FROM analytics_events {where_clause} {'AND' if where_clause else 'WHERE'} event_type = 'api_call' AND created_at > NOW() - INTERVAL '7 days'", ()) else 0
+        """, ())[0]['count'] if _db_execute_rows(f"SELECT COUNT(*) as count FROM memory_service.analytics_events {where_clause} {'AND' if where_clause else 'WHERE'} event_type = 'api_call' AND created_at > NOW() - INTERVAL '7 days'", ()) else 0
         
         api_calls_30d = _db_execute_rows(f"""
-            SELECT COUNT(*) as count FROM analytics_events 
+            SELECT COUNT(*) as count FROM memory_service.analytics_events 
             {where_clause} {'AND' if where_clause else 'WHERE'} event_type = 'api_call'
             AND created_at > NOW() - INTERVAL '30 days'
-        """, ())[0]['count'] if _db_execute_rows(f"SELECT COUNT(*) as count FROM analytics_events {where_clause} {'AND' if where_clause else 'WHERE'} event_type = 'api_call' AND created_at > NOW() - INTERVAL '30 days'", ()) else 0
+        """, ())[0]['count'] if _db_execute_rows(f"SELECT COUNT(*) as count FROM memory_service.analytics_events {where_clause} {'AND' if where_clause else 'WHERE'} event_type = 'api_call' AND created_at > NOW() - INTERVAL '30 days'", ()) else 0
         
         # Active users (made API call in last 7 days)
         active_result = _db_execute_rows(f"""
-            SELECT COUNT(DISTINCT tenant_id) as count FROM analytics_events
+            SELECT COUNT(DISTINCT tenant_id) as count FROM memory_service.analytics_events
             {where_clause} {'AND' if where_clause else 'WHERE'} event_type = 'api_call'
             AND created_at > NOW() - INTERVAL '7 days'
         """, ())
@@ -215,7 +215,7 @@ def get_dashboard_stats(tenant_id: Optional[int] = None) -> Dict[str, Any]:
         # Error rate (last 24h)
         total_api_calls = api_calls_24h
         error_result = _db_execute_rows(f"""
-            SELECT COUNT(*) as count FROM analytics_events
+            SELECT COUNT(*) as count FROM memory_service.analytics_events
             {where_clause} {'AND' if where_clause else 'WHERE'} event_type = 'error'
             AND created_at > NOW() - INTERVAL '24 hours'
         """, ())
@@ -227,7 +227,7 @@ def get_dashboard_stats(tenant_id: Optional[int] = None) -> Dict[str, Any]:
             SELECT 
                 metadata->>'endpoint' as endpoint,
                 COUNT(*) as count
-            FROM analytics_events
+            FROM memory_service.analytics_events
             {where_clause} {'AND' if where_clause else 'WHERE'} event_type = 'api_call'
             AND metadata->>'endpoint' IS NOT NULL
             AND created_at > NOW() - INTERVAL '7 days'
@@ -259,18 +259,18 @@ def get_dashboard_stats(tenant_id: Optional[int] = None) -> Dict[str, Any]:
 
 
 def create_analytics_table():
-    """Create analytics_events table if it doesn't exist"""
+    """Create memory_service.analytics_events table if it doesn't exist"""
     _db_execute("""
-        CREATE TABLE IF NOT EXISTS analytics_events (
+        CREATE TABLE IF NOT EXISTS memory_service.analytics_events (
             id SERIAL PRIMARY KEY,
             tenant_id INTEGER REFERENCES tenants(id),
             event_type VARCHAR(50) NOT NULL,
             metadata JSONB,
             created_at TIMESTAMP DEFAULT NOW()
         );
-        CREATE INDEX IF NOT EXISTS idx_analytics_tenant ON analytics_events(tenant_id);
-        CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics_events(event_type);
-        CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events(created_at);
+        CREATE INDEX IF NOT EXISTS idx_analytics_tenant ON memory_service.analytics_events(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_analytics_type ON memory_service.analytics_events(event_type);
+        CREATE INDEX IF NOT EXISTS idx_analytics_created ON memory_service.analytics_events(created_at);
     """, ())
     logger.info("Analytics table created/verified")
 
