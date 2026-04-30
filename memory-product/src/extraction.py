@@ -199,7 +199,10 @@ def extract_memories(
     existing_context: str = "",
     conversation_context: str = "",
     recent_turns: Optional[list[tuple[str, str]]] = None,
-) -> list[dict]:
+    tenant_id: Optional[str] = None,
+    source: str = "api",
+    metadata: Optional[dict] = None,
+) -> tuple[list[dict], Optional[str]]:
     """
     Extract structured memories from a single conversation exchange,
     with multi-turn context for inference across messages.
@@ -213,12 +216,15 @@ def extract_memories(
         existing_context: Recent memories to avoid duplicates (L0 headlines)
         recent_turns: List of (human_msg, agent_msg) tuples for the previous 3-4 turns
     
+        tenant_id: Tenant UUID for raw_turn write (optional)
+        source: Source of extraction (api|mcp|extension)
+        metadata: Optional metadata dict (may contain raw_turn_id for idempotency)
     Returns:
-        List of structured memory objects ready for storage
+        Tuple of (memories list, raw_turn_id)
     """
     # Skip extraction for very short exchanges (greetings, acks)
     if len(human_message) < 20 and len(agent_message) < 50:
-        return []
+        return ([], None)
     
 
     # ========================================================================
@@ -313,7 +319,7 @@ def extract_memories(
     except json.JSONDecodeError as e:
         print(f"Failed to parse extraction response: {e}")
         print(f"Raw response: {raw_response[:500]}")
-        return []
+        return ([], raw_turn_id)
     
     # Validate and enrich each memory
     now = datetime.now(timezone.utc).isoformat()
@@ -357,7 +363,8 @@ def extract_memories(
             ttl_hours = int(mem.get("ttl_hours", 12))
         
         # Build metadata with new fields
-        metadata = {
+        atom_metadata = {
+            "parent_memory_ids": [str(raw_turn_id)] if raw_turn_id else [],
             "temporal_type": temporal_type,
             "contradicts": mem.get("contradicts"),
         }
@@ -380,13 +387,13 @@ def extract_memories(
             "source_turn": turn_id,
             "extracted_at": now,
             "valid_from": now,
-            "metadata": metadata,
+            "metadata": atom_metadata,
             "ttl_hours": ttl_hours,
         }
         
         validated.append(memory_obj)
     
-    return validated
+    return (validated, raw_turn_id)
 
 
 def extract_session_handoff(
@@ -459,7 +466,7 @@ def test_extraction():
     print(f"Agent message: {agent[:100]}...")
     print()
     
-    memories = extract_memories(
+    memories, raw_turn_id = extract_memories(
         human_message=human,
         agent_message=agent,
         agent_id="thomas",

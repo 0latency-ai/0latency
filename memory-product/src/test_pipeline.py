@@ -50,7 +50,7 @@ def test_full_pipeline():
         print(f"  Human: {turn['human'][:80]}...")
         
         # Extract
-        memories = extract_memories(
+        memories, raw_turn_id = extract_memories(
             human_message=turn['human'],
             agent_message=turn['agent'],
             agent_id=AGENT_ID,
@@ -93,7 +93,7 @@ def test_full_pipeline():
     
     # Test reinforcement — re-extract the same NemoClaw fact
     print(f"\n--- Reinforcement Test ---")
-    memories2 = extract_memories(
+    memories2, raw_turn_id2 = extract_memories(
         human_message="Tell me again about NemoClaw",
         agent_message="NemoClaw is Nvidia's enterprise wrapper for OpenClaw announced at GTC. It handles security, not memory.",
         agent_id=AGENT_ID,

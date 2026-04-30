@@ -1,4 +1,5 @@
 #!/bin/bash
+source /root/.env_0latency
 # Automated Launch Test Suite
 # Tests everything that doesn't require manual browser interaction
 
@@ -40,7 +41,7 @@ if [ -z "$limit_key" ]; then
     FAIL=$((FAIL + 1))
 else
     # Verify free tier limit is set correctly in DB
-    limit_value=$(PGPASSWORD=jcYlwEhuHN9VcOuj psql -h aws-1-us-east-1.pooler.supabase.com -p 5432 -U postgres.fuojxlabvhtmysbsixdn -d postgres -t -c "SELECT memory_limit FROM memory_service.tenants WHERE email = '$test_email';" 2>/dev/null | xargs)
+    limit_value=$(PGPASSWORD=${SUPABASE_PASSWORD} psql -h aws-1-us-east-1.pooler.supabase.com -p 5432 -U postgres.fuojxlabvhtmysbsixdn -d postgres -t -c "SELECT memory_limit FROM memory_service.tenants WHERE email = '$test_email';" 2>/dev/null | xargs)
     
     if [ "$limit_value" = "10000" ]; then
         echo "  ✅ PASS: Free tier limit correctly set to 10,000 in database"
@@ -118,7 +119,7 @@ echo ""
 
 # Test 20: Analytics table
 echo "Test 20: Analytics Table Migration"
-analytics_check=$(PGPASSWORD=jcYlwEhuHN9VcOuj psql -h aws-1-us-east-1.pooler.supabase.com -p 5432 -U postgres.fuojxlabvhtmysbsixdn -d postgres -t -c "\dt memory_service.analytics_events" 2>&1 | grep -c "analytics_events" || echo "0")
+analytics_check=$(PGPASSWORD=${SUPABASE_PASSWORD} psql -h aws-1-us-east-1.pooler.supabase.com -p 5432 -U postgres.fuojxlabvhtmysbsixdn -d postgres -t -c "\dt memory_service.analytics_events" 2>&1 | grep -c "analytics_events" || echo "0")
 
 if [ "$analytics_check" -gt 0 ]; then
     echo "  ✅ PASS: analytics_events table exists"

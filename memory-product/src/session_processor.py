@@ -181,7 +181,7 @@ def process_new_turns(session_file, state, agent_id):
             """)
             existing = "\n".join([r.split("|||")[0] if "|||" in r else r for r in rows]) if rows else ""
             
-            memories = extract_memories(
+            memories, raw_turn_id = extract_memories(
                 human_message=human_msg,
                 agent_message=agent_msg,
                 agent_id=agent_id,

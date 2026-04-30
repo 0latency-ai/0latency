@@ -436,6 +436,7 @@ class ResumeResponse(BaseModel):
 class ExtractResponse(BaseModel):
     memories_stored: int
     memory_ids: list[str]
+    raw_turn_id: Optional[str] = None
     deduplicated_count: int = 0
     new_count: int = 0
     entities_extracted: int = 0
@@ -543,7 +544,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
         except Exception as e:
             logger.warning(f"Failed to load existing context for dedup: {e}")
         
-        memories = extract_memories(
+        memories, raw_turn_id = extract_memories(
             human_message=req.human_message,
             agent_message=req.agent_message,
             agent_id=agent_id,
@@ -554,7 +555,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
             source="api",
         )
         if not memories:
-            response = ExtractResponse(memories_stored=0, memory_ids=[])
+            response = ExtractResponse(memories_stored=0, memory_ids=[], raw_turn_id=None)
         else:
             result = store_memories(memories, tenant["id"])
             ids = result["ids"]
@@ -609,7 +610,8 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
                 entities_extracted=entities_extracted,
                 relationships_created=relationships_created,
                 sentiment_analyzed=sentiment_analyzed,
-                tier_features_used=list(set(tier_features_used))  # dedup
+                tier_features_used=list(set(tier_features_used)),  # dedup
+                raw_turn_id=raw_turn_id
             )
         
         # Track usage
@@ -755,7 +757,7 @@ async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depend
     def _process_extraction():
         try:
             # Split content into human/agent turns or treat as raw content
-            memories = extract_memories(
+            memories, raw_turn_id = extract_memories(
                 human_message=req.content,
                 agent_message="",
                 agent_id=agent_id,
@@ -770,6 +772,7 @@ async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depend
                     "status": "complete",
                     "memories_stored": len(ids),
                     "memory_ids": ids,
+                    "raw_turn_id": raw_turn_id,
                     "completed_at": datetime.now(timezone.utc).isoformat(),
                 })
             else:
@@ -777,6 +780,7 @@ async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depend
                     "status": "complete",
                     "memories_stored": 0,
                     "memory_ids": [],
+                    "raw_turn_id": None,
                     "completed_at": datetime.now(timezone.utc).isoformat(),
                 })
             
@@ -871,7 +875,7 @@ async def create_checkpoint(req: CheckpointRequest, tenant: dict = Depends(requi
     if req.parent_checkpoint_id:
         try:
             prior = _db_execute_rows(f"""
-                SELECT content FROM memory_service.memories
+                SELECT full_content FROM memory_service.memories
                 WHERE id = %s::UUID AND tenant_id = %s::UUID
             """, (req.parent_checkpoint_id, tenant["id"]), tenant_id=tenant["id"])
             if prior:
@@ -1884,13 +1888,15 @@ async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require
             except Exception as ctx_err:
                 logger.warning(f"[BATCH DEBUG] Turn {i}: failed to load dedup context: {ctx_err}")
 
-            memories = extract_memories(
+            memories, raw_turn_id = extract_memories(
                 human_message=turn.human_message,
                 agent_message=turn.agent_message,
                 agent_id=agent_id,
                 session_key=turn.session_key,
                 turn_id=turn.turn_id,
                 existing_context=existing_context,
+                tenant_id=tenant["id"],
+                source="api",
             )
             logger.info(f"[BATCH DEBUG] Turn {i}: extract_memories returned {len(memories) if memories else 0} memories")
             if memories:
@@ -2017,12 +2023,14 @@ async def bulk_import_endpoint(req: BulkImportRequest, tenant: dict = Depends(re
             break
         
         try:
-            memories = extract_memories(
+            memories, raw_turn_id = extract_memories(
                 human_message=chunk,
                 agent_message="",
                 agent_id=req.agent_id,
                 session_key=req.source or "bulk-import",
                 existing_context=existing_context,
+                tenant_id=tenant["id"],
+                source="api",
             )
             if memories:
                 result = store_memories(memories, tenant["id"])
@@ -2121,13 +2129,15 @@ async def thread_import_endpoint(req: ThreadImportRequest, tenant: dict = Depend
             break
         
         try:
-            memories = extract_memories(
+            memories, raw_turn_id = extract_memories(
                 human_message=human_msg,
                 agent_message=assistant_msg,
                 agent_id=req.agent_id,
                 session_key=req.source or "thread-import",
                 existing_context=existing_context,
                 recent_turns=recent_pairs[-4:] if recent_pairs else None,
+                tenant_id=tenant["id"],
+                source="api",
             )
             if memories:
                 result = store_memories(memories, tenant["id"])
@@ -2244,11 +2254,13 @@ async def demo_extract_endpoint(req: DemoExtractRequest, request: Request):
     
     start_time = time.time()
     try:
-        memories = extract_memories(
+        memories, raw_turn_id = extract_memories(
             human_message=req.content,
             agent_message="",
             agent_id="demo",
             session_key="demo-playground",
+            tenant_id=None,
+            source="demo",
         )
         
         results = []

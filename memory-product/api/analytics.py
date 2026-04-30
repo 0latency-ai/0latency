@@ -89,7 +89,7 @@ def is_first_api_call(tenant_id) -> bool:
             SELECT COUNT(*) as count FROM memory_service.analytics_events
             WHERE tenant_id = %s AND event_type = 'api_call'
         """, (tenant_id,))
-        return result[0]['count'] == 0 if result else True
+        return result[0][0] == 0 if result else True
     except Exception as e:
         logger.error(f"Failed to check first API call: {e}")
         return False
@@ -104,7 +104,7 @@ def is_first_memory_stored(tenant_id) -> bool:
             AND event_type = 'api_call'
             AND metadata->>'endpoint' = '/extract'
         """, (tenant_id,))
-        return result[0]['count'] == 0 if result else True
+        return result[0][0] == 0 if result else True
     except Exception as e:
         logger.error(f"Failed to check first memory stored: {e}")
         return False
@@ -119,7 +119,7 @@ def is_first_memory_recalled(tenant_id) -> bool:
             AND event_type = 'api_call'
             AND metadata->>'endpoint' = '/recall'
         """, (tenant_id,))
-        return result[0]['count'] == 0 if result else True
+        return result[0][0] == 0 if result else True
     except Exception as e:
         logger.error(f"Failed to check first memory recalled: {e}")
         return False
@@ -181,7 +181,7 @@ def get_dashboard_stats(tenant_id: Optional[int] = None) -> Dict[str, Any]:
             total_users = 1
         else:
             result = _db_execute_rows("SELECT COUNT(*) as count FROM tenants", ())
-            total_users = result[0]['count'] if result else 0
+            total_users = result[0][0] if result else 0
         
         # API calls by timeframe
         where_clause = f"WHERE tenant_id = {tenant_id}" if tenant_id else ""
@@ -210,7 +210,7 @@ def get_dashboard_stats(tenant_id: Optional[int] = None) -> Dict[str, Any]:
             {where_clause} {'AND' if where_clause else 'WHERE'} event_type = 'api_call'
             AND created_at > NOW() - INTERVAL '7 days'
         """, ())
-        active_users = active_result[0]['count'] if active_result else 0
+        active_users = active_result[0][0] if active_result else 0
         
         # Error rate (last 24h)
         total_api_calls = api_calls_24h
@@ -219,7 +219,7 @@ def get_dashboard_stats(tenant_id: Optional[int] = None) -> Dict[str, Any]:
             {where_clause} {'AND' if where_clause else 'WHERE'} event_type = 'error'
             AND created_at > NOW() - INTERVAL '24 hours'
         """, ())
-        errors = error_result[0]['count'] if error_result else 0
+        errors = error_result[0][0] if error_result else 0
         error_rate = (errors / total_api_calls * 100) if total_api_calls > 0 else 0
         
         # Popular endpoints

@@ -25,7 +25,7 @@ def test_preference_extraction():
     
     agent = """Noted. Won't happen again."""
     
-    memories = extract_memories(human, agent, agent_id="thomas", session_key="test", turn_id="pref-001")
+    memories, raw_turn_id = extract_memories(human, agent, agent_id="thomas", session_key="test", turn_id="pref-001")
     
     print(f"Extracted {len(memories)} memories:")
     for m in memories:
@@ -50,7 +50,7 @@ def test_decision_extraction():
     They handle digital/smaller publishers. You can set up an account with them after submission if needed — 
     the Intent to Bid just needs a selection now."""
     
-    memories = extract_memories(human, agent, agent_id="thomas", session_key="test", turn_id="dec-001")
+    memories, raw_turn_id = extract_memories(human, agent, agent_id="thomas", session_key="test", turn_id="dec-001")
     
     print(f"Extracted {len(memories)} memories:")
     for m in memories:
@@ -76,7 +76,7 @@ def test_correction_extraction():
     
     existing = "Justin selected 'Self' for depository during publisher registration"
     
-    memories = extract_memories(human, agent, agent_id="thomas", session_key="test", turn_id="cor-001",
+    memories, raw_turn_id = extract_memories(human, agent, agent_id="thomas", session_key="test", turn_id="cor-001",
                                existing_context=existing)
     
     print(f"Extracted {len(memories)} memories:")
@@ -102,7 +102,7 @@ def test_task_extraction():
     
     agent = """Logged it. Go handle your stuff — I'm here when you need me."""
     
-    memories = extract_memories(human, agent, agent_id="thomas", session_key="test", turn_id="task-001")
+    memories, raw_turn_id = extract_memories(human, agent, agent_id="thomas", session_key="test", turn_id="task-001")
     
     print(f"Extracted {len(memories)} memories:")
     for m in memories:
@@ -130,7 +130,7 @@ def test_complex_business_extraction():
     audit score, plus the full daytime UI built and deployed. Explore went from future product to needs LMS 
     hookup and one day of Sebastian's time."""
     
-    memories = extract_memories(human, agent, agent_id="thomas", session_key="test", turn_id="biz-001")
+    memories, raw_turn_id = extract_memories(human, agent, agent_id="thomas", session_key="test", turn_id="biz-001")
     
     print(f"Extracted {len(memories)} memories:")
     for m in memories:
@@ -151,7 +151,7 @@ def test_no_extraction_needed():
     human = "yes"
     agent = "Sent."
     
-    memories = extract_memories(human, agent, agent_id="thomas", session_key="test", turn_id="triv-001")
+    memories, raw_turn_id = extract_memories(human, agent, agent_id="thomas", session_key="test", turn_id="triv-001")
     
     print(f"Extracted {len(memories)} memories (should be 0): {len(memories)}")
     print(f"  ✅ Correctly skipped: {len(memories) == 0}")

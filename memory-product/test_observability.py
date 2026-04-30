@@ -9,8 +9,6 @@ import time
 from datetime import datetime
 
 # Set up environment
-os.environ.setdefault("MEMORY_DB_CONN", "postgresql://postgres.fuojxlabvhtmysbsixdn:jcYlwEhuHN9VcOuj@aws-1-us-east-1.pooler.supabase.com:5432/postgres")
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "api"))
 
 from observability import (
