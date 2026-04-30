@@ -91,8 +91,8 @@ Response 422: memory_id not a valid UUID
 
 ## Inputs at start
 
-- HEAD commit: `ab5553b`
-- Working tree: clean (verify before starting; halt if not)
+- HEAD commit: `9ff6dd3`
+- Working tree: in-scope files clean. Pre-existing untracked files (api/analytics.py.bak-tupleidx, api/main.py.backup, scripts/seed_*.py, smoke_test.py, memory-product-staging/) and submodule churn are PARKED and tolerated. Halt only if api/main.py or tests/test_source_endpoint.py is dirty at start.
 - Existing fixtures: a known raw_turn ID `9deed596-57f4-47fe-b788-1c640f9f178b` exists for tenant `44c3080d-c196-407d-a606-4ea9f62ba0fc` (from tonight's smoke). An atom linked to it: `002e58b3-2e69-4a3d-9548-2a2a7fbc78dc`.
 
 ---
@@ -103,11 +103,11 @@ Response 422: memory_id not a valid UUID
 ```bash
 cd /root/.openclaw/workspace/memory-product
 git status                         # GATE: must be clean
-git log -1 --oneline               # confirm: ab5553b CP8 Phase 2 Track 1
+git log -1 --oneline               # confirm: 9ff6dd3 (autonomy docs on top of ab5553b Track 1)
 ls /root/.openclaw/workspace/memory-product/CP*-BLOCKED.md 2>/dev/null  # GATE: must be empty (no halts pending)
 ```
 
-**HALT** if working tree dirty OR HEAD ≠ `ab5553b` OR any blocked notes exist.
+**HALT** if working tree dirty OR HEAD ≠ `9ff6dd3` OR any blocked notes exist.
 
 ### Step 2 — Read context
 ```bash
