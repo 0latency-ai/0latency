@@ -2460,6 +2460,132 @@ async def memory_history_endpoint(
         raise HTTPException(500, detail="Failed to retrieve memory history.")
 
 
+def _fetch_memory_row(memory_id: str, tenant_id: str) -> Optional[dict]:
+    """Fetch a single memory row for source resolution, tenant-isolated. Returns None if not found."""
+    rows = _db_execute_rows("""
+        SELECT id, memory_type, full_content, metadata
+        FROM memory_service.memories
+        WHERE id = %s::UUID AND tenant_id = %s::UUID
+    """, (memory_id, tenant_id), tenant_id=tenant_id)
+    if not rows:
+        return None
+    row = rows[0]
+    meta = row[3]
+    if not isinstance(meta, dict):
+        try:
+            import json as _json
+            meta = _json.loads(meta) if meta else {}
+        except Exception:
+            meta = {}
+    return {"id": str(row[0]), "memory_type": row[1], "full_content": row[2], "metadata": meta}
+
+
+def _resolve_source_chain(
+    memory_id: str, tenant_id: str, visited: set, depth: int, max_depth: int = 5
+) -> tuple:
+    """Recursively resolve source chain from parent_memory_ids.
+    Returns (source_chain, raw_turn_ids, max_depth_reached, truncated)."""
+    if memory_id in visited:
+        return ([], [], depth, False)
+    if depth > max_depth:
+        return ([], [], max_depth, True)
+    visited.add(memory_id)
+
+    row = _fetch_memory_row(memory_id, tenant_id)
+    if not row:
+        return ([], [], depth, False)
+
+    if row["memory_type"] == "raw_turn":
+        return (
+            [{"memory_id": row["id"], "memory_type": "raw_turn", "source_text": row["full_content"]}],
+            [row["id"]],
+            depth,
+            False,
+        )
+
+    parent_ids = (row["metadata"] or {}).get("parent_memory_ids") or []
+    chain: list = []
+    raw_turn_ids: list = []
+    max_depth_reached = depth
+    truncated = False
+
+    for parent_id in parent_ids:
+        sub_chain, sub_raw, sub_depth, sub_trunc = _resolve_source_chain(
+            parent_id, tenant_id, visited, depth + 1, max_depth
+        )
+        chain.extend(sub_chain)
+        raw_turn_ids.extend(sub_raw)
+        if sub_depth > max_depth_reached:
+            max_depth_reached = sub_depth
+        if sub_trunc:
+            truncated = True
+
+    return (chain, raw_turn_ids, max_depth_reached, truncated)
+
+
+@app.get("/memories/{memory_id}/source")
+async def get_memory_source(memory_id: str, tenant: dict = Depends(require_api_key)):
+    """Return verbatim source text for a memory, resolving parent_memory_ids chain for derived types."""
+    try:
+        uuid.UUID(memory_id)
+    except ValueError:
+        raise HTTPException(422, detail="memory_id must be a valid UUID")
+
+    tenant_id = tenant["id"]
+    row = _fetch_memory_row(memory_id, tenant_id)
+    if not row:
+        logger.warning(f"Memory source not found: {memory_id} tenant={tenant_id}")
+        raise HTTPException(404, detail="Memory not found")
+
+    if row["memory_type"] == "raw_turn":
+        logger.info(f"Memory source fetched (verbatim): {memory_id} tenant={tenant_id}")
+        return {
+            "memory_id": memory_id,
+            "memory_type": "raw_turn",
+            "source_type": "verbatim",
+            "source_text": row["full_content"],
+            "trace": {"raw_turn_ids": [memory_id], "depth": 0},
+        }
+
+    parent_ids = (row["metadata"] or {}).get("parent_memory_ids") or []
+    visited = {memory_id}
+    source_chain: list = []
+    raw_turn_ids: list = []
+    max_depth_reached = 0
+    truncated = False
+
+    for parent_id in parent_ids:
+        sub_chain, sub_raw, sub_depth, sub_trunc = _resolve_source_chain(
+            parent_id, tenant_id, visited, 1
+        )
+        source_chain.extend(sub_chain)
+        raw_turn_ids.extend(sub_raw)
+        if sub_depth > max_depth_reached:
+            max_depth_reached = sub_depth
+        if sub_trunc:
+            truncated = True
+
+    seen: set = set()
+    deduped_raw_turn_ids = []
+    for rid in raw_turn_ids:
+        if rid not in seen:
+            seen.add(rid)
+            deduped_raw_turn_ids.append(rid)
+
+    trace: dict = {"raw_turn_ids": deduped_raw_turn_ids, "depth": max_depth_reached}
+    if truncated:
+        trace["truncated"] = True
+
+    logger.info(f"Memory source fetched (derived): {memory_id} chain_len={len(source_chain)} tenant={tenant_id}")
+    return {
+        "memory_id": memory_id,
+        "memory_type": row["memory_type"],
+        "source_type": "derived",
+        "source_chain": source_chain,
+        "trace": trace,
+    }
+
+
 @app.put("/memories/{memory_id}")
 async def update_memory_endpoint(
     memory_id: str,
