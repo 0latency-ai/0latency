@@ -91,7 +91,7 @@ Response 422: memory_id not a valid UUID
 
 ## Inputs at start
 
-- HEAD commit: `__PENDING__`
+- HEAD commit: on `master` branch (any SHA — gate is branch + clean in-scope tree, not SHA pin)
 - Working tree: in-scope files clean. Pre-existing untracked files (api/analytics.py.bak-tupleidx, api/main.py.backup, scripts/seed_*.py, smoke_test.py, memory-product-staging/) and submodule churn are PARKED and tolerated. Halt only if api/main.py or tests/test_source_endpoint.py is dirty at start.
 - Existing fixtures: a known raw_turn ID `9deed596-57f4-47fe-b788-1c640f9f178b` exists for tenant `44c3080d-c196-407d-a606-4ea9f62ba0fc` (from tonight's smoke). An atom linked to it: `002e58b3-2e69-4a3d-9548-2a2a7fbc78dc`.
 
@@ -103,11 +103,12 @@ Response 422: memory_id not a valid UUID
 ```bash
 cd /root/.openclaw/workspace/memory-product
 git status --porcelain -- api/main.py tests/ # GATE: must print nothing (in-scope files only)
-git log -1 --oneline               # confirm: __PENDING__ (Step 1 hardening on top of ab5553b Track 1)
+git log -1 --oneline               # informational only — record HEAD for the run
+git symbolic-ref --short HEAD    # GATE: must print "master"
 ls /root/.openclaw/workspace/memory-product/CP*-BLOCKED.md 2>/dev/null  # GATE: must be empty (no halts pending)
 ```
 
-**HALT** if `git status --porcelain -- api/main.py tests/` prints anything OR HEAD ≠ `__PENDING__` OR any blocked notes exist.
+**HALT** if `git status --porcelain -- api/main.py tests/` prints anything OR current branch ≠ `master` OR any blocked notes exist.
 
 ### Step 2 — Read context
 ```bash
