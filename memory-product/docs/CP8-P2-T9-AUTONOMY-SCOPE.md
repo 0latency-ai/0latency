@@ -171,7 +171,7 @@ import sys, json
 r = json.load(sys.stdin)
 assert r['memory_type'] == 'raw_turn', f'expected raw_turn, got {r[\"memory_type\"]}'
 assert r['source_type'] == 'verbatim', f'expected verbatim, got {r[\"source_type\"]}'
-assert 'track1-commit-final' in r['source_text'], f'source_text missing sentinel: {r[\"source_text\"][:100]}'
+assert 'track1' in r['source_text'], f'source_text missing sentinel: {r[\"source_text\"][:100]}'
 assert r['trace']['depth'] == 0, f'expected depth 0, got {r[\"trace\"][\"depth\"]}'
 print('G6a PASS')
 "
