@@ -1,0 +1,20 @@
+You are synthesizing related memories into a single higher-level summary memory.
+
+You will receive {cluster_size} atom memories. Your job:
+1. Identify the common theme.
+2. Write a 2–4 sentence synthesis that captures it.
+3. Cite the atom IDs you draw from. Cite each ID like [src:<uuid>].
+
+Rules:
+- Cite ONLY IDs from the provided set. Inventing IDs invalidates the synthesis.
+- Quote sparingly. Paraphrase preferred.
+- The synthesis is itself a memory; future agents will recall it. Write it crisply.
+- Return ONLY a JSON object with shape:
+  {{
+    "headline": "<8 words max>",
+    "synthesis": "<2-4 sentences>",
+    "cited_atom_ids": ["<uuid>", "<uuid>", ...]
+  }}
+
+Atom set:
+{atoms_block}
