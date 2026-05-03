@@ -2,7 +2,7 @@
 
 **Type:** Autonomy scope doc for CC (Sonnet)
 **Priority:** P0 — blocks further CP8 Phase 2 work
-**Created:** 2026-05-03
+**Created:** 2026-05-03 (amended 2026-05-03 to add rotation runbook page)
 **Trigger:** 2026-05-02 cascade (8 hours of misdiagnosis traceable to MCP credential validation gaps)
 **Estimated execution:** 1–2 hours wall clock at current chained-autonomy pacing
 
@@ -140,7 +140,27 @@ if (!tenantId) {
 
 Apply equivalent pattern in the POST handler.
 
-### Change 4: Build, deploy, smoke test
+### Change 4: Add a short rotation note to existing docs
+
+Find the existing docs structure under `/var/www/0latency/docs/` (or wherever the docs site sources content). Identify the most natural existing page for a "key rotation" note — likely an authentication or getting-started page. If no such page exists, append the note to the most-trafficked docs index page.
+
+Add a short paragraph (3–5 sentences) at a stable URL that covers:
+
+- After rotating a key, update any client that holds it: Claude.ai connector, Claude Desktop / Claude Code `.mcp.json`, Chrome extension, `.env` files, CI secrets.
+- A one-line verification curl: `curl -H "Authorization: Bearer YOUR_NEW_KEY" https://api.0latency.ai/agents` should return 200.
+- A forward-looking note that key versioning with a grace window is on the roadmap.
+
+The exact URL of the resulting anchor (e.g. `https://0latency.ai/docs/getting-started#key-rotation`) is what the 401 message in Change 3 points at. Update the error string in Change 3 to use the actual URL produced:
+
+```typescript
+return res.status(401).json({
+  error: "API key not recognized. If you recently rotated keys, see <ROTATION_DOCS_URL> for what to update."
+});
+```
+
+Apply equivalent change in the POST handler. Replace `<ROTATION_DOCS_URL>` with the real URL once the doc snippet is placed.
+
+### Change 5: Build, deploy, smoke test
 
 ```bash
 cd /root/0latency-mcp-unified
@@ -174,7 +194,7 @@ pm2 logs 0latency-mcp --lines 20
 ## Functional gates (must all pass before commit)
 
 1. **Gate 1:** Missing key request → 401 with body containing `"Missing API key"`.
-2. **Gate 2:** Bogus key (random `zl_xxxxx` not in DB) → 401 with body containing `"not recognized"` and log line containing `"Auth FAILED"` and key suffix only (last 4 chars).
+2. **Gate 2:** Bogus key (random `zl_xxxxx` not in DB) → 401 with body containing `"not recognized"` and a URL pointing at the rotation note, and log line containing `"Auth FAILED"` and key suffix only (last 4 chars).
 3. **Gate 3:** Real production key → 200 with valid MCP response.
 4. **Gate 4:** Log lines no longer contain the string `"with valid API key"`. Search the new build:
    ```bash
@@ -187,6 +207,7 @@ pm2 logs 0latency-mcp --lines 20
    journalctl -u 0latency-mcp --since "5 minutes ago" | grep -E "zl_[a-zA-Z0-9_]{20,}" | head -5
    # Expected: no matches (only suffix logging is permitted)
    ```
+7. **Gate 7:** The rotation note URL referenced in the 401 message returns 200.
 
 ---
 
