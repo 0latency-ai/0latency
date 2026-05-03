@@ -462,7 +462,7 @@ def test_validation_failure_blocks_write(
     set_tenant_context(test_tenant_id)
 
     # Mock validation callback that returns invalid
-    def mock_validator(synthesis_text: str, cluster_ids: list):
+    def mock_validator(synthesis_text: str, cluster_ids: list, **kwargs):
         return ValidationResult(
             valid=False,
             cited_ids_in_source_set=[],

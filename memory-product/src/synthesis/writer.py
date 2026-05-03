@@ -34,19 +34,12 @@ from src.tier_gates import (
     get_allowed_model,
 )
 from src.synthesis.clustering import Cluster
+from src.synthesis.validation import validate_synthesis_citations, ValidationResult
 
 
 # ============================================================
 # Dataclasses
 # ============================================================
-
-@dataclass
-class ValidationResult:
-    """Result from source-quote validation callback (T3 implements)."""
-    valid: bool
-    cited_ids_in_source_set: list[UUID]
-    cited_ids_NOT_in_source_set: list[UUID]  # hallucinations
-    failure_reason: Optional[str]
 
 
 @dataclass
@@ -394,39 +387,40 @@ def synthesize_cluster(
         validation_passed = True
         validation_result = None
 
-        if validate_callback is not None:
-            validation_result = validate_callback(synthesis_text, cluster.memory_ids)
-            validation_passed = validation_result.valid
+        # Use provided callback or default validator
+        validator = validate_callback or validate_synthesis_citations
+        validation_result = validator(synthesis_text, cluster.memory_ids, structured_cited_ids=cited_ids)
+        validation_passed = validation_result.valid
 
-            if not validation_passed:
-                # Validation failed - write audit event and return
-                if not dry_run:
-                    audit_event_id = _write_audit_event(
-                        tenant_id=tenant_id,
-                        target_memory_id=None,
-                        event_type="rate_limit_blocked",  # Reuse for validation failures
-                        actor=agent_id,
-                        event_payload={
-                            "cluster_size": len(cluster.memory_ids),
-                            "reason": f"validation_failed: {validation_result.failure_reason}",
-                            "hallucinated_ids": [str(id) for id in validation_result.cited_ids_NOT_in_source_set],
-                        }
-                    )
-                else:
-                    audit_event_id = None
-
-                return SynthesisResult(
-                    success=False,
-                    synthesis_id=None,
-                    audit_event_id=audit_event_id,
-                    cluster_size=len(cluster.memory_ids),
-                    source_memory_ids=cited_ids,
-                    parent_memory_ids=cluster.memory_ids,
-                    tokens_used=total_tokens,
-                    llm_model=llm_model,
-                    rejected_reason="validation_failed",
-                    dry_run=dry_run,
+        if not validation_passed:
+            # Validation failed - write audit event and return
+            if not dry_run:
+                audit_event_id = _write_audit_event(
+                    tenant_id=tenant_id,
+                    target_memory_id=None,
+                    event_type="rate_limit_blocked",  # Reuse for validation failures
+                    actor=agent_id,
+                    event_payload={
+                        "cluster_size": len(cluster.memory_ids),
+                        "reason": f"validation_failed: {validation_result.failure_reason}",
+                        "hallucinated_ids": [str(id) for id in validation_result.cited_ids_NOT_in_source_set],
+                    }
                 )
+            else:
+                audit_event_id = None
+
+            return SynthesisResult(
+                success=False,
+                synthesis_id=None,
+                audit_event_id=audit_event_id,
+                cluster_size=len(cluster.memory_ids),
+                source_memory_ids=cited_ids,
+                parent_memory_ids=cluster.memory_ids,
+                tokens_used=total_tokens,
+                llm_model=llm_model,
+                rejected_reason="validation_failed",
+                dry_run=dry_run,
+            )
 
         # ============================================================
         # STEP 6: Dry-run check
