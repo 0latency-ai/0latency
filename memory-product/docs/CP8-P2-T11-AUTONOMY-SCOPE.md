@@ -288,10 +288,10 @@ Files: scripts/contract_test.py (NEW),
 ```bash
 git commit -F /tmp/cp11-commit-msg.txt
 git log -1 --stat
-git push origin master
+# Push handled separately by Justin from root shell.
 ```
 
-**NOTE: This is the final task in the chain — push IS required here.**
+**NOTE: Local commit only. Push is deferred. NOT a BLOCKED condition.**
 
 ---
 
