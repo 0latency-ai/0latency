@@ -59,6 +59,8 @@ from schemas import (
     create_schema as _create_schema, list_schemas as _list_schemas,
     delete_schema as _delete_schema, get_schema,
 )
+from synthesis.orchestrator import run_synthesis_for_tenant
+import tier_gates
 from org_memory import (
     create_organization, add_tenant_to_org, get_tenant_org,
     store_org_memory, recall_org_memories, list_org_memories,
@@ -3135,6 +3137,74 @@ async def admin_delete_user(email: str):
         raise HTTPException(500, detail=str(e))
 
 # Fix GitHub tenant API key
+# ──────────────────────────────────────────────────────────────────────────────
+# CP8 Phase 2 — Synthesis Trigger Endpoint
+# ──────────────────────────────────────────────────────────────────────────────
+
+class SynthesisRunRequest(BaseModel):
+    agent_id: str = Field(..., description="Agent namespace to run synthesis for")
+    max_clusters: Optional[int] = Field(None, ge=1, le=10, description="Max clusters to synthesize (capped at 10)")
+    force: Optional[bool] = Field(False, description="Skip cooldown check")
+    role_scope: Optional[str] = Field("public", description="Role tag for synthesis memories")
+
+@app.post("/synthesis/run")
+def synthesis_run(req: SynthesisRunRequest, tenant=Depends(require_api_key)):
+    """
+    Manual synthesis trigger endpoint.
+    Free tier: blocked (403).
+    Pro+ tiers: rate-limited by tier_gates.
+    """
+    try:
+        # Check quota first
+        from storage_multitenant import _get_connection_pool
+        pool = _get_connection_pool()
+        conn = pool.getconn()
+        try:
+            allowed, reason = tier_gates.check_synthesis_quota(
+                tenant_id=tenant["id"],
+                kind="manual_run",
+                conn=conn,
+                amount=1,
+            )
+        finally:
+            pool.putconn(conn)
+
+        if not allowed:
+            # Determine status code based on tier
+            from tier_gates import get_tier
+            conn2 = pool.getconn()
+            try:
+                tier = get_tier(tenant["id"], conn2)
+            finally:
+                pool.putconn(conn2)
+            
+            if tier == "free":
+                raise HTTPException(status_code=403, detail=reason)
+            else:
+                raise HTTPException(status_code=429, detail=reason)
+        # Run synthesis via orchestrator
+        max_clusters = min(req.max_clusters or 5, 10)  # Cap at 10
+        result = run_synthesis_for_tenant(
+            tenant_id=tenant["id"],
+            agent_id=req.agent_id,
+            role_scope=req.role_scope,
+            force=req.force,
+            max_clusters=max_clusters,
+            triggered_by="manual_api",
+        )
+        
+        track_api_usage(tenant["id"], "synthesis_run")
+        logger.info(f"Synthesis run: tenant={tenant['id']} status={result['status']}")
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Synthesis run failed: {e}")
+        raise HTTPException(status_code=500, detail="Synthesis failed")
+
+
 @app.post("/admin/fix-github-tenant")
 async def fix_github_tenant():
     """ADMIN: Generate API key for GitHub tenant"""

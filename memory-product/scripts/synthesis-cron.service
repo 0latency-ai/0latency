@@ -1,0 +1,13 @@
+[Unit]
+Description=0Latency synthesis cron worker
+After=memory-api.service postgresql.service
+Requires=memory-api.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/.openclaw/workspace/memory-product
+EnvironmentFile=/root/.openclaw/workspace/memory-product/.env
+ExecStart=/usr/bin/python3 /root/.openclaw/workspace/memory-product/scripts/run_synthesis_cron.py
+StandardOutput=journal
+StandardError=journal

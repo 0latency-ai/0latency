@@ -32,20 +32,6 @@ from typing import Optional
 
 from src.storage_multitenant import _db_execute_rows, set_tenant_context, _get_connection_pool
 
-# Register pgvector type for psycopg2
-try:
-    from pgvector.psycopg2 import register_vector
-    # Register on the connection pool
-    pool = _get_connection_pool()
-    conn = pool.getconn()
-    try:
-        register_vector(conn)
-    finally:
-        pool.putconn(conn)
-except ImportError:
-    # Fallback: parse vector strings manually if pgvector not installed
-    pass
-
 
 @dataclass
 class Cluster:
@@ -117,6 +103,27 @@ def _parse_pgvector_string(vec_str: str) -> list[float]:
     raise TypeError(f"Cannot parse embedding of type {type(vec_str)}")
 
 
+
+# Global flag to track if pgvector is registered
+_pgvector_registered = False
+
+def _ensure_pgvector_registered():
+    """Lazy registration of pgvector type. Called on first use."""
+    global _pgvector_registered
+    if not _pgvector_registered:
+        try:
+            from pgvector.psycopg2 import register_vector
+            pool = _get_connection_pool()
+            conn = pool.getconn()
+            try:
+                register_vector(conn)
+                _pgvector_registered = True
+            finally:
+                pool.putconn(conn)
+        except ImportError:
+            # pgvector not installed, will use fallback parsing
+            _pgvector_registered = True  # Mark as "handled" to avoid retry
+
 def find_clusters(
     tenant_id: str,
     agent_id: str,
@@ -147,6 +154,7 @@ def find_clusters(
     Raises:
         RuntimeError: If embedding dimension mismatch detected or DB error occurs
     """
+    _ensure_pgvector_registered()
     set_tenant_context(tenant_id)
     
     # Step 1: Query candidate atoms
