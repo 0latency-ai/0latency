@@ -116,3 +116,81 @@ def test_run_consensus_eligible_when_2_plus_succeed():
     assert result['consensus_eligible'] is True
     assert len(result['candidates']) == 3
     assert set(result['agents_succeeded']) == {'agent-a', 'agent-b', 'agent-c'}
+
+
+# ============================================================
+# STAGE 04: Merger tests
+# ============================================================
+
+from src.synthesis.consensus import merge_candidates, _normalize_claim, _decompose_to_claims
+
+
+def test_normalize_claim_basic():
+    assert _normalize_claim("  Hello World.  ") == "hello world"
+    assert _normalize_claim("FOO,") == "foo"
+    assert _normalize_claim("a   b\nc") == "a b c"
+
+
+def test_decompose_simple():
+    claims = _decompose_to_claims("Cats are great. Dogs are also great. The end.")
+    assert claims == ["Cats are great.", "Dogs are also great.", "The end."]
+
+
+def _candidate(agent_id, full_content, headline="h", context="c",
+               source_ids=None, parent_ids=None, role_tag="public",
+               cluster_id="cluster-x", tokens_used=100):
+    return {
+        "agent_id": agent_id,
+        "headline": headline,
+        "context": context,
+        "full_content": full_content,
+        "source_memory_ids": source_ids or [],
+        "parent_memory_ids": parent_ids or ["00000000-0000-0000-0000-000000000abc"],
+        "role_tag": role_tag,
+        "cluster_id": cluster_id,
+        "tokens_used": tokens_used,
+    }
+
+
+def test_merge_unanimous_3_of_3():
+    """All 3 candidates state the same claim → retained with support_count=3."""
+    cands = [
+        _candidate("agent-a", "X happened in Q3.", source_ids=["00000000-0000-0000-0000-000000000001"]),
+        _candidate("agent-b", "X happened in Q3.", source_ids=["00000000-0000-0000-0000-000000000002"]),
+        _candidate("agent-c", "X happened in Q3.", source_ids=["00000000-0000-0000-0000-000000000003"]),
+    ]
+    result = merge_candidates(cands)
+    assert result["merge_succeeded"] is True
+    assert len(result["retained_claims"]) == 1
+    assert result["retained_claims"][0]["support_count"] == 3
+    assert set(result["contributing_agents"]) == {"agent-a", "agent-b", "agent-c"}
+
+
+def test_merge_majority_2_of_3():
+    """2-of-3 majority retained; the unique claim from agent-c rejected."""
+    cands = [
+        _candidate("agent-a", "X happened. Y happened."),
+        _candidate("agent-b", "X happened. Y happened."),
+        _candidate("agent-c", "X happened. Z happened."),
+    ]
+    result = merge_candidates(cands)
+    assert result["merge_succeeded"] is True
+    retained_norms = {r["claim_normalized"] for r in result["retained_claims"]}
+    rejected_norms = {r["claim_normalized"] for r in result["rejected_claims"]}
+    assert "x happened" in retained_norms
+    assert "y happened" in retained_norms
+    assert "z happened" in rejected_norms
+    assert "agent-c" in result["contributing_agents"]  # because agent-c also said "X happened"
+
+
+def test_merge_no_majority():
+    """All claims unique across candidates → no claim hits threshold → merge_succeeded=False."""
+    cands = [
+        _candidate("agent-a", "Alpha alone."),
+        _candidate("agent-b", "Beta alone."),
+        _candidate("agent-c", "Gamma alone."),
+    ]
+    result = merge_candidates(cands)
+    assert result["merge_succeeded"] is False
+    assert result["reason"] == "no_majority_claims"
+    assert len(result["rejected_claims"]) == 3

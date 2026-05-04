@@ -16,10 +16,17 @@ Note: does not take db_conn parameter; uses internal connection pool.
 from __future__ import annotations
 
 import logging
+import math
+import re
+import uuid
+import json
 from typing import Any, Dict, List, Optional
 from uuid import UUID
+from datetime import datetime, timezone
+from collections import Counter, defaultdict
 
 from .writer import synthesize_cluster, _write_audit_event
+from src.storage_multitenant import _db_execute_rows, set_tenant_context
 
 logger = logging.getLogger("synthesis.consensus")
 
@@ -211,11 +218,294 @@ def run_consensus(
             "cluster_id": cluster_id,
         }
 
+    # NEW: merge candidates and persist consensus row
+    merge_result = merge_candidates(candidates)
+
+    if not merge_result["merge_succeeded"]:
+        _write_audit_event(
+            tenant_id=tenant_id,
+            target_memory_id=None,
+            event_type="consensus_merge_failed",
+            actor="system",
+            event_payload={
+                "cluster_id": cluster_id,
+                "role_tag": role_tag,
+                "reason": merge_result["reason"],
+                "n_candidates": merge_result["n_candidates"],
+                "rejected_claim_count": len(merge_result["rejected_claims"]),
+            },
+        )
+        return {
+            "consensus_eligible": True,
+            "merge_succeeded": False,
+            "candidates": candidates,
+            "merge_result": merge_result,
+            "fallback_reason": merge_result["reason"],
+            "agents_attempted": selected,
+            "agents_succeeded": [c.get("agent_id") for c in candidates],
+            "cluster_id": cluster_id,
+            "consensus_synthesis_id": None,
+        }
+
+    # Persist the merged consensus row
+    consensus_id = persist_consensus_row(
+        tenant_id=tenant_id,
+        merge_result=merge_result,
+        db_conn=db_conn,
+        consensus_method="majority_vote",
+        synthesis_prompt_version=candidates[0].get("synthesis_prompt_version") if candidates else None,
+    )
+
     return {
         "consensus_eligible": True,
+        "merge_succeeded": True,
         "candidates": candidates,
+        "merge_result": merge_result,
+        "consensus_synthesis_id": consensus_id,
         "fallback_reason": None,
         "agents_attempted": selected,
         "agents_succeeded": [c.get("agent_id") for c in candidates],
         "cluster_id": cluster_id,
     }
+
+
+# ============================================================
+# STAGE 04: Claim-level majority_vote merger
+# ============================================================
+
+# Claim normalization regex: collapse internal whitespace
+_WS_RE = re.compile(r"\s+")
+# Sentence boundary: . ! ? followed by space-or-end
+_SENT_RE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _normalize_claim(claim: str) -> str:
+    """Lowercase, strip, collapse whitespace, drop trailing punctuation."""
+    s = claim.strip().lower()
+    s = _WS_RE.sub(" ", s)
+    return s.rstrip(".!?,;:")
+
+
+def _decompose_to_claims(full_content: str) -> List[str]:
+    """Split full_content into sentence-level claims.
+
+    v1 sentence-boundary split. Empty/whitespace claims dropped.
+    Order is preserved within candidate (used for headline-from-candidate selection).
+    """
+    if not full_content:
+        return []
+    parts = _SENT_RE.split(full_content.strip())
+    return [p.strip() for p in parts if p.strip()]
+
+
+def merge_candidates(
+    candidates: List[Dict[str, Any]],
+    majority_threshold: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Merge N candidate syntheses by majority vote on claim-level.
+
+    Args:
+        candidates: list of candidate dicts from run_consensus
+        majority_threshold: minimum support count for a claim to be retained.
+                            Default: ceil(len(candidates) / 2). With 3 candidates → 2.
+
+    Returns merge_result dict with merge_succeeded, merged_full_content, etc.
+    """
+    n = len(candidates)
+    threshold = majority_threshold if majority_threshold is not None else math.ceil(n / 2)
+
+    # Decompose each candidate to claims
+    supporters_by_norm: Dict[str, List[str]] = defaultdict(list)
+    original_by_norm: Dict[str, str] = {}
+    claims_by_agent: Dict[str, List[str]] = {}
+
+    for cand in candidates:
+        agent_id = cand.get("agent_id", "<unknown>")
+        decomposed = _decompose_to_claims(cand.get("full_content", "") or "")
+        seen_in_this_candidate: set = set()
+        norm_list_for_agent: List[str] = []
+        for claim_orig in decomposed:
+            norm = _normalize_claim(claim_orig)
+            if not norm or norm in seen_in_this_candidate:
+                continue
+            seen_in_this_candidate.add(norm)
+            supporters_by_norm[norm].append(agent_id)
+            if norm not in original_by_norm:
+                original_by_norm[norm] = claim_orig.strip()
+            norm_list_for_agent.append(norm)
+        claims_by_agent[agent_id] = norm_list_for_agent
+
+    # Partition into retained / rejected
+    retained: List[Dict[str, Any]] = []
+    rejected: List[Dict[str, Any]] = []
+    for norm, supporters in supporters_by_norm.items():
+        entry = {
+            "claim": original_by_norm[norm],
+            "claim_normalized": norm,
+            "supporters": list(supporters),
+            "support_count": len(supporters),
+        }
+        if len(supporters) >= threshold:
+            retained.append(entry)
+        else:
+            rejected.append(entry)
+
+    if not retained:
+        return {
+            "merge_succeeded": False,
+            "merged_full_content": "",
+            "merged_headline": "",
+            "merged_context": "",
+            "contributing_agents": [],
+            "source_memory_ids": [],
+            "parent_memory_ids": list(candidates[0].get("parent_memory_ids", [])) if candidates else [],
+            "role_tag": candidates[0].get("role_tag") if candidates else None,
+            "cluster_id": candidates[0].get("cluster_id") if candidates else None,
+            "retained_claims": [],
+            "rejected_claims": rejected,
+            "n_candidates": n,
+            "majority_threshold": threshold,
+            "reason": "no_majority_claims",
+        }
+
+    # Determine highest-contributor candidate
+    retained_norms = {r["claim_normalized"] for r in retained}
+    contribution_counts: Counter = Counter()
+    for cand in candidates:
+        agent_id = cand.get("agent_id")
+        contributed = sum(1 for n in claims_by_agent.get(agent_id, []) if n in retained_norms)
+        contribution_counts[agent_id] = contributed
+
+    def _rank_key(cand):
+        a = cand.get("agent_id", "")
+        return (-contribution_counts[a], -(cand.get("tokens_used", 0) or 0), a)
+
+    ranked = sorted(candidates, key=_rank_key)
+    top_candidate = ranked[0]
+
+    # Reconstruct merged_full_content
+    top_agent = top_candidate.get("agent_id")
+    top_order = [n for n in claims_by_agent.get(top_agent, []) if n in retained_norms]
+    seen = set(top_order)
+    tail_order: List[str] = []
+    for cand in ranked[1:]:
+        for n in claims_by_agent.get(cand.get("agent_id"), []):
+            if n in retained_norms and n not in seen:
+                tail_order.append(n)
+                seen.add(n)
+    final_norm_order = top_order + tail_order
+
+    merged_full_content = ". ".join(original_by_norm[n].rstrip(".!?,;:") for n in final_norm_order) + "."
+
+    # contributing_agents
+    contributing_agents = sorted({
+        agent for r in retained for agent in r["supporters"]
+    })
+
+    # source_memory_ids
+    contributing_set = set(contributing_agents)
+    src_ids: List[str] = []
+    seen_src = set()
+    for cand in candidates:
+        if cand.get("agent_id") not in contributing_set:
+            continue
+        for sid in (cand.get("source_memory_ids") or []):
+            if sid not in seen_src:
+                src_ids.append(sid)
+                seen_src.add(sid)
+
+    return {
+        "merge_succeeded": True,
+        "merged_full_content": merged_full_content,
+        "merged_headline": top_candidate.get("headline", "") or "",
+        "merged_context": top_candidate.get("context", "") or "",
+        "contributing_agents": contributing_agents,
+        "source_memory_ids": src_ids,
+        "parent_memory_ids": list(top_candidate.get("parent_memory_ids", [])),
+        "role_tag": top_candidate.get("role_tag"),
+        "cluster_id": top_candidate.get("cluster_id"),
+        "retained_claims": retained,
+        "rejected_claims": rejected,
+        "n_candidates": n,
+        "majority_threshold": threshold,
+        "reason": None,
+    }
+
+
+def persist_consensus_row(
+    tenant_id: str,
+    merge_result: Dict[str, Any],
+    db_conn,
+    consensus_method: str = "majority_vote",
+    synthesis_prompt_version: Optional[str] = None,
+) -> str:
+    """INSERT the merged consensus row into memory_service.memories.
+
+    Returns the inserted row's UUID as string.
+    """
+    if not merge_result.get("merge_succeeded"):
+        raise ValueError(f"Cannot persist failed merge: {merge_result.get('reason')}")
+
+    new_id = str(uuid.uuid4())
+    
+    metadata = {
+        "parent_memory_ids": merge_result["parent_memory_ids"],
+    }
+    
+    set_tenant_context(tenant_id)
+    
+    query = """
+        INSERT INTO memory_service.memories (
+            id, tenant_id, agent_id, memory_type,
+            headline, context, full_content,
+            source_memory_ids, role_tag, redaction_state,
+            contributing_agents, consensus_method,
+            synthesis_prompt_version, synthesis_version,
+            is_pinned, metadata
+        ) VALUES (
+            %s, %s, %s, 'synthesis',
+            %s, %s, %s,
+            %s::uuid[], %s, 'active',
+            %s::text[], %s,
+            %s, 1,
+            false, %s::jsonb
+        )
+    """
+    
+    params = (
+        new_id,
+        tenant_id,
+        "system_consensus",
+        (merge_result["merged_headline"] or "Consensus synthesis")[:200],
+        merge_result["merged_context"] or merge_result["merged_full_content"][:200],
+        merge_result["merged_full_content"],
+        merge_result["source_memory_ids"],
+        merge_result["role_tag"],
+        merge_result["contributing_agents"],
+        consensus_method,
+        synthesis_prompt_version,
+        json.dumps(metadata),
+    )
+    
+    _db_execute_rows(query, params, tenant_id=tenant_id, fetch_results=False)
+
+    # Emit synthesis_written audit event
+    _write_audit_event(
+        tenant_id=tenant_id,
+        target_memory_id=UUID(new_id),
+        event_type="synthesis_written",
+        actor="system_consensus",
+        event_payload={
+            "cluster_id": merge_result["cluster_id"],
+            "role_tag": merge_result["role_tag"],
+            "consensus_method": consensus_method,
+            "n_candidates": merge_result["n_candidates"],
+            "majority_threshold": merge_result["majority_threshold"],
+            "contributing_agents": merge_result["contributing_agents"],
+            "retained_claim_count": len(merge_result["retained_claims"]),
+            "rejected_claim_count": len(merge_result["rejected_claims"]),
+            "synthesis_prompt_version": synthesis_prompt_version,
+        },
+    )
+
+    return new_id
