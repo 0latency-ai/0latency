@@ -242,11 +242,11 @@ def find_clusters(
     }))
     
     # Phase 4: Compute pairwise similarities using batched HNSW KNN queries
-    # PLATFORM CONSTRAINT: pgvector 0.8.1 on DO Managed PG cannot route filtered KNN
-    # through HNSW index (planner cost-misestimation). Batched pure KNN queries guarantee
-    # HNSW usage (~1.6ms each). Post-filter in Python.
+    # Phase 4B (CP-SYNTHESIS-PERF): Pushed filters into SQL WHERE while preserving HNSW usage.
+    # pgvector 0.8.1 accepts memory_type, is_pinned, redaction_state, created_at without
+    # switching to btree. Candidate-set membership + symmetry dedup remain Python-side.
     # TODO: When DO offers pgvector >=0.9.0, revert to single-query LATERAL + SET LOCAL
-    # hnsw.iterative_scan pattern. See docs/CP-SYNTHESIS-PERF-PHASE4-RESULTS.md.
+    # hnsw.iterative_scan pattern. See docs/CP-SYNTHESIS-PERF-PHASE4B-RESULTS.md.
     phase_start = time.perf_counter()
 
     # Acquire single connection for all queries (reusing connection pool)
@@ -258,8 +258,11 @@ def find_clusters(
         cursor = conn.cursor()
         set_tenant_context(tenant_id)  # Already set, but ensure it's active
 
-        # Pure KNN query: minimal WHERE predicates → HNSW index used
-        knn_query = """
+        # Phase 4B: Pushed filters from Python into SQL WHERE clause
+        # EXPLAIN ANALYZE verified all predicates preserve HNSW index usage (pgvector 0.8.1)
+        # Pushed: memory_type IN (...), is_pinned IS NOT TRUE, redaction_state, created_at window
+        # Kept in Python: candidate-set membership, symmetry dedup, similarity threshold
+        knn_query = f"""
             SELECT id, embedding, created_at, memory_type, is_pinned, redaction_state,
                    1 - (embedding <=> %s) AS similarity
             FROM memory_service.memories
@@ -267,8 +270,13 @@ def find_clusters(
               AND agent_id = %s
               AND id != %s
               AND embedding IS NOT NULL
+              AND memory_type IN ('fact', 'preference', 'instruction', 'event', 'correction', 'identity')
+              AND is_pinned IS NOT TRUE
+              AND (redaction_state IS NULL OR redaction_state = 'active')
+              AND created_at < NOW() - INTERVAL '{recency_window_hours_min} hours'
+              AND created_at > NOW() - INTERVAL '{recency_window_hours_max} hours'
             ORDER BY embedding <=> %s
-            LIMIT 50
+            LIMIT 20
         """
 
         similarities = []
@@ -301,35 +309,11 @@ def find_clusters(
                 )
                 neighbors = cursor.fetchall()
 
-                # Post-filter in Python: recency, type, status, pinned, redaction
-                # Compute recency window bounds once per batch (not per neighbor)
-                now = datetime.datetime.now(datetime.timezone.utc)
-                min_age = datetime.timedelta(hours=recency_window_hours_min)
-                max_age = datetime.timedelta(hours=recency_window_hours_max)
-
+                # Post-filter in Python: candidate-set membership, symmetry, threshold
+                # Phase 4B: recency/type/pinned/redaction now in SQL WHERE (HNSW-safe)
                 for neighbor_row in neighbors:
                     neighbor_id, neighbor_emb, neighbor_created_at, neighbor_type, \
                         neighbor_pinned, neighbor_redaction, similarity = neighbor_row
-
-                    # Apply same filters as candidate query
-                    # Recency window check
-
-                    if not (neighbor_created_at < (now - min_age) and
-                            neighbor_created_at > (now - max_age)):
-                        continue
-
-                    # Memory type check
-                    if neighbor_type not in ('fact', 'preference', 'instruction',
-                                            'event', 'correction', 'identity'):
-                        continue
-
-                    # Pinned check
-                    if neighbor_pinned is True:
-                        continue
-
-                    # Redaction state check
-                    if neighbor_redaction is not None and neighbor_redaction != 'active':
-                        continue
 
                     # Similarity threshold check
                     if similarity < similarity_threshold:
