@@ -386,6 +386,9 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     # Task 8b: Default filter excludes raw_turn memories
     _raw_turn_filter = "" if include_raw_turns else "AND memory_type != 'raw_turn'"
     _synthesis_filter = "" if include_synthesis else "AND memory_type != 'synthesis'"
+
+    # Redaction enforcement (B-3.5 Stage 03)
+    _redaction_filter = "AND COALESCE(redaction_state, 'active') NOT IN ('redacted', 'pending_resynthesis')"
     
     # ====================================================================
     # EMBEDDING PREPARATION
@@ -449,6 +452,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                   {_raw_turn_filter}
                   {_synthesis_filter}
                   {_project_filter}
+                  {_redaction_filter}
                 ORDER BY local_embedding <=> %s::vector
                 LIMIT 200
             ),
@@ -465,6 +469,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                   {_raw_turn_filter}
                   {_synthesis_filter}
                   {_project_filter}
+                  {_redaction_filter}
                   AND id NOT IN (SELECT id FROM vector_results)
                 ORDER BY importance DESC
                 LIMIT 50
@@ -482,6 +487,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                   {_raw_turn_filter}
                   {_synthesis_filter}
                   {_project_filter}
+                  {_redaction_filter}
                   AND id NOT IN (SELECT id FROM vector_results)
                   AND id NOT IN (SELECT id FROM importance_results)
                 ORDER BY importance DESC
