@@ -10,13 +10,14 @@ V1: single UTC slot for all tenants.
 """
 
 import sys
+import os
 from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.synthesis.orchestrator import run_synthesis_for_tenant
-from src.storage_multitenant import _db_execute_rows
+import psycopg2
 
 
 def main():
@@ -28,18 +29,25 @@ def main():
     """
     print("[cron] Starting synthesis cron run")
 
-    # Find tenants on Pro+ tier
-    # Free tier would hit quota check anyway, but filtering here saves DB roundtrips
+    # Get DATABASE_URL from environment
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        print("[cron] FATAL: DATABASE_URL not set", file=sys.stderr)
+        sys.exit(1)
+
+    # Find tenants on Pro+ tier using direct psycopg2 connection
     try:
-        tenants = _db_execute_rows(
-            """
+        conn = psycopg2.connect(database_url)
+        cur = conn.cursor()
+        cur.execute("""
             SELECT id::text AS tenant_id
             FROM memory_service.tenants
-            WHERE tier IN ('pro', 'scale', 'enterprise')
+            WHERE plan IN ('pro', 'scale', 'enterprise')
             AND active = true
-            """,
-            fetch_results=True,
-        )
+        """)
+        tenants = cur.fetchall()
+        cur.close()
+        conn.close()
     except Exception as e:
         print(f"[cron] FATAL: Failed to fetch tenants: {e}", file=sys.stderr)
         sys.exit(1)
@@ -51,7 +59,7 @@ def main():
     fail_count = 0
 
     for row in tenants:
-        tenant_id = row[0]  # _db_execute_rows returns tuples
+        tenant_id = row[0]  # First column is tenant_id
 
         try:
             # Run synthesis for this tenant
