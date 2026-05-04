@@ -8,6 +8,11 @@ from .consensus import (
     persist_consensus_row,
     CONSENSUS_AGENT_COUNT,
 )
+from .tier_gates import (
+    synthesize_cluster,
+    tier_supports_consensus,
+    tier_blocked_from_synthesis,
+)
 
 __all__ = [
     "run_consensus",
@@ -16,4 +21,7 @@ __all__ = [
     "merge_candidates",
     "persist_consensus_row",
     "CONSENSUS_AGENT_COUNT",
+    "synthesize_cluster",
+    "tier_supports_consensus",
+    "tier_blocked_from_synthesis",
 ]

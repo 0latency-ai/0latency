@@ -256,18 +256,136 @@ def run_consensus(
         synthesis_prompt_version=candidates[0].get("synthesis_prompt_version") if candidates else None,
     )
 
+
+    # Persist disagreement row if any claim failed to meet threshold
+    disagreement_id = _write_disagreement(
+        tenant_id=tenant_id,
+        consensus_synthesis_id=consensus_id,
+        cluster_id=cluster_id,
+        candidates=candidates,
+        merge_result=merge_result,
+        db_conn=db_conn,
+    )
+
     return {
         "consensus_eligible": True,
         "merge_succeeded": True,
         "candidates": candidates,
         "merge_result": merge_result,
         "consensus_synthesis_id": consensus_id,
+        "disagreement_id": disagreement_id,
         "fallback_reason": None,
         "agents_attempted": selected,
         "agents_succeeded": [c.get("agent_id") for c in candidates],
         "cluster_id": cluster_id,
     }
 
+
+
+
+def _write_disagreement(
+    tenant_id: str,
+    consensus_synthesis_id: str,
+    cluster_id: str,
+    candidates: List[Dict[str, Any]],
+    merge_result: Dict[str, Any],
+    db_conn,
+) -> Optional[str]:
+    """Persist a synthesis_disagreements row when the merger had rejected claims.
+
+    Returns the disagreement row's UUID, or None if no disagreement was material
+    (i.e., len(rejected_claims) == 0).
+
+    The trigger trg_disagreement_audit (created by migration 025) auto-emits
+    'consensus_disagreement_logged' on insert; we don't emit it manually.
+    """
+    rejected = merge_result.get("rejected_claims", [])
+    if not rejected:
+        return None
+
+    # Build the full claim list (retained + rejected) for the audit-grade payload
+    all_claims = []
+    for entry in merge_result.get("retained_claims", []):
+        all_claims.append({
+            "claim_text": entry["claim"],
+            "claim_normalized": entry["claim_normalized"],
+            "support_count": entry["support_count"],
+            "agents_supporting": entry["supporters"],
+            "agents_dissenting": [
+                c.get("agent_id") for c in candidates
+                if c.get("agent_id") not in set(entry["supporters"])
+            ],
+            "retained": True,
+        })
+    for entry in rejected:
+        all_claims.append({
+            "claim_text": entry["claim"],
+            "claim_normalized": entry["claim_normalized"],
+            "support_count": entry["support_count"],
+            "agents_supporting": entry["supporters"],
+            "agents_dissenting": [
+                c.get("agent_id") for c in candidates
+                if c.get("agent_id") not in set(entry["supporters"])
+            ],
+            "retained": False,
+        })
+
+    payload = {
+        "claims": all_claims,
+        "candidate_texts": {c.get("agent_id", "<unknown>"): c.get("full_content", "")
+                            for c in candidates},
+        "merge_method": "majority_vote",
+        "majority_threshold": merge_result["majority_threshold"],
+        "n_candidates": merge_result["n_candidates"],
+    }
+
+    new_id = str(uuid.uuid4())
+    cur = db_conn.cursor()
+    try:
+        cur.execute(
+            """
+            INSERT INTO memory_service.synthesis_disagreements (
+                id, tenant_id, consensus_synthesis_id, cluster_id,
+                candidate_count, disagreement_payload
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s::jsonb
+            )
+            """,
+            (
+                new_id,
+                tenant_id,
+                consensus_synthesis_id,
+                cluster_id,
+                merge_result["n_candidates"],
+                json.dumps(payload),
+            ),
+        )
+        db_conn.commit()
+        return new_id
+    except Exception as exc:
+        db_conn.rollback()
+        # Fail-soft: log a warning audit event and continue.
+        try:
+            _write_audit_event(
+                tenant_id=tenant_id,
+                target_memory_id=consensus_synthesis_id,
+                event_type="consensus_disagreement_write_failed",
+                actor="system",
+                event_payload={
+                    "cluster_id": cluster_id,
+                    "error": repr(exc),
+                    "rejected_claim_count": len(rejected),
+                },
+            )
+        except Exception:
+            logger.exception("disagreement.audit_emission_failed cluster=%s", cluster_id)
+        logger.warning(
+            "disagreement.write_failed cluster=%s synthesis=%s error=%r",
+            cluster_id, consensus_synthesis_id, exc,
+        )
+        return None
+    finally:
+        cur.close()
 
 # ============================================================
 # STAGE 04: Claim-level majority_vote merger
