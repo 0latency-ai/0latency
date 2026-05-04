@@ -11,7 +11,7 @@ Skipped by default. Run explicitly:
     CP8_E2E_CONSENSUS=1 pytest tests/test_e2e_consensus.py -v -s
 
 This test creates a real synthesis row in production and makes 3 real LLM
-calls (~$0.05 in Sonnet token cost). It promotes the tenant to enterprise
+calls (~\$0.05 in Sonnet token cost). It promotes the tenant to enterprise
 for the duration and restores the original plan in finally.
 
 The cluster used is a synthetic-but-grounded selection: 5 real memories
@@ -160,29 +160,41 @@ def test_e2e_consensus_on_synthetic_cluster(db_conn):
         [(memory_ids[0], SYNTHETIC_AGENT), (memory_ids[1], SYNTHETIC_AGENT)],
     )
 
+    # Defensively rollback after force_distinct_agents_in_cluster commit
+    db_conn.rollback()
+
     # Snapshot tier
     original_plan = _get_tenant_plan(db_conn, JUSTIN_TENANT_ID)
     print(f"  Original plan: {original_plan}")
 
     # Snapshot pre-state for delta assertions
-    cur = db_conn.cursor()
-    cur.execute(
-        "SELECT count(*) FROM memory_service.memories "
-        "WHERE tenant_id = %s AND memory_type = 'synthesis'",
-        (JUSTIN_TENANT_ID,),
-    )
-    pre_synthesis_count = cur.fetchone()[0]
-    cur.close()
-    
-    cur = db_conn.cursor()
-    cur.execute(
-        "SELECT count(*) FROM memory_service.synthesis_audit_events "
-        "WHERE tenant_id = %s AND event_type LIKE 'consensus_%' "
-        "AND occurred_at > now() - interval '5 minutes'",
-        (JUSTIN_TENANT_ID,),
-    )
-    pre_audit_count = cur.fetchone()[0]
-    cur.close()
+    # Each query gets its own cursor to avoid state issues, but wrapped in try/except with explicit close
+    try:
+        cur = db_conn.cursor()
+        cur.execute(
+            "SELECT count(*) FROM memory_service.memories "
+            "WHERE tenant_id = %s AND memory_type = 'synthesis'",
+            (JUSTIN_TENANT_ID,),
+        )
+        pre_synthesis_count = cur.fetchone()[0]
+        cur.close()
+    except Exception as e:
+        db_conn.rollback()
+        raise RuntimeError(f"Failed to fetch pre_synthesis_count: {e}") from e
+
+    try:
+        cur = db_conn.cursor()
+        cur.execute(
+            "SELECT count(*) FROM memory_service.synthesis_audit_events "
+            "WHERE tenant_id = %s AND event_type LIKE 'consensus_%%' "
+            "AND occurred_at > now() - interval '5 minutes'",
+            (JUSTIN_TENANT_ID,),
+        )
+        pre_audit_count = cur.fetchone()[0]
+        cur.close()
+    except Exception as e:
+        db_conn.rollback()
+        raise RuntimeError(f"Failed to fetch pre_audit_count: {e}") from e
 
     consensus_row_id = None
     test_synthetic_cluster_id = f"e2e-test-{uuid.uuid4().hex[:8]}"
@@ -251,7 +263,7 @@ def test_e2e_consensus_on_synthetic_cluster(db_conn):
         cur = db_conn.cursor()
         cur.execute(
             "SELECT count(*) FROM memory_service.synthesis_audit_events "
-            "WHERE tenant_id = %s AND event_type LIKE 'consensus_%' "
+            "WHERE tenant_id = %s AND event_type LIKE 'consensus_%%' "
             "AND occurred_at > now() - interval '5 minutes'",
             (JUSTIN_TENANT_ID,),
         )
