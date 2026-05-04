@@ -27,10 +27,16 @@ Why filters are applied here and not at recall:
 """
 
 import uuid
+import time
+import json
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
 from src.storage_multitenant import _db_execute_rows, set_tenant_context, _get_connection_pool
+
+# Performance profiling logger
+perf_logger = logging.getLogger("synthesis.perf")
 
 
 @dataclass
@@ -154,10 +160,20 @@ def find_clusters(
     Raises:
         RuntimeError: If embedding dimension mismatch detected or DB error occurs
     """
+    # Phase 1: pgvector registration
+    phase_start = time.perf_counter()
     _ensure_pgvector_registered()
     set_tenant_context(tenant_id)
+    phase_duration_ms = int((time.perf_counter() - phase_start) * 1000)
+    perf_logger.info(json.dumps({
+        "metric": "synthesis_perf",
+        "phase": "clustering.pgvector_registration",
+        "duration_ms": phase_duration_ms,
+        "tenant_id": tenant_id,
+    }))
     
-    # Step 1: Query candidate atoms
+    # Phase 2: Query candidate atoms
+    phase_start = time.perf_counter()
     candidate_query = f"""
         SELECT id, embedding, headline, full_content, created_at
         FROM memory_service.memories
@@ -178,11 +194,20 @@ def find_clusters(
         (tenant_id, agent_id),
         tenant_id=tenant_id
     )
+    phase_duration_ms = int((time.perf_counter() - phase_start) * 1000)
+    perf_logger.info(json.dumps({
+        "metric": "synthesis_perf",
+        "phase": "clustering.candidate_query",
+        "duration_ms": phase_duration_ms,
+        "tenant_id": tenant_id,
+        "candidate_count": len(candidates),
+    }))
     
     if len(candidates) < min_cluster_size:
         return []
     
-    # Build lookup maps, parsing embeddings if needed
+    # Phase 3: Parse embeddings and build lookup maps
+    phase_start = time.perf_counter()
     candidate_ids = [row[0] for row in candidates]
     id_to_embedding = {}
     for row in candidates:
@@ -207,8 +232,16 @@ def find_clusters(
             f"Expected all embeddings to be 384-dimensional. "
             f"Mixed dimensions require migration."
         )
+    phase_duration_ms = int((time.perf_counter() - phase_start) * 1000)
+    perf_logger.info(json.dumps({
+        "metric": "synthesis_perf",
+        "phase": "clustering.embedding_parsing",
+        "duration_ms": phase_duration_ms,
+        "tenant_id": tenant_id,
+    }))
     
-    # Step 2: Compute pairwise similarities using pgvector
+    # Phase 4: Compute pairwise similarities using pgvector
+    phase_start = time.perf_counter()
     similarity_query = """
         SELECT a.id AS source_id, b.id AS neighbor_id,
                1 - (a.embedding <=> b.embedding) AS similarity
@@ -228,22 +261,40 @@ def find_clusters(
         (candidate_ids, candidate_ids, similarity_threshold),
         tenant_id=tenant_id
     )
+    phase_duration_ms = int((time.perf_counter() - phase_start) * 1000)
+    perf_logger.info(json.dumps({
+        "metric": "synthesis_perf",
+        "phase": "clustering.similarity_computation",
+        "duration_ms": phase_duration_ms,
+        "tenant_id": tenant_id,
+        "similarity_pair_count": len(similarities),
+    }))
     
-    # Step 3: Build neighbor graph and cluster with union-find
+    # Phase 5: Build neighbor graph and cluster with union-find
+    phase_start = time.perf_counter()
     dsu = _UnionFind(candidate_ids)
     
     for source_id, neighbor_id, sim in similarities:
         dsu.union(source_id, neighbor_id)
     
     components = dsu.get_components()
+    phase_duration_ms = int((time.perf_counter() - phase_start) * 1000)
+    perf_logger.info(json.dumps({
+        "metric": "synthesis_perf",
+        "phase": "clustering.union_find_clustering",
+        "duration_ms": phase_duration_ms,
+        "tenant_id": tenant_id,
+        "component_count": len(components),
+    }))
     
-    # Step 4: Filter clusters by size
+    # Phase 6: Filter clusters by size
+    phase_start = time.perf_counter()
     valid_clusters = [
         comp for comp in components
         if min_cluster_size <= len(comp) <= max_cluster_size
     ]
     
-    # Step 5: Handle over-size clusters (split with k-means if needed)
+    # Handle over-size clusters (split with k-means if needed)
     final_clusters = []
     for comp in valid_clusters:
         if len(comp) > max_cluster_size:
@@ -251,8 +302,18 @@ def find_clusters(
             final_clusters.extend(_split_cluster(comp, id_to_embedding, max_cluster_size))
         else:
             final_clusters.append(comp)
+    phase_duration_ms = int((time.perf_counter() - phase_start) * 1000)
+    perf_logger.info(json.dumps({
+        "metric": "synthesis_perf",
+        "phase": "clustering.cluster_filtering",
+        "duration_ms": phase_duration_ms,
+        "tenant_id": tenant_id,
+        "valid_cluster_count": len(valid_clusters),
+        "final_cluster_count": len(final_clusters),
+    }))
     
-    # Step 6: Compute centroid and signature for each cluster
+    # Phase 7: Compute centroid and signature for each cluster
+    phase_start = time.perf_counter()
     result_clusters = []
     for cluster_ids in final_clusters:
         # Compute centroid embedding
@@ -273,9 +334,24 @@ def find_clusters(
             centroid_embedding=centroid,
             cluster_signature=signature
         ))
+    phase_duration_ms = int((time.perf_counter() - phase_start) * 1000)
+    perf_logger.info(json.dumps({
+        "metric": "synthesis_perf",
+        "phase": "clustering.centroid_and_signature",
+        "duration_ms": phase_duration_ms,
+        "tenant_id": tenant_id,
+    }))
     
-    # Step 7: Sort by cluster size descending
+    # Phase 8: Sort by cluster size descending
+    phase_start = time.perf_counter()
     result_clusters.sort(key=lambda c: len(c.memory_ids), reverse=True)
+    phase_duration_ms = int((time.perf_counter() - phase_start) * 1000)
+    perf_logger.info(json.dumps({
+        "metric": "synthesis_perf",
+        "phase": "clustering.sorting",
+        "duration_ms": phase_duration_ms,
+        "tenant_id": tenant_id,
+    }))
     
     return result_clusters
 
