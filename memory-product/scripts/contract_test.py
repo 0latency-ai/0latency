@@ -145,7 +145,7 @@ def test_extract_path(base_url, api_key, agent_id):
         # Guard against hollow pass: should have extracted at least 1 atom beyond the raw_turn
         if atom_count == 0:
             logging.error(f"✗ CONTRACT TEST HOLLOW PASS: 0 atoms extracted — verbatim guarantee not exercised")
-            return False
+            return "HOLLOW"  # Distinct from contract violation
             
     except Exception as e:
         logging.warning(f"Could not verify atom extraction count: {e}")
@@ -232,7 +232,10 @@ def main():
         cleanup_all_test_memories(args.base_url, api_key, agent_id)
 
         # Determine overall result
-        if extract_pass:
+        if extract_pass == "HOLLOW":
+            logging.error("=== CONTRACT TEST HOLLOW RUN — 0 atoms extracted, test not exercised ===")
+            return 2  # Distinct exit code for hollow pass
+        elif extract_pass:
             logging.info("=== CONTRACT TEST PASS — verbatim guarantee upheld ===")
             return 0
         else:
