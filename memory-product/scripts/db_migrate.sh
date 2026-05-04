@@ -27,7 +27,13 @@ case "$MODE" in
 
     echo "=== Step 2: reset staging from prod schema ==="
     bash scripts/staging_reset.sh
-    alembic -x env=staging stamp 0001_baseline
+
+    # Capture prod's current revision to stamp staging correctly
+    PROD_REV=$(alembic current | grep -oE '[a-z0-9]{12}' | head -1 || echo "0001_baseline")
+    echo "Prod is at revision: $PROD_REV"
+
+    echo "=== Step 2b: stamp staging at prod's current revision ==="
+    alembic -x env=staging stamp "$PROD_REV"
 
     echo "=== Step 3: apply pending migrations to staging ==="
     alembic -x env=staging upgrade head
