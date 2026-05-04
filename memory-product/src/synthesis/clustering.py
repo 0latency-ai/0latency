@@ -30,6 +30,7 @@ import uuid
 import time
 import json
 import logging
+import datetime
 from dataclasses import dataclass
 from typing import Optional
 
@@ -240,27 +241,146 @@ def find_clusters(
         "tenant_id": tenant_id,
     }))
     
-    # Phase 4: Compute pairwise similarities using pgvector
+    # Phase 4: Compute pairwise similarities using batched HNSW KNN queries
+    # PLATFORM CONSTRAINT: pgvector 0.8.1 on DO Managed PG cannot route filtered KNN
+    # through HNSW index (planner cost-misestimation). Batched pure KNN queries guarantee
+    # HNSW usage (~1.6ms each). Post-filter in Python.
+    # TODO: When DO offers pgvector >=0.9.0, revert to single-query LATERAL + SET LOCAL
+    # hnsw.iterative_scan pattern. See docs/CP-SYNTHESIS-PERF-PHASE4-RESULTS.md.
     phase_start = time.perf_counter()
-    similarity_query = """
-        SELECT a.id AS source_id, b.id AS neighbor_id,
-               1 - (a.embedding <=> b.embedding) AS similarity
-        FROM memory_service.memories a
-        JOIN memory_service.memories b
-          ON a.tenant_id = b.tenant_id
-          AND a.agent_id = b.agent_id
-          AND a.id != b.id
-        WHERE a.id = ANY(%s::uuid[])
-          AND b.id = ANY(%s::uuid[])
-          AND 1 - (a.embedding <=> b.embedding) >= %s
-        ORDER BY a.id, similarity DESC
-    """
-    
-    similarities = _db_execute_rows(
-        similarity_query,
-        (candidate_ids, candidate_ids, similarity_threshold),
-        tenant_id=tenant_id
-    )
+
+    # Acquire single connection for all queries (reusing connection pool)
+    from src.storage_multitenant import _get_connection_pool
+    pool = _get_connection_pool()
+    conn = pool.getconn()
+
+    try:
+        cursor = conn.cursor()
+        set_tenant_context(tenant_id)  # Already set, but ensure it's active
+
+        # Pure KNN query: minimal WHERE predicates → HNSW index used
+        knn_query = """
+            SELECT id, embedding, created_at, memory_type, is_pinned, redaction_state,
+                   1 - (embedding <=> %s) AS similarity
+            FROM memory_service.memories
+            WHERE tenant_id = %s
+              AND agent_id = %s
+              AND id != %s
+              AND embedding IS NOT NULL
+            ORDER BY embedding <=> %s
+            LIMIT 50
+        """
+
+        similarities = []
+        failed_atoms = []
+        knn_batch_start = time.perf_counter()
+
+        # Convert to set for O(1) membership checks in post-filter
+        candidate_ids_set = set(candidate_ids)
+
+        for idx, candidate_id in enumerate(candidate_ids):
+            candidate_emb = id_to_embedding[candidate_id]
+
+            # Log progress every 500 atoms
+            if idx > 0 and idx % 500 == 0:
+                elapsed_ms = int((time.perf_counter() - knn_batch_start) * 1000)
+                perf_logger.info(json.dumps({
+                    "metric": "synthesis_perf",
+                    "phase": "clustering.knn_batch_progress",
+                    "atoms_processed": idx,
+                    "total_atoms": len(candidate_ids),
+                    "elapsed_ms": elapsed_ms,
+                    "tenant_id": tenant_id,
+                }))
+
+            try:
+                # Execute KNN query for this candidate
+                cursor.execute(
+                    knn_query,
+                    (candidate_emb, tenant_id, agent_id, candidate_id, candidate_emb)
+                )
+                neighbors = cursor.fetchall()
+
+                # Post-filter in Python: recency, type, status, pinned, redaction
+                # Compute recency window bounds once per batch (not per neighbor)
+                now = datetime.datetime.now(datetime.timezone.utc)
+                min_age = datetime.timedelta(hours=recency_window_hours_min)
+                max_age = datetime.timedelta(hours=recency_window_hours_max)
+
+                for neighbor_row in neighbors:
+                    neighbor_id, neighbor_emb, neighbor_created_at, neighbor_type, \
+                        neighbor_pinned, neighbor_redaction, similarity = neighbor_row
+
+                    # Apply same filters as candidate query
+                    # Recency window check
+
+                    if not (neighbor_created_at < (now - min_age) and
+                            neighbor_created_at > (now - max_age)):
+                        continue
+
+                    # Memory type check
+                    if neighbor_type not in ('fact', 'preference', 'instruction',
+                                            'event', 'correction', 'identity'):
+                        continue
+
+                    # Pinned check
+                    if neighbor_pinned is True:
+                        continue
+
+                    # Redaction state check
+                    if neighbor_redaction is not None and neighbor_redaction != 'active':
+                        continue
+
+                    # Similarity threshold check
+                    if similarity < similarity_threshold:
+                        continue
+
+                    # Candidate set membership: neighbor must also be a candidate
+                    # (original query had b.id = ANY(candidates))
+                    if neighbor_id not in candidate_ids_set:
+                        continue
+
+                    # Symmetry dedup: only keep pairs where candidate_id < neighbor_id
+                    if candidate_id < neighbor_id:
+                        similarities.append((candidate_id, neighbor_id, similarity))
+
+            except Exception as e:
+                failed_atoms.append((candidate_id, str(e)))
+                perf_logger.warning(json.dumps({
+                    "metric": "synthesis_perf",
+                    "phase": "clustering.knn_query_failed",
+                    "candidate_id": str(candidate_id),
+                    "error": str(e),
+                    "tenant_id": tenant_id,
+                }))
+
+                # Abort if >5% of atoms failed
+                if len(failed_atoms) > len(candidate_ids) * 0.05:
+                    raise RuntimeError(
+                        f"KNN batch failed for {len(failed_atoms)} atoms "
+                        f"(>{len(candidate_ids) * 0.05:.0f}, exceeds 5% threshold). "
+                        f"First error: {failed_atoms[0]}"
+                    )
+
+        knn_batch_duration_ms = int((time.perf_counter() - knn_batch_start) * 1000)
+
+        # Log final batch stats
+        perf_logger.info(json.dumps({
+            "metric": "synthesis_perf",
+            "phase": "clustering.knn_batch_total",
+            "duration_ms": knn_batch_duration_ms,
+            "atoms_processed": len(candidate_ids),
+            "failed_atoms": len(failed_atoms),
+            "pairs_found": len(similarities),
+            "tenant_id": tenant_id,
+        }))
+
+        cursor.close()
+
+    finally:
+        # Return connection to pool
+        pool.putconn(conn)
+
     phase_duration_ms = int((time.perf_counter() - phase_start) * 1000)
     perf_logger.info(json.dumps({
         "metric": "synthesis_perf",
