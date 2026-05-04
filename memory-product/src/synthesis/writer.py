@@ -20,7 +20,7 @@ import time
 import logging
 import requests
 from dataclasses import dataclass
-from typing import Optional, Callable
+from typing import Union, Optional, Callable
 from uuid import UUID, uuid4
 
 # Import from existing modules
@@ -182,7 +182,8 @@ def synthesize_cluster(
     llm_model: Optional[str] = None,
     validate_callback: Optional[Callable[[str, list[UUID]], ValidationResult]] = None,
     dry_run: bool = False,
-) -> SynthesisResult:
+    persist: bool = True,
+) -> Union[dict, SynthesisResult]:
     """
     Run one synthesis attempt against a single cluster.
 
@@ -193,10 +194,11 @@ def synthesize_cluster(
       4. Parse + schema-validate response
       5. Source-quote validation via validate_callback (T3 plugs in here)
       6. If dry_run: return SynthesisResult with would_write=True, no DB writes
-      7. Write synthesis row (memory_type='synthesis')
-      8. Write audit event (event_type='synthesis_written')
+      6b. If persist=False: emit synthesis_candidate_prepared audit, return prepared dict
+      7. Write synthesis row (memory_type='synthesis') [if persist=True]
+      8. Write audit event (event_type='synthesis_written') [if persist=True]
       9. Increment rate-limit counters
-     10. Return SynthesisResult
+     10. Return SynthesisResult or prepared dict
 
     Args:
         cluster: Cluster object with memory_ids to synthesize
@@ -206,10 +208,17 @@ def synthesize_cluster(
         prompt_version: Prompt template version (default: "single_agent_v1")
         llm_model: Override model (default: per-tier from tier_gates)
         validate_callback: Optional validation function (T3 supplies this)
-        dry_run: If True, skip all DB writes
+        dry_run: If True, skip all DB writes (returns SynthesisResult with synthesis_id=None)
+        persist: If True (default), INSERT synthesis row + emit synthesis_written audit.
+                 If False (Phase 3 consensus), emit synthesis_candidate_prepared audit
+                 and return prepared dict without persisting (used by consensus orchestrator).
 
     Returns:
-        SynthesisResult with success status and metadata
+        - If persist=True: SynthesisResult with synthesis_id and full metadata
+        - If persist=False: dict with prepared row data (agent_id, headline, context,
+          full_content, source_memory_ids, parent_memory_ids, role_tag, cluster_id,
+          synthesis_prompt_version, llm_model, tokens_used, prepared_at, embedding,
+          confidence_score)
     """
     pool = _get_connection_pool()
     conn = None
@@ -498,6 +507,67 @@ def synthesize_cluster(
             "tenant_id": tenant_id,
             "synthesis_id": None,
         }))
+
+        # ============================================================
+        # STEP 7b: Check persist flag (Phase 3 consensus path)
+        # ============================================================
+
+        if not persist:
+            # Phase 3 candidate path: emit audit event, return prepared dict, no INSERT
+            from datetime import datetime, timezone
+
+            # Still increment rate limits (LLM cost is real regardless of persistence)
+            increment_synthesis_counter(
+                tenant_id=tenant_id,
+                kind="manual_run",
+                conn=conn,
+                amount=1,
+            )
+            increment_synthesis_counter(
+                tenant_id=tenant_id,
+                kind="llm_tokens",
+                conn=conn,
+                amount=total_tokens,
+            )
+
+            # Emit synthesis_candidate_prepared audit event
+            candidate_audit_id = _write_audit_event(
+                tenant_id=tenant_id,
+                target_memory_id=None,
+                event_type="synthesis_candidate_prepared",
+                actor=agent_id,
+                event_payload={
+                    "cluster_id": cluster_hash,
+                    "cluster_size": len(cluster.memory_ids),
+                    "role_tag": role_tag,
+                    "prompt_version": prompt_version,
+                    "llm_model": llm_model,
+                    "tokens_used": total_tokens,
+                    "cited_source_count": len(cited_ids),
+                }
+            )
+
+            # Return prepared dict (for consensus merger)
+            return {
+                "agent_id": agent_id,
+                "headline": headline[:200],
+                "context": context,
+                "full_content": synthesis_text,
+                "source_memory_ids": [str(id) for id in cited_ids],
+                "parent_memory_ids": [str(id) for id in cluster.memory_ids],
+                "role_tag": role_tag,
+                "cluster_id": cluster_hash,
+                "synthesis_prompt_version": prompt_version,
+                "llm_model": llm_model,
+                "tokens_used": total_tokens,
+                "embedding": embedding,
+                "confidence_score": confidence_score,
+                "prepared_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+        # ============================================================
+        # STEP 8: Write synthesis row (persist=True path)
+        # ============================================================
 
         # Insert synthesis row
         db_write_start = time.perf_counter()
