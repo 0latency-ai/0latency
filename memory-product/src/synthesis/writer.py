@@ -16,6 +16,8 @@ Key design decisions:
 import os
 import json
 import hashlib
+import time
+import logging
 import requests
 from dataclasses import dataclass
 from typing import Optional, Callable
@@ -34,12 +36,22 @@ from src.tier_gates import (
     get_allowed_model,
 )
 from src.synthesis.clustering import Cluster
-from src.synthesis.validation import validate_synthesis_citations, ValidationResult
+
+# Performance profiling logger
+perf_logger = logging.getLogger("synthesis.perf")
 
 
 # ============================================================
 # Dataclasses
 # ============================================================
+
+@dataclass
+class ValidationResult:
+    """Result from source-quote validation callback (T3 implements)."""
+    valid: bool
+    cited_ids_in_source_set: list[UUID]
+    cited_ids_NOT_in_source_set: list[UUID]  # hallucinations
+    failure_reason: Optional[str]
 
 
 @dataclass
@@ -201,14 +213,16 @@ def synthesize_cluster(
     """
     pool = _get_connection_pool()
     conn = None
+    synthesis_id_for_logging = None  # Will be set if synthesis succeeds
 
     try:
         conn = pool.getconn()
-        conn.autocommit = True  # Enable autocommit for tier_gates calls
 
         # ============================================================
         # STEP 1: Pre-flight quota check
         # ============================================================
+
+        tenant_load_start = time.perf_counter()
 
         allowed, reason = check_synthesis_quota(
             tenant_id=tenant_id,
@@ -301,9 +315,22 @@ def synthesize_cluster(
             pinned_marker = " [PINNED]" if is_pinned else ""
             atoms_block += f"[{atom_id}]{pinned_marker} {headline}: {full_content}\n\n"
 
+        tenant_load_duration_ms = int((time.perf_counter() - tenant_load_start) * 1000)
+        import json
+        perf_logger.info(json.dumps({
+            "metric": "synthesis_perf",
+            "phase": "tenant_load",
+            "duration_ms": tenant_load_duration_ms,
+            "tenant_id": tenant_id,
+            "synthesis_id": None,
+            "cluster_size": len(cluster.memory_ids),
+        }))
+
         # ============================================================
         # STEP 3: LLM call
         # ============================================================
+
+        llm_call_start = time.perf_counter()
 
         # Determine model
         if llm_model is None:
@@ -387,40 +414,49 @@ def synthesize_cluster(
         validation_passed = True
         validation_result = None
 
-        # Use provided callback or default validator
-        validator = validate_callback or validate_synthesis_citations
-        validation_result = validator(synthesis_text, cluster.memory_ids, structured_cited_ids=cited_ids)
-        validation_passed = validation_result.valid
+        if validate_callback is not None:
+            validation_result = validate_callback(synthesis_text, cluster.memory_ids)
+            validation_passed = validation_result.valid
 
-        if not validation_passed:
-            # Validation failed - write audit event and return
-            if not dry_run:
-                audit_event_id = _write_audit_event(
-                    tenant_id=tenant_id,
-                    target_memory_id=None,
-                    event_type="rate_limit_blocked",  # Reuse for validation failures
-                    actor=agent_id,
-                    event_payload={
-                        "cluster_size": len(cluster.memory_ids),
-                        "reason": f"validation_failed: {validation_result.failure_reason}",
-                        "hallucinated_ids": [str(id) for id in validation_result.cited_ids_NOT_in_source_set],
-                    }
+            if not validation_passed:
+                # Validation failed - write audit event and return
+                if not dry_run:
+                    audit_event_id = _write_audit_event(
+                        tenant_id=tenant_id,
+                        target_memory_id=None,
+                        event_type="rate_limit_blocked",  # Reuse for validation failures
+                        actor=agent_id,
+                        event_payload={
+                            "cluster_size": len(cluster.memory_ids),
+                            "reason": f"validation_failed: {validation_result.failure_reason}",
+                            "hallucinated_ids": [str(id) for id in validation_result.cited_ids_NOT_in_source_set],
+                        }
+                    )
+                else:
+                    audit_event_id = None
+
+                return SynthesisResult(
+                    success=False,
+                    synthesis_id=None,
+                    audit_event_id=audit_event_id,
+                    cluster_size=len(cluster.memory_ids),
+                    source_memory_ids=cited_ids,
+                    parent_memory_ids=cluster.memory_ids,
+                    tokens_used=total_tokens,
+                    llm_model=llm_model,
+                    rejected_reason="validation_failed",
+                    dry_run=dry_run,
                 )
-            else:
-                audit_event_id = None
 
-            return SynthesisResult(
-                success=False,
-                synthesis_id=None,
-                audit_event_id=audit_event_id,
-                cluster_size=len(cluster.memory_ids),
-                source_memory_ids=cited_ids,
-                parent_memory_ids=cluster.memory_ids,
-                tokens_used=total_tokens,
-                llm_model=llm_model,
-                rejected_reason="validation_failed",
-                dry_run=dry_run,
-            )
+        llm_call_duration_ms = int((time.perf_counter() - llm_call_start) * 1000)
+        perf_logger.info(json.dumps({
+            "metric": "synthesis_perf",
+            "phase": "llm_call",
+            "duration_ms": llm_call_duration_ms,
+            "tenant_id": tenant_id,
+            "synthesis_id": None,
+            "tokens_used": total_tokens,
+        }))
 
         # ============================================================
         # STEP 6: Dry-run check
@@ -452,9 +488,19 @@ def synthesize_cluster(
         context = f"Cluster {cluster_hash} ({len(cluster.memory_ids)} atoms)"
 
         # Generate embedding
+        embedding_start = time.perf_counter()
         embedding = _embed_text(synthesis_text)
+        embedding_duration_ms = int((time.perf_counter() - embedding_start) * 1000)
+        perf_logger.info(json.dumps({
+            "metric": "synthesis_perf",
+            "phase": "embedding",
+            "duration_ms": embedding_duration_ms,
+            "tenant_id": tenant_id,
+            "synthesis_id": None,
+        }))
 
         # Insert synthesis row
+        db_write_start = time.perf_counter()
         synthesis_id = uuid4()
         insert_query = """
             INSERT INTO memory_service.memories (
@@ -540,6 +586,15 @@ def synthesize_cluster(
             conn=conn,
             amount=total_tokens,
         )
+
+        db_write_duration_ms = int((time.perf_counter() - db_write_start) * 1000)
+        perf_logger.info(json.dumps({
+            "metric": "synthesis_perf",
+            "phase": "db_write",
+            "duration_ms": db_write_duration_ms,
+            "tenant_id": tenant_id,
+            "synthesis_id": str(synthesis_id),
+        }))
 
         # ============================================================
         # STEP 10: Return success
