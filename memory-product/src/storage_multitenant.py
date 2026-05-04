@@ -396,8 +396,8 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
         thread_id_val, project_id_val, thread_title_val, project_name_val
     )
     
-    rows = _db_execute(query, params, tenant_id=current_tenant)
-    mem_id = rows[0].split("|||")[0] if rows else None
+    rows = _db_execute_rows(query, params, tenant_id=current_tenant)
+    mem_id = rows[0][0] if rows else None
     
     # Handle corrections — supersede old memories within tenant
     if memory['memory_type'] == 'correction' and mem_id:
@@ -466,21 +466,19 @@ def _check_duplicate(agent_id: str, headline: str, embedding: list[float],
         LIMIT 3
     """
     
-    rows = _db_execute(query, (embedding, agent_id, current_tenant, embedding), tenant_id=current_tenant)
+    rows = _db_execute_rows(query, (embedding, agent_id, current_tenant, embedding), tenant_id=current_tenant)
     
     if rows:
         for row in rows:
-            parts = row.split("|||")
-            if len(parts) >= 4:
-                mem_id, existing_headline, existing_type, similarity = parts[0], parts[1], parts[2].strip(), float(parts[3])
-                
-                # Tier 1: Very high similarity = duplicate regardless
-                if similarity >= 0.92:
-                    return mem_id
-                
-                # Tier 2: High similarity + same type = duplicate
-                if similarity >= threshold and memory_type and existing_type == memory_type:
-                    return mem_id
+            mem_id, existing_headline, existing_type, similarity = row[0], row[1], row[2].strip(), float(row[3])
+            
+            # Tier 1: Very high similarity = duplicate regardless
+            if similarity >= 0.92:
+                return mem_id
+            
+            # Tier 2: High similarity + same type = duplicate
+            if similarity >= threshold and memory_type and existing_type == memory_type:
+                return mem_id
     
     return None
 
@@ -501,36 +499,34 @@ def _check_contradiction(agent_id: str, headline: str, embedding: list[float], t
         LIMIT 5
     """
     
-    rows = _db_execute(query, (embedding, agent_id, embedding), tenant_id=current_tenant)
+    rows = _db_execute_rows(query, (embedding, agent_id, embedding), tenant_id=current_tenant)
     
     if not rows:
         return None
     
     for row in rows:
-        parts = row.split("|||")
-        if len(parts) >= 5:
-            similarity = float(parts[4])
-            existing_headline = parts[1]
+        similarity = float(row[4])
+        existing_headline = row[1]
+        
+        # Check for contradictions in similar range
+        if 0.78 < similarity < 0.88:
+            existing_entities = row[3].strip("{}").split(",") if row[3] and row[3] != "{}" else []
+            existing_entities = [e.strip().strip('"') for e in existing_entities if e.strip().strip('"')]
             
-            # Check for contradictions in similar range
-            if 0.78 < similarity < 0.88:
-                existing_entities = parts[3].strip("{}").split(",") if parts[3] and parts[3] != "{}" else []
-                existing_entities = [e.strip().strip('"') for e in existing_entities if e.strip().strip('"')]
-                
-                new_headline_lower = headline.lower()
-                
-                entity_overlap = any(
-                    ent.lower() in new_headline_lower 
-                    for ent in existing_entities 
-                    if len(ent) > 2
-                )
-                
-                if entity_overlap:
-                    return {
-                        "id": parts[0],
-                        "headline": existing_headline,
-                        "similarity": similarity,
-                    }
+            new_headline_lower = headline.lower()
+            
+            entity_overlap = any(
+                ent.lower() in new_headline_lower 
+                for ent in existing_entities 
+                if len(ent) > 2
+            )
+            
+            if entity_overlap:
+                return {
+                    "id": row[0],
+                    "headline": existing_headline,
+                    "similarity": similarity,
+                }
     
     return None
 
