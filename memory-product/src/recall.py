@@ -181,6 +181,7 @@ def recall_hybrid(
     tenant_id: str = None,
     bm25_threshold: float = 0.15,  # Min BM25 score to skip vector search
     project_id: str = None,
+    include_synthesis: bool = True,
 ) -> dict:
     """
     Hybrid recall: tries BM25 first, falls back to vector search.
@@ -251,6 +252,7 @@ def recall_hybrid(
         budget_tokens=budget_tokens,
         tenant_id=_tid,
         project_id=project_id,
+        include_synthesis=include_synthesis,
     )
     vector_time = (_time.time() - _vector_start) * 1000
     
@@ -368,7 +370,7 @@ def _build_always_include(agent_id: str, tenant_id: str = None, config: dict = N
 
 
 
-def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_text: str, tenant_id: str = None, project_id: str = None, include_raw_turns: bool = False):
+def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_text: str, tenant_id: str = None, project_id: str = None, include_raw_turns: bool = False, include_synthesis: bool = True):
     """Retrieve candidate memories using multiple strategies — consolidated single query."""
     # SECURITY: Use provided tenant_id for all queries
     _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
@@ -383,6 +385,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     
     # Task 8b: Default filter excludes raw_turn memories
     _raw_turn_filter = "" if include_raw_turns else "AND memory_type != 'raw_turn'"
+    _synthesis_filter = "" if include_synthesis else "AND memory_type != 'synthesis'"
     
     # ====================================================================
     # EMBEDDING PREPARATION
@@ -444,6 +447,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                   AND superseded_at IS NULL
                   AND local_embedding IS NOT NULL
                   {_raw_turn_filter}
+                  {_synthesis_filter}
                   {_project_filter}
                 ORDER BY local_embedding <=> %s::vector
                 LIMIT 200
@@ -459,6 +463,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                   AND superseded_at IS NULL
                   AND importance > 0.8
                   {_raw_turn_filter}
+                  {_synthesis_filter}
                   {_project_filter}
                   AND id NOT IN (SELECT id FROM vector_results)
                 ORDER BY importance DESC
@@ -475,6 +480,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                   AND superseded_at IS NULL
                   AND search_text @@ websearch_to_tsquery('english', %s)
                   {_raw_turn_filter}
+                  {_synthesis_filter}
                   {_project_filter}
                   AND id NOT IN (SELECT id FROM vector_results)
                   AND id NOT IN (SELECT id FROM importance_results)
@@ -575,8 +581,10 @@ def recall_fixed(
     agent_id: str,
     conversation_context: str,
     budget_tokens: int = 4000,
-    tenant_id: str = None, include_raw_turns: bool = False,
+    tenant_id: str = None,
+    include_raw_turns: bool = False,
     project_id: str = None,
+    include_synthesis: bool = True,
 ) -> dict:
     """
     Recall relevant memories for agent context injection.
@@ -666,7 +674,7 @@ def recall_fixed(
     
     # Step 4: Retrieve candidates (tenant-scoped)
     _search_t0 = _time.time()
-    candidates, _vector_timing = _retrieve_candidates(agent_id, query_embedding, conversation_context, tenant_id=_tid, project_id=project_id, include_raw_turns=include_raw_turns)
+    candidates, _vector_timing = _retrieve_candidates(agent_id, query_embedding, conversation_context, tenant_id=_tid, project_id=project_id, include_raw_turns=include_raw_turns, include_synthesis=include_synthesis)
     _search_t1 = _time.time()
     _search_ms = (_search_t1 - _search_t0) * 1000
     # logger.info(f"[VECTOR SUBPHASES] embed={_embed_ms:.0f}ms s1={_vector_timing["s1_ms"]}ms s2={_vector_timing["s2_ms"]}ms s3={_vector_timing["s3_ms"]}ms")  # Old logging - consolidated query now logs internally
@@ -718,6 +726,8 @@ def recall_fixed(
                 composite *= 1.15  # Preferences matter but shouldn't dominate
             elif c["memory_type"] == "decision" and days_since < 7:
                 composite *= 1.2   # Recent decisions are highly relevant
+            elif c["memory_type"] == "synthesis":
+                composite *= 1.15  # Phase 4: synthesis rows promoted above constituents
             
             if c.get("superseded_at"):
                 continue

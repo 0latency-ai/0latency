@@ -477,6 +477,7 @@ class RecallRequest(BaseModel):
     cross_agent: bool = Field(default=False, description="Enable cross-agent namespace search")
     confidence_threshold: float = Field(default=0.6, ge=0.0, le=1.0, description="Min confidence before cross-agent fallback")
     dynamic_budget: bool = False
+    include_synthesis: bool = Field(default=True, description="Include synthesis memories in results (1.15x rank promotion)")
 
 class RecallResponse(BaseModel):
     context_block: str
@@ -1602,7 +1603,8 @@ async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api
                 conversation_context=req.conversation_context,
                 budget_tokens=req.budget_tokens,
                 confidence_threshold=req.confidence_threshold,
-                tenant_id=tenant["id"]
+                tenant_id=tenant["id"],
+                include_synthesis=req.include_synthesis
             )
         else:
             # Standard single-agent recall
@@ -1610,7 +1612,8 @@ async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api
                 agent_id=agent_id,
                 conversation_context=req.conversation_context,
                 budget_tokens=req.budget_tokens,
-                tenant_id=tenant["id"]
+                tenant_id=tenant["id"],
+                include_synthesis=req.include_synthesis
             )
 
         _t2 = time.time()
