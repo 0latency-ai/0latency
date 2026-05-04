@@ -262,43 +262,67 @@ _rate_limits_fallback: dict[str, list[float]] = {}
 _tenant_cache: dict[str, tuple[dict, float]] = {}
 _TENANT_CACHE_TTL = 30  # 30 seconds
 
-async def require_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
+async def require_api_key(x_api_key: str = Header(None, alias="X-API-Key")):
     """Multi-tenant auth via API key header with cached validation."""
-    if not x_api_key or not x_api_key.startswith("zl_live_") or len(x_api_key) != 40:
-        raise HTTPException(401, detail="Invalid API key format")
+    from api.auth_messages import (
+        MISSING_HEADER,
+        INVALID_FORMAT,
+        NOT_FOUND,
+        REVOKED,
+        ACCOUNT_SUSPENDED,
+    )
     
+    # Missing header (Header(None) catches absence; Header(...) would 422 instead)
+    if not x_api_key:
+        raise HTTPException(401, detail=MISSING_HEADER)
+
+    # Format validation
+    if not x_api_key.startswith("zl_live_") or len(x_api_key) != 40:
+        raise HTTPException(401, detail=INVALID_FORMAT)
+
     api_key_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
     now = time.time()
-    
-    # Check for cross-worker cache invalidation
+
     _check_cache_bust()
-    
-    # Check cache first
+
+    # Cache hit
     if api_key_hash in _tenant_cache:
         cached_tenant, cached_at = _tenant_cache[api_key_hash]
         if now - cached_at < _TENANT_CACHE_TTL:
             if not cached_tenant["active"]:
-                raise HTTPException(401, detail="Account suspended")
+                raise HTTPException(401, detail=ACCOUNT_SUSPENDED)
             _check_rate_limit(cached_tenant["id"], cached_tenant["rate_limit_rpm"])
             set_tenant_context(cached_tenant["id"])
             return cached_tenant
         else:
             del _tenant_cache[api_key_hash]
-    
+
     # DB lookup
     tenant = get_tenant_by_api_key(api_key_hash)
     if not tenant:
-        raise HTTPException(401, detail="Invalid API key")
-    
+        # Disambiguation: was this key ever known? If yes and revoked, say so.
+        from storage_multitenant import _db_execute_rows
+        revoked_rows = _db_execute_rows(
+            """
+            SELECT 1 FROM memory_service.api_keys
+            WHERE key_hash = %s AND status = 'revoked'
+            LIMIT 1
+            """,
+            (api_key_hash,),
+            tenant_id="00000000-0000-0000-0000-000000000000",
+        )
+        if revoked_rows:
+            raise HTTPException(401, detail=REVOKED)
+        raise HTTPException(401, detail=NOT_FOUND)
+
     if not tenant["active"]:
-        raise HTTPException(401, detail="Account suspended")
-    
-    # Cache it
+        raise HTTPException(401, detail=ACCOUNT_SUSPENDED)
+
     _tenant_cache[api_key_hash] = (tenant, now)
-    
     _check_rate_limit(tenant["id"], tenant["rate_limit_rpm"])
     set_tenant_context(tenant["id"])
     return tenant
+
 
 def _invalidate_tenant_cache(tenant_id: str = None):
     """Clear tenant cache after key rotation/revocation.
