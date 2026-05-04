@@ -3022,10 +3022,10 @@ async def rotate_api_key(tenant_id: str, admin: bool = Depends(require_admin_key
         # Update tenant with new key hash
         rows = _db_execute("""
             UPDATE memory_service.tenants 
-            SET api_key_hash = %s
+            SET api_key_hash = %s, api_key_live = %s
             WHERE id = %s::UUID AND active = true
             RETURNING id
-        """, (new_hash, tenant_id), tenant_id="00000000-0000-0000-0000-000000000000")
+        """, (new_hash, new_key, tenant_id), tenant_id="00000000-0000-0000-0000-000000000000")
         
         if not rows:
             raise HTTPException(404, detail="Tenant not found or inactive")
