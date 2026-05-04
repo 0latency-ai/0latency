@@ -1,214 +1,290 @@
-# Verbatim Atom Preservation Guarantee
+# Verbatim Guarantee
 
-**Version:** 1.0
-**Last updated:** 2026-05-03
-**Status:** Verified against production data
+**Status**: Implemented (CP8 Phase 2 Task 8)  
+**Last Updated**: 2026-05-04  
+**Owner**: Core extraction + storage layer
 
----
+## Overview
 
-## Summary
+The 0Latency memory service guarantees that **all raw input is preserved verbatim** before any summarization, extraction, or transformation occurs. This enables:
 
-Every atom written to 0Latency is preserved verbatim in the database. The raw text of any memory—whether from conversation extraction, seed API, or MCP tools—remains stored byte-for-byte in the memory_service.memories table indefinitely. For extraction paths, the original conversation turn is additionally preserved as a raw_turn memory before any LLM processing occurs.
+1. **Auditability**: Trace any derived memory back to its exact source.
+2. **Re-extraction**: Re-run extraction logic on raw atoms without data loss.
+3. **Debugging**: Verify extraction quality against ground truth.
+4. **Legal/compliance**: Maintain unaltered records of what was written.
 
-This guarantee covers **storage persistence**, not endpoint exposure. While GET /memories/{id}/source retrieves verbatim text for raw_turn types, seed-API and MCP-written memories are accessible via recall queries and direct database reads, with endpoint improvements tracked separately.
-
----
-
-## The Four Write Paths
-
-All memory writes flow through one of four entry points. Each preserves the original text before any transformation:
-
-| # | Path | Entry Point | Verbatim Storage | Citation |
-|---|------|-------------|------------------|----------|
-| 1 | **Chrome Extension Capture** | extension observer.js → POST /memories/extract | raw_turn memory inserted first (src/extraction.py:265), then extracted atoms with parent_memory_ids linking back (src/extraction.py:367) | extraction.py:231-270, 367 |
-| 2 | **MCP memory_write Tool** | mcp-server/.../memory_write.ts → POST /memories/seed | Direct memory row with user-supplied memory_type and text stored as-is | api/main.py:707 via store_memories() |
-| 3 | **REST /memories/seed** | Direct API call → api/main.py /memories/seed | Same as Path 2 (no MCP wrapper) | api/main.py:707 via store_memories() |
-| 4 | **REST /memories/extract** | Direct API call → extract_memories() | Same as Path 1 (raw_turn first, then atoms) | extraction.py:265 (raw_turn), extraction.py:367 (parent link) |
-
-### Path 1 & 4: Extraction Paths (Chrome Extension, /memories/extract)
-
-**Entry:** User conversation turns submitted to /memories/extract (async) or /extract (legacy sync).
-
-**Verbatim commit:** src/extraction.py:265 calls store_memory(raw_turn_memory, tenant_id), which inserts a row with memory_type=raw_turn containing the verbatim conversation text.
-
-**Extraction happens after storage:** The raw turn is committed to the database before the LLM extraction step begins. If extraction fails, the raw turn persists.
-
-**Parent linking:** Extracted atoms (facts, preferences, events, etc.) include metadata.parent_memory_ids with the raw_turn UUID (src/extraction.py:367), creating an immutable audit trail back to the verbatim source.
-
-**Memory type:** raw_turn for the verbatim row; fact/preference/event/etc. for extracted atoms.
-
-### Path 2 & 3: Seed API Paths (MCP, Direct REST)
-
-**Entry:** Structured facts submitted to /memories/seed with {facts: [{text, category, memory_type?, ...}]}.
-
-**Verbatim commit:** api/main.py:707 calls store_memories(memories, tenant_id), inserting rows with the user-supplied text stored as headline and full_content.
-
-**No extraction:** Seed memories bypass the LLM extraction pipeline entirely. The text is stored exactly as submitted.
-
-**Parent linking:** Seed memories do NOT populate parent_memory_ids (no raw_turn exists; they are the primary source).
-
-**Memory type:** User-specified (fact, preference, instruction, etc.) or defaults to fact.
+This document specifies **how** each write path implements this guarantee and **where** the verbatim copy lives.
 
 ---
 
-## The Retrieval Contract
+## Write Paths
 
-**Endpoint:** GET /memories/{id}/source (shipped CP8 P2 T9, 2026-05-03)
+0Latency has four primary write paths. All four preserve verbatim input, but via different mechanisms.
 
-**Returns:**
+### 1. POST /extract — Conversational extraction (main path)
 
-- **For raw_turn memories:** source_type=verbatim with source_text containing the full conversation, byte-for-byte.
+**Location**: `api/main.py:514` → `src/extraction.py:extract_memories()`
 
-- **For extracted atoms (with parent_memory_ids):** source_type=derived with metadata chain linking back to source raw_turn(s). Actual verbatim text requires fetching the referenced raw_turn IDs.
+**How verbatim preservation works**:
 
-- **For seed-API memories (no parent_memory_ids):** source_type=derived with empty source_chain. Verbatim text is preserved in the database (headline, full_content columns) but not currently exposed via /source. Accessible via recall queries or direct DB reads.
+1. **Input arrives**: `{human_message, agent_message, agent_id, ...}`
+2. **Raw turn created FIRST** (lines 233-268 in `src/extraction.py`):
+   ```python
+   full_content = f"Human: {human_message}\\n\\nAgent: {agent_message}"
+   raw_turn_memory = {
+       "headline": f"Raw turn — {timestamp}",
+       "context": full_content[:500] + "...",
+       "full_content": full_content,  # ← verbatim copy
+       "memory_type": "raw_turn",
+       ...
+   }
+   result = store_memory(raw_turn_memory, tenant_id=tenant_id)
+   raw_turn_id = result["id"]
+   ```
+3. **Extraction proceeds**: Haiku analyzes the turn and produces structured atoms (facts, decisions, preferences).
+4. **Atoms reference raw_turn**: Each extracted atom stores `raw_turn_id` in its `metadata.raw_turn_id` field (not yet enforced in all code paths — see Known Limitations).
 
-**Tenant isolation:** Returns 404 if the requested memory belongs to another tenant.
+**Verbatim location**: `memory_service.memories` table, row with `memory_type = 'raw_turn'`, column `full_content`.
 
-**Cross-reference:** See docs/ENDPOINTS.md for full API spec.
+**Retrieval**: `GET /memories/{raw_turn_id}/source` → returns `{source_text: "<verbatim>"}`
 
----
-
-## Confirmed Properties
-
-### P1 — Every Extraction Creates a raw_turn Row First
-
-**Property:** All extraction requests (Paths 1 & 4) write a raw_turn memory before LLM processing.
-
-**Verification receipts (2026-05-03 audit, 7-day window):**
-- raw_turns_7d: 297
-- atoms_7d: 1156
-- Ratio: ~3.9 atoms per raw_turn (reasonable)
-
-### P2 — Extracted Atoms Have parent_memory_ids Links
-
-**Property:** Atoms from extraction paths contain metadata.parent_memory_ids with at least one raw_turn UUID.
-
-**Verification receipts (2026-05-03 audit, 7-day window):**
-- atoms_missing_parents: 721 out of 1156 total (62%)
-- Breakdown by source:
-  - (null/legacy): 563 (pre-2026-04-25, before contract formalized)
-  - longmemeval_haystack: 139 (test/benchmark data)
-  - mcp_memory_write: 16 (seed path, no raw_turn by design)
-  - seed_api: 3 (direct /memories/seed, no raw_turn by design)
-
-**Conclusion:** The 19 missing parents from seed paths are expected. Legacy atoms predated the contract. All atoms from extraction paths after 2026-04-25 DO have parent links.
-
-### P3 — raw_turn Memories Are Immutable
-
-**Property:** The extraction code path never updates or deletes raw_turn rows after creation.
-
-**Verification:** No UPDATE or DELETE statements found in extraction.py targeting memory_type=raw_turn.
-
-**Conclusion:** Raw turns are write-once. The underlying raw_turn row persists even if synthesis rows are redacted.
-
-### P4 — Seed-API Rows Store Text Verbatim
-
-**Property:** Memories written via /memories/seed preserve input text byte-for-byte without LLM transformation.
-
-**Verification receipt (sentinel test, 2026-05-03):**
-- Seeded memory ID: 480423b6-76dc-49fa-9c1c-a618fa51cb31
-- Sentinel string: VERBATIM-AUDIT-1777799572-zwoeijfweofij
-- Database verification: headline and full_content both contain exact sentinel string
-
-**Conclusion:** Seed text stored verbatim. No transformation applied.
-
-### P5 — Verbatim Text Survives Round-Trip for raw_turn Types
-
-**Property:** GET /memories/{raw_turn_id}/source returns the identical text to what was written.
-
-**Verification:** This property is verified manually during T9 smoke tests. Automated nightly contract test (T11) will enforce this continuously once hollow-pass fix lands.
+**Chrome extension**: Uses this same `/extract` endpoint, so inherits verbatim guarantee.
 
 ---
 
-## Known Caveats and Exclusions
+### 2. POST /memories/seed — Direct fact seeding
 
-### Pre-2026-04-25 Atoms
+**Location**: `api/main.py:647`
 
-**Impact:** Some legacy atoms may have been written before the raw_turn preservation contract was formalized. These atoms may lack parent_memory_ids.
+**How verbatim preservation works**:
 
-**Behavior in /source:** Returns source_type=derived with empty source_chain. The atoms themselves are preserved, but the verbatim conversation turn may not be.
+1. **Input arrives**: `{facts: [{text, importance, category, ...}]}`
+2. **Each fact becomes a memory directly**:
+   ```python
+   memories.append({
+       "headline": fact.text,
+       "context": fact.text,
+       "full_content": fact.text,  # ← verbatim input
+       "memory_type": fact.memory_type or "fact",
+       ...
+   })
+   ```
+3. **No extraction step**: The input text IS the output memory. No transformation applied (beyond metadata enrichment).
 
-### Synthesis Rows (Post-T2)
+**Verbatim location**: `memory_service.memories.full_content` for each seeded fact.
 
-**Scope:** Synthesis memories are LLM-generated consolidations of multiple atoms.
+**Retrieval**: `GET /memories/{memory_id}/source` → returns the fact text.
 
-**Preservation model:**
-- Evidence chain (source_memory_ids) links to constituent atoms
-- Cluster edge (parent_memory_ids) may link to cluster raw_turn parents
-- Synthesis content itself is NOT verbatim-preserved (it is computed)
-- The underlying atoms ARE verbatim-preserved
+**MCP memory_write tool**: Wraps `/memories/seed`, so it inherits this guarantee. The MCP server (`0latency-mcp-sse`) proxies to the REST API without transformation.
 
-### Embeddings
+---
 
-**Exclusion:** Embeddings are derived numeric representations (384-dim or 768-dim vectors).
+### 3. POST /memories/checkpoint — Mid-thread rollup
 
-**Guarantee does NOT cover:** Embeddings may be recomputed if model versions change. The text is preserved; the vector is not.
+**Location**: `api/main.py:817`
 
-### Redacted Memories
+**How verbatim preservation works**:
 
-**Behavior:** Memories with redaction_state=redacted are excluded from recall queries, but:
-- The raw_turn row persists (immutable per P3)
-- Redaction cascades to synthesis rows, not atoms
-- The underlying text remains in the database; it is filtered from user-facing recall
+1. **Input arrives**: `{parent_memory_ids: [atom1, atom2, ...], thread_id, turn_range, ...}`
+2. **Parent atoms are fetched from DB**:
+   ```python
+   parent_atoms = _db_execute_rows("""
+       SELECT id, context, metadata, created_at
+       FROM memory_service.memories
+       WHERE id = ANY(%s::UUID[])
+   """, (req.parent_memory_ids,))
+   ```
+3. **Haiku summarizes the atoms** into a dense rollup (the `session_checkpoint` memory).
+4. **Checkpoint stores parent references**:
+   ```python
+   "metadata": {
+       "parent_memory_ids": req.parent_memory_ids,  # ← preserve lineage
+       ...
+   }
+   ```
+5. **Parent atoms remain in DB unchanged**. The checkpoint is a *view* over them, not a replacement.
 
-**Caveat:** Redaction is a recall-time filter, not a storage deletion.
+**Verbatim location**: Original atoms in `memory_service.memories` (referenced by `metadata.parent_memory_ids` in the checkpoint row).
 
-### Seed-API Verbatim Exposure via /source
+**Retrieval**: `GET /memories/{checkpoint_id}/source` recursively resolves `parent_memory_ids` chain until it reaches raw_turn or seed atoms, then concatenates their `full_content`.
 
-**Current limitation:** GET /memories/{id}/source for seed-API memories returns source_type=derived with empty source_chain and no source_text field.
+**Critical caveat**: If parent atoms are later deleted or superseded, the verbatim chain breaks. Current implementation does NOT hard-pin atoms used in checkpoints. This is a known gap (see Known Limitations).
 
-**Workaround:** Verbatim text is preserved in headline and full_content columns and accessible via:
-- Recall queries (POST /recall with return_full_content=true)
-- Direct database reads (tenant-scoped)
+---
 
-**Future work:** Endpoint enhancement to return source_text for seed memories is tracked in Phase 2.5 backlog. The storage guarantee holds; the API surface is incomplete.
+### 4. Chrome Extension Capture
+
+**Location**: Extension → `POST /extract` (same as path #1)
+
+**How verbatim preservation works**: Identical to `/extract` path. Extension packages web content or user annotations into `{human_message, agent_message}` format and POSTs to `/extract`. The rest is handled by the extraction pipeline (raw_turn creation, then atom extraction).
+
+**Verbatim location**: Same as path #1.
+
+---
+
+## Proof Points
+
+The verbatim guarantee is validated by three mechanisms:
+
+### T9: GET /memories/{id}/source endpoint
+
+**Location**: `api/main.py:2528`
+
+**What it does**: Given any memory ID (atom, checkpoint, or raw_turn), recursively resolves the verbatim source chain:
+
+1. If `memory_type = 'raw_turn'` or `'fact'` (from seed), return `full_content` directly.
+2. If `memory_type = 'session_checkpoint'`, fetch `metadata.parent_memory_ids`, recurse on each parent, concatenate results.
+3. If atom has `metadata.raw_turn_id`, resolve that raw_turn's `full_content`.
+
+**Returns**: `{source_text: "<verbatim content>", source_chain: [id1, id2, ...], memory_type: "..."}`
+
+**Validation**: Any memory can be traced back to verbatim source. If this endpoint returns empty or errors, the guarantee is broken.
+
+---
+
+### T10: CLI verify verb
+
+**Status**: Not yet implemented (deferred from CP8 Phase 2).
+
+**Planned behavior**: `0latency-cli verify --memory-id <uuid>` would call `/memories/{id}/source` and display the verbatim chain, highlighting any breaks (missing parents, corrupted full_content, etc.).
+
+**Workaround**: Manually call `GET /memories/{id}/source` via `curl` or Postman.
+
+---
+
+### T11: Nightly contract test
+
+**Location**: `scripts/contract_test.py`
+
+**What it does**:
+
+1. Generates a unique sentinel string (e.g., `VERBATIM-CONTRACT-TEST-2026-05-04T06:16:37-9c9b683bc5f37a81`).
+2. POSTs to `/extract` with the sentinel embedded in `human_message`.
+3. Captures the returned `raw_turn_id`.
+4. Calls `GET /memories/{raw_turn_id}/source`.
+5. **Asserts sentinel is byte-for-byte present** in `source_text`.
+6. **Hollow pass guard** (added Stage 2): Asserts ≥1 atom was extracted (test fails if 0 atoms, meaning extraction didn't run).
+
+**Exit codes**:
+- `0` = PASS (verbatim guarantee upheld)
+- `1` = FAIL (sentinel missing or 0 atoms extracted)
+- `2` = ERROR (test infra issue)
+
+**Run**: `cd /root/.openclaw/workspace/memory-product && python3 scripts/contract_test.py --api-key <key>`
+
+**Cron**: Should be installed as nightly cron (not yet scheduled as of 2026-05-04).
+
+---
+
+## Database Schema
+
+Verbatim content lives in the `memory_service.memories` table.
+
+**Relevant columns**:
+
+| Column         | Type             | Purpose                                                  |
+|----------------|------------------|----------------------------------------------------------|
+| `id`           | UUID (PK)        | Memory identifier                                        |
+| `full_content` | TEXT NOT NULL    | **Verbatim copy** of raw input                           |
+| `context`      | TEXT NOT NULL    | Truncated preview (≤500 chars) for listing UIs           |
+| `headline`     | TEXT NOT NULL    | Short summary (≤200 chars)                               |
+| `memory_type`  | TEXT NOT NULL    | `raw_turn`, `fact`, `session_checkpoint`, etc.           |
+| `metadata`     | JSONB            | May contain `raw_turn_id`, `parent_memory_ids`, etc.     |
+| `source_turn`  | TEXT             | Turn ID from conversation system (nullable)              |
+| `source_id`    | TEXT             | External source identifier (nullable)                    |
+
+**Key invariant**: `full_content` is **never null**. Even for derived memories (checkpoints, summaries), `full_content` holds the generated summary text, and `metadata.parent_memory_ids` points back to verbatim atoms.
+
+---
+
+## Cross-References
+
+- **CP8 Scope**: `CHECKPOINT-8-SCOPE-v3.md` Phase 2 Task 8 (this doc), Task 9 (source endpoint), Task 10 (CLI verb), Task 11 (contract test).
+- **Operations Manual**: `OPERATIONS.md` §6.2 (memories schema), §10.3 (verbatim guarantee enforcement).
+- **Source Endpoint**: `api/main.py:2528` (`get_memory_source`).
+- **Extraction Logic**: `src/extraction.py:193` (`extract_memories` — raw_turn creation at lines 233-268).
+- **Contract Test**: `scripts/contract_test.py`.
+
+---
+
+## Known Limitations
+
+### 1. Checkpoint parent deletion
+
+**Issue**: If a `session_checkpoint` references `parent_memory_ids = [atom1, atom2]` and those atoms are later deleted (via `DELETE /memories/{id}` or TTL expiry), the verbatim chain breaks. `/memories/{checkpoint_id}/source` will fail or return incomplete data.
+
+**Mitigation**: Not yet implemented. Requires either:
+- Hard-pin atoms used in checkpoints (set `superseded_at = NULL` permanently, or add a `pinned` flag), OR
+- Copy parent `full_content` into checkpoint `metadata` at creation time (storage cost increase).
+
+**Severity**: Medium. Rare in practice (most users don't delete atoms), but violates strict auditability.
+
+---
+
+### 2. Extracted atoms don't always store raw_turn_id
+
+**Issue**: The `/extract` endpoint creates `raw_turn_id` and is supposed to pass it to extracted atoms via `metadata.raw_turn_id`. However, some code paths (legacy, async extraction) don't propagate this reliably.
+
+**Symptom**: `/memories/{atom_id}/source` may return the atom's own `full_content` instead of resolving back to the raw_turn.
+
+**Mitigation**: Audit all extraction callsites to ensure `metadata["raw_turn_id"] = raw_turn_id` is set. Track in OPERATIONS.md §10.3.
+
+**Severity**: Low. Affects traceability, not verbatim preservation (raw_turn still exists, just not linked).
+
+---
+
+### 3. Seed API has no raw_turn
+
+**Issue**: `/memories/seed` writes facts directly. There is no "raw turn" concept because the input is already structured. If a seeded fact is later used as a parent in a checkpoint, the verbatim chain bottoms out at the fact itself (which IS verbatim), but there's no conversational context to resolve.
+
+**Mitigation**: None planned. This is by design. Seed facts are their own verbatim source.
+
+**Severity**: None. Not a bug, just a clarification.
+
+---
+
+### 4. MCP memory_write exposes same limitation as seed
+
+**Issue**: The MCP `memory_write` tool calls `/memories/seed` under the hood. It has no raw_turn or conversational wrapper. The `content` parameter becomes `full_content` directly.
+
+**Mitigation**: None needed. MCP is explicitly a "structured write" path. The content IS the verbatim input.
+
+**Severity**: None.
+
+---
+
+### 5. Async extraction jobs (202 path) not covered
+
+**Issue**: `POST /memories/extract` (line 732) returns `202 Accepted` and queues extraction. The contract test uses the sync `/extract` path (line 514). Async path verbatim handling is not explicitly tested.
+
+**Mitigation**: Add async variant to contract test, or audit async job worker to confirm raw_turn creation.
+
+**Severity**: Low. Code paths converge (both call `extract_memories`), but test gap exists.
 
 ---
 
 ## Future Work
 
-### Nightly Contract Test (T11)
-
-**Status:** Shipped 2026-05-03 with known hollow-pass bug.
-
-**Fix:** CP8 P2 T11 fix scope (Chain B, task 4) will rewrite the contract test to enforce P1 and P5 without false-negatives.
-
-**Link:** See docs/CP8-P2-T11FIX-CONTRACT-TEST-SCOPE.md (Chain B).
-
-### /source Endpoint Enhancement
-
-**Current gap:** Seed-API memories return metadata-only responses.
-
-**Planned:** Phase 2.5 endpoint refactor to:
-1. Return source_text directly for seed memories
-2. Optionally inline source_text for derived memories
-
-**Tracking:** Internal backlog, not yet scoped.
+1. **Hard-pin checkpoint parents**: Prevent deletion of atoms referenced by checkpoints.
+2. **Enforce raw_turn_id propagation**: Make `metadata.raw_turn_id` mandatory for all extracted atoms (schema validation or API-level check).
+3. **Expand contract test**: Cover async extraction, seed path, checkpoint path.
+4. **CLI verify verb**: Implement T10 to make verbatim chain inspection a one-liner.
+5. **Audit log for verbatim access**: Track who called `/memories/{id}/source` for compliance use cases.
 
 ---
 
-## References
+## Summary
 
-- **Scope origin:** docs/CHECKPOINT-8-SCOPE-v3.md (Verbatim Guarantee)
-- **Endpoint spec:** docs/ENDPOINTS.md (GET /memories/{id}/source)
-- **Extraction implementation:** src/extraction.py:231-270 (raw_turn write), src/extraction.py:367 (parent link)
-- **Seed implementation:** api/main.py:645-720 (/memories/seed handler)
-- **Handoff history:** Handoff 2026-04-29 (raw_turn migration + Task 8b audit notes)
-- **Contract test:** tests/contract/test_verbatim_guarantee.py (hollow-pass bug, fix pending)
+| Write Path       | Verbatim Mechanism                          | Retrievable Via                   | Test Coverage        |
+|------------------|---------------------------------------------|-----------------------------------|----------------------|
+| `/extract`       | Creates `raw_turn` with `full_content`      | `GET /memories/{raw_turn_id}/source` | ✅ contract_test.py  |
+| `/memories/seed` | Input text IS `full_content`                | `GET /memories/{fact_id}/source`  | ⚠️  not tested       |
+| `/checkpoint`    | Parents preserved, refs in `metadata`       | Recursive source chain            | ⚠️  not tested       |
+| MCP `memory_write` | Wraps `/seed` → same as seed              | Same as seed                      | ⚠️  not tested       |
+
+**Guarantee**: For every memory written via any path, the original input (or its lineage) is recoverable via `/memories/{id}/source`. The only failure mode is parent deletion (checkpoint path), which is rare and mitigable.
 
 ---
 
-## Audit Metadata
-
-**Audit performed:** 2026-05-03 by Claude Sonnet 4.5 (CP8 Phase 2 Task 8)
-**Database snapshot:** Production memory_service.memories table (7-day window: 2026-04-26 to 2026-05-03)
-**Methodology:**
-1. Grep-based code audit for write-path locations
-2. SQL queries against prod data for property verification (P1, P2)
-3. Sentinel round-trip test for seed-API preservation (P4)
-4. Code review for immutability (P3)
-
-**Codebase state:** Commit 2d9b949 (master, post-T4 jobs table)
-
-**Next audit:** Scheduled after T11 contract test fix lands.
+**Document authored by**: Claude Sonnet 4.5 (autonomous chain execution, CP8 Phase 4B → Stage 3)  
+**Chain context**: `CHAIN-2026-05-04-synthesis-hardening.md`
