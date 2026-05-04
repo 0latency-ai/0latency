@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "timestamp": "20260504-070528",
+    "sample_size": 5,
+    "dataset": "data/longmemeval_s_cleaned.json",
+    "total_time_sec": 171,
+    "mode": "FAST_MODE",
+    "max_sessions_per_question": 3,
+    "note": "MVP baseline - only first 3 sessions fed per question due to extraction speed limitations"
+  },
+  "aggregate": {
+    "accuracy": 0.0,
+    "p50_recall_latency_ms": 443,
+    "p95_recall_latency_ms": 686,
+    "n_questions": 5
+  },
+  "results": [
+    {"question_id": "e47becba", "question": "What degree did I graduate with?", "expected": "Business Administration", "match": false, "recall_latency_ms": 686},
+    {"question_id": "118b2229", "question": "How long is my daily commute to work?", "expected": "45 minutes each way", "match": false, "recall_latency_ms": 582},
+    {"question_id": "51a45a95", "question": "Where did I redeem a \ coupon on coffee creamer?", "expected": "Target", "match": false, "recall_latency_ms": 444},
+    {"question_id": "58bf7951", "question": "What play did I attend at the local community theater?", "expected": "The Glass Menagerie", "match": false, "recall_latency_ms": 254},
+    {"question_id": "1e043500", "question": "What is the name of the playlist I created on Spotify?", "expected": "Summer Vibes", "match": false, "recall_latency_ms": 308}
+  ]
+}

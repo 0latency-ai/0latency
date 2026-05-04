@@ -46,3 +46,5 @@ source
 thread_id
 thread_title
 turn_range
+bench/longmemeval/data/
+bench/longmemeval/upstream/
