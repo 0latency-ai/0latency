@@ -25,7 +25,9 @@ from typing import Optional
 from uuid import UUID
 
 from src.synthesis.clustering import find_clusters
-from src.synthesis.writer import synthesize_cluster
+# Tier-aware dispatcher: routes to consensus on Enterprise, single-agent on Scale/Pro.
+# Aliased to avoid name collision with the writer's same-named function.
+from src.synthesis.tier_gates import synthesize_cluster as tier_gated_synthesize
 from src.synthesis.jobs import (
     create_job,
     start_job,
@@ -35,6 +37,96 @@ from src.synthesis.jobs import (
 
 # Performance profiling logger
 perf_logger = logging.getLogger("synthesis.perf")
+
+
+
+from dataclasses import dataclass
+from typing import Optional, Any
+from uuid import UUID
+
+
+@dataclass
+class _TierDispatchResult:
+    """Adapter that gives tier_gates dispatcher results the same shape the
+    orchestrator loop body expects (mimics writer.SynthesisResult fields).
+    """
+    success: bool
+    synthesis_id: Optional[Any]   # uuid string or None
+    cluster_size: int
+    tokens_used: int
+    rejected_reason: Optional[str]
+    path: str                      # "consensus" | "single_agent" | "blocked"
+
+
+def _adapt_dispatch_result(dispatch_result: dict, cluster_size: int) -> _TierDispatchResult:
+    """Translate tier_gates.synthesize_cluster's dict return into the
+    SynthesisResult-shaped object the orchestrator loop iterates over.
+
+    Failure modes mapped to rejected_reason:
+    - tier_blocked (Free tier): "tier_blocked"
+    - consensus path with no synthesis_id: "consensus_failure"
+    - single_agent path with no synthesis_id: derived from single_agent_result.rejected_reason
+      if available, else "single_agent_failure"
+    """
+    path = dispatch_result.get("path", "unknown")
+    if dispatch_result.get("tier_blocked"):
+        return _TierDispatchResult(
+            success=False,
+            synthesis_id=None,
+            cluster_size=cluster_size,
+            tokens_used=0,
+            rejected_reason="tier_blocked",
+            path="blocked",
+        )
+
+    synthesis_id = dispatch_result.get("synthesis_id")
+    if path == "consensus":
+        consensus_result = dispatch_result.get("consensus_result") or {}
+        tokens = int(consensus_result.get("total_tokens_used", 0))
+        if synthesis_id is None:
+            return _TierDispatchResult(
+                success=False,
+                synthesis_id=None,
+                cluster_size=cluster_size,
+                tokens_used=tokens,
+                rejected_reason="consensus_failure",
+                path=path,
+            )
+        return _TierDispatchResult(
+            success=True,
+            synthesis_id=synthesis_id,
+            cluster_size=cluster_size,
+            tokens_used=tokens,
+            rejected_reason=None,
+            path=path,
+        )
+
+    # single_agent path
+    sa_result = dispatch_result.get("single_agent_result") or {}
+    tokens = int(sa_result.get("tokens_used", 0))
+    if synthesis_id is None:
+        # Single-agent failure — extract rejected_reason if possible
+        rejected = None
+        if hasattr(sa_result, "rejected_reason"):
+            rejected = sa_result.rejected_reason
+        elif isinstance(sa_result, dict):
+            rejected = sa_result.get("rejected_reason")
+        return _TierDispatchResult(
+            success=False,
+            synthesis_id=None,
+            cluster_size=cluster_size,
+            tokens_used=tokens,
+            rejected_reason=rejected or "single_agent_failure",
+            path=path,
+        )
+    return _TierDispatchResult(
+        success=True,
+        synthesis_id=synthesis_id,
+        cluster_size=cluster_size,
+        tokens_used=tokens,
+        rejected_reason=None,
+        path=path,
+    )
 
 
 def run_synthesis_for_tenant(
@@ -157,13 +249,25 @@ def run_synthesis_for_tenant(
         for idx, cluster in enumerate(clusters_to_process):
             try:
                 cluster_phase_start = time.perf_counter()
-                synth_result = synthesize_cluster(
-                    cluster=cluster,
-                    tenant_id=tenant_id,
-                    agent_id=agent_id,
-                    role_tag=role_scope,
-                    dry_run=False,
-                )
+                # Route via tier-aware dispatcher:
+                # - Enterprise → consensus (N agents, majority_vote merger, persist)
+                # - Scale/Pro → single-agent (writer.synthesize_cluster, persist=True)
+                # - Free → blocked (returns tier_blocked=True)
+                from storage_multitenant import _get_connection_pool
+                pool = _get_connection_pool()
+                conn = pool.getconn()
+                try:
+                    cluster_memory_ids_str = [str(mid) for mid in cluster.memory_ids]
+                    dispatch_result = tier_gated_synthesize(
+                        tenant_id=tenant_id,
+                        cluster_id=cluster.cluster_id,
+                        cluster_memory_ids=cluster_memory_ids_str,
+                        role_tag=role_scope,
+                        db_conn=conn,
+                    )
+                finally:
+                    pool.putconn(conn)
+                synth_result = _adapt_dispatch_result(dispatch_result, cluster_size=len(cluster.memory_ids))
                 cluster_phase_duration_ms = int((time.perf_counter() - cluster_phase_start) * 1000)
 
                 if synth_result.success:
