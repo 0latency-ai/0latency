@@ -727,29 +727,76 @@ def _create_entity_edges(agent_id: str, new_memory_id: str, entities: list[str],
 
 
 def get_tenant_by_api_key(api_key_hash: str) -> Optional[dict]:
-    """Look up tenant by API key hash."""
-    # Direct query without RLS bypass - tenants table doesn't have RLS enabled yet
-    query = """
-        SELECT id, name, plan, memory_limit, rate_limit_rpm, active, api_calls_count
-        FROM memory_service.tenants 
-        WHERE api_key_hash = %s AND active = true;
+    """Look up tenant by API key hash via memory_service.api_keys.
+
+    Status branching:
+    - 'active' -> return tenant
+    - 'rotating' AND revoke_at IS NULL OR revoke_at > now() -> return tenant + warn
+    - 'rotating' AND revoke_at <= now() -> treat as revoked
+    - 'revoked' -> None (caller raises 401)
+
+    Falls back to tenants.api_key_hash for any rows not yet backfilled
+    (defense-in-depth; backfill_api_keys.py should make this path unused).
     """
-    
-    # Use a special tenant context for tenant lookup (bootstrap operation)
-    rows = _db_execute(query, (api_key_hash,), tenant_id="00000000-0000-0000-0000-000000000000")
-    
+    query = """
+        SELECT
+            t.id, t.name, t.plan, t.memory_limit, t.rate_limit_rpm, t.active, t.api_calls_count,
+            ak.status,
+            (ak.status = 'rotating' AND ak.revoke_at IS NOT NULL AND ak.revoke_at <= now()) AS rotation_expired
+        FROM memory_service.api_keys ak
+        JOIN memory_service.tenants t ON t.id = ak.tenant_id
+        WHERE ak.key_hash = %s
+          AND t.active = true
+        LIMIT 1
+    """
+    rows = _db_execute_rows(query, (api_key_hash,), tenant_id="00000000-0000-0000-0000-000000000000")
+
     if rows:
-        parts = rows[0].split("|||")
-        if len(parts) >= 7:
-            return {
-                "id": parts[0],
-                "name": parts[1],
-                "plan": parts[2],
-                "memory_limit": int(parts[3]),
-                "rate_limit_rpm": int(parts[4]),
-                "active": parts[5].lower() in ('t', 'true', '1'),
-                "api_calls_count": int(parts[6] or 0),
-            }
+        r = rows[0]
+        status = r[7]
+        rotation_expired = r[8]
+        if status == 'revoked' or rotation_expired:
+            return None
+        # Update last_used_at fire-and-forget (doesn't block the response)
+        try:
+            _db_execute_rows(
+                "UPDATE memory_service.api_keys SET last_used_at = now() WHERE key_hash = %s",
+                (api_key_hash,),
+                tenant_id="00000000-0000-0000-0000-000000000000",
+            )
+        except Exception:
+            pass  # last_used_at is observability, not correctness
+        return {
+            "id": r[0],
+            "name": r[1],
+            "plan": r[2],
+            "memory_limit": int(r[3]) if r[3] is not None else 0,
+            "rate_limit_rpm": int(r[4]) if r[4] is not None else 60,
+            "active": bool(r[5]),
+            "api_calls_count": int(r[6] or 0),
+            "_key_status": status,  # surfaced for auth-time logging
+        }
+
+    # Fallback: legacy lookup against tenants.api_key_hash for any pre-backfill rows
+    fallback_query = """
+        SELECT id, name, plan, memory_limit, rate_limit_rpm, active, api_calls_count
+        FROM memory_service.tenants
+        WHERE api_key_hash = %s AND active = true
+        LIMIT 1
+    """
+    rows = _db_execute_rows(fallback_query, (api_key_hash,), tenant_id="00000000-0000-0000-0000-000000000000")
+    if rows:
+        r = rows[0]
+        return {
+            "id": r[0],
+            "name": r[1],
+            "plan": r[2],
+            "memory_limit": int(r[3]) if r[3] is not None else 0,
+            "rate_limit_rpm": int(r[4]) if r[4] is not None else 60,
+            "active": bool(r[5]),
+            "api_calls_count": int(r[6] or 0),
+            "_key_status": "legacy_tenant_row",
+        }
     return None
 
 

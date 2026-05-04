@@ -15,7 +15,7 @@ except ImportError:
 import hashlib
 import uuid
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query, BackgroundTasks
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
@@ -2899,6 +2899,89 @@ async def get_tenant_info(tenant: dict = Depends(require_api_key)):
         rate_limit_rpm=tenant["rate_limit_rpm"],
         api_calls_count=tenant["api_calls_count"]
     )
+
+
+
+
+
+class TenantKeyRotateResponse(BaseModel):
+    new_api_key: str
+    rotated_at: str
+    revoke_at: str
+    message: str
+
+
+@app.post("/tenant/keys/rotate", response_model=TenantKeyRotateResponse)
+async def rotate_tenant_key(tenant: dict = Depends(require_api_key)):
+    """Rotate the tenant's API key.
+
+    - Generates new zl_live_* key, hashes, inserts as 'active' in api_keys.
+    - Existing 'active' row(s) for this tenant transition to 'rotating' with
+      revoke_at = now() + 24 hours.
+    - Updates tenants.api_key_live (trigger 024 will auto-recompute api_key_hash).
+    - Returns new key in body. ONE-TIME RETURN — never echoed again.
+    - Invalidates the auth cache so the new key takes effect immediately.
+
+    The current API key remains valid for 24 hours (grace window).
+    """
+    import secrets as _secrets
+    import hashlib as _hashlib
+
+    # Generate new key (40-char total: 8-char prefix + 32-char body)
+    new_key_body = "".join(_secrets.choice("abcdefghijklmnopqrstuvwxyz0123456789") for _ in range(32))
+    new_key = f"zl_live_{new_key_body}"
+    new_key_hash = _hashlib.sha256(new_key.encode()).hexdigest()
+
+    tenant_id = tenant["id"]
+    from storage_multitenant import _db_execute_rows
+
+    try:
+        # 1) Mark all existing active keys for this tenant as 'rotating' with 24h grace
+        _db_execute_rows(
+            """
+            UPDATE memory_service.api_keys
+            SET status = 'rotating',
+                rotated_at = now(),
+                revoke_at = now() + interval '24 hours'
+            WHERE tenant_id = %s::uuid AND status = 'active'
+            """,
+            (tenant_id,),
+            tenant_id=tenant_id,
+        )
+
+        # 2) Insert new active key
+        _db_execute_rows(
+            """
+            INSERT INTO memory_service.api_keys (tenant_id, key_hash, status, created_at)
+            VALUES (%s::uuid, %s, 'active', now())
+            """,
+            (tenant_id, new_key_hash),
+            tenant_id=tenant_id,
+        )
+
+        # 3) Update tenants.api_key_live (trigger 024 recomputes api_key_hash automatically)
+        # IMPORTANT: do NOT pass api_key_hash — the trigger handles it.
+        _db_execute_rows(
+            "UPDATE memory_service.tenants SET api_key_live = %s WHERE id = %s::uuid",
+            (new_key, tenant_id),
+            tenant_id=tenant_id,
+        )
+
+        # 4) Invalidate auth cache so new key works immediately
+        _invalidate_tenant_cache(tenant_id)
+
+        rotated_at = datetime.now(timezone.utc).isoformat()
+        revoke_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+
+        return TenantKeyRotateResponse(
+            new_api_key=new_key,
+            rotated_at=rotated_at,
+            revoke_at=revoke_at,
+            message="Old key remains valid for 24 hours. Update your integration before then. This key is shown once — store it securely.",
+        )
+    except Exception as e:
+        logger.error(f"Key rotation failed for tenant={tenant_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Key rotation failed. Try again or contact support.")
 
 
 
