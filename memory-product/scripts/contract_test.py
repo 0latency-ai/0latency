@@ -130,6 +130,27 @@ def test_extract_path(base_url, api_key, agent_id):
 
     logging.info(f"GET /memories/{raw_turn_id}/source → {status}")
 
+
+    # HOLLOW PASS GUARD: Verify that atoms were actually extracted
+    try:
+        # Get all memories for this agent
+        memories_list, _ = http_request("GET", f"{base_url}/memories?agent_id={agent_id}&limit=100", api_key)
+        
+        # Count raw_turn and extracted atoms (facts/events/etc)
+        raw_turn_count = sum(1 for m in memories_list if m.get("memory_type") == "raw_turn")
+        atom_count = sum(1 for m in memories_list if m.get("memory_type") not in ["raw_turn", "session_checkpoint"])
+        
+        logging.info(f"  Memories created: {len(memories_list)} total ({raw_turn_count} raw_turn, {atom_count} atoms)")
+        
+        # Guard against hollow pass: should have extracted at least 1 atom beyond the raw_turn
+        if atom_count == 0:
+            logging.error(f"✗ CONTRACT TEST HOLLOW PASS: 0 atoms extracted — verbatim guarantee not exercised")
+            return False
+            
+    except Exception as e:
+        logging.warning(f"Could not verify atom extraction count: {e}")
+        # Continue with sentinel check even if atom count check fails
+
     # Assert sentinel is present in source_text (it's embedded in conversation)
     if sentinel in source_text:
         logging.info(f"✓ Extract path: sentinel preserved in raw_turn source_text")
