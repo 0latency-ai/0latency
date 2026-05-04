@@ -48,3 +48,7 @@ thread_title
 turn_range
 bench/longmemeval/data/
 bench/longmemeval/upstream/
+
+# CP8 chain authoring artifacts (build outputs, not source-of-truth)
+docs/cp8-chain-*/
+docs/cp8-chain-*.tar.gz
