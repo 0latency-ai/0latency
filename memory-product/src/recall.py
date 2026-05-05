@@ -339,18 +339,18 @@ def _build_always_include(agent_id: str, tenant_id: str = None, config: dict = N
         blocks.append(f"### User Profile\n{json.dumps(config['user_profile'], indent=2)}")
     
     try:
-        rows = _db_execute("""
+        rows = _db_execute_rows("""
             SELECT summary FROM memory_service.session_handoffs
             WHERE agent_id = %s AND tenant_id = %s::UUID
             ORDER BY created_at DESC LIMIT 1
         """, (agent_id, _tid), tenant_id=_tid)
         if rows:
-            blocks.append(f"### Last Session Summary\n{rows[0]}")
+            blocks.append(f"### Last Session Summary\n{rows[0][0]}")
     except Exception:
         pass
     
     try:
-        rows = _db_execute("""
+        rows = _db_execute_rows("""
             SELECT headline, context FROM memory_service.memories
             WHERE agent_id = %s AND tenant_id = %s::UUID
               AND memory_type = 'correction'
@@ -360,8 +360,7 @@ def _build_always_include(agent_id: str, tenant_id: str = None, config: dict = N
         if rows:
             corrections = []
             for row in rows:
-                parts = row.split("|||")
-                corrections.append(f"- ⚠️ {parts[0]}: {parts[1] if len(parts) > 1 else ''}")
+                corrections.append(f"- ⚠️ {row[0]}: {row[1] if len(row) > 1 else ''}")
             blocks.append(f"### Active Corrections\n" + "\n".join(corrections))
     except Exception:
         pass
