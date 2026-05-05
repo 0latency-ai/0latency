@@ -45,3 +45,11 @@ Base: 32671c59d3f8082c133adbe948ab47b6408a6366
 **Evidence:** docs/chains/b-4/stage-05-evidence.md
 **Files:** /root/0latency-mcp-unified/src/tools.ts, server-stdio.ts, server-sse.ts
 **Verification:** TypeScript build successful, tool count 14→15
+
+## Stage 06 - Update memory_recall Description
+**Timestamp:** 2026-05-05T00:28:00Z
+**Commit:** f4f55b5 (MCP repo)
+**Outcome:** SHIPPED
+**Evidence:** docs/chains/b-4/stage-06-evidence.md
+**Files:** /root/0latency-mcp-unified/src/server-stdio.ts
+**Verification:** Description updated to document expand, synthesis promotion, role filtering
