@@ -37,3 +37,11 @@ Base: 32671c59d3f8082c133adbe948ab47b6408a6366
 **Blocking reason:** synthesis_audit_events.event_type constraint missing 'read', requires schema migration (Tier 2)
 **Files:** None (not implemented)
 **Next action:** Schema migration in separate Tier 2 chain, then implement audit logic
+
+## Stage 05 - MCP memory_synthesize Tool
+**Timestamp:** 2026-05-05T00:26:00Z
+**Commit:** 0443196 (MCP repo), facad97 (evidence)
+**Outcome:** SHIPPED
+**Evidence:** docs/chains/b-4/stage-05-evidence.md
+**Files:** /root/0latency-mcp-unified/src/tools.ts, server-stdio.ts, server-sse.ts
+**Verification:** TypeScript build successful, tool count 14→15
