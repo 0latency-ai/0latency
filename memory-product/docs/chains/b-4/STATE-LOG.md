@@ -28,3 +28,12 @@ Base: 32671c59d3f8082c133adbe948ab47b6408a6366
 **Evidence:** docs/chains/b-4/stage-03-evidence.md
 **Files:** src/recall.py
 **Verification:** Cluster expansion logic added, accepts evidence,cluster combination
+
+## Stage 04 - Audit-aware Reads
+**Timestamp:** 2026-05-05T00:22:00Z
+**Commit:** N/A
+**Outcome:** BLOCKED-NEEDS-HUMAN
+**Evidence:** docs/chains/b-4/stage-04-evidence.md
+**Blocking reason:** synthesis_audit_events.event_type constraint missing 'read', requires schema migration (Tier 2)
+**Files:** None (not implemented)
+**Next action:** Schema migration in separate Tier 2 chain, then implement audit logic
