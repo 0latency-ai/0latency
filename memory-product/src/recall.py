@@ -182,6 +182,7 @@ def recall_hybrid(
     bm25_threshold: float = 0.15,  # Min BM25 score to skip vector search
     project_id: str = None,
     include_synthesis: bool = True,
+    caller_role: str = "public",
 ) -> dict:
     """
     Hybrid recall: tries BM25 first, falls back to vector search.
@@ -370,7 +371,7 @@ def _build_always_include(agent_id: str, tenant_id: str = None, config: dict = N
 
 
 
-def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_text: str, tenant_id: str = None, project_id: str = None, include_raw_turns: bool = False, include_synthesis: bool = True):
+def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_text: str, tenant_id: str = None, project_id: str = None, include_raw_turns: bool = False, include_synthesis: bool = True, caller_role: str = "public"):
     """Retrieve candidate memories using multiple strategies — consolidated single query."""
     # SECURITY: Use provided tenant_id for all queries
     _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
@@ -390,6 +391,13 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     # Redaction enforcement (B-3.5 Stage 03)
     _redaction_filter = "AND COALESCE(redaction_state, 'active') NOT IN ('redacted', 'pending_resynthesis')"
     
+    # Role-based access control (B-4 Stage 01)
+    if caller_role == "admin":
+        _role_filter = ""
+    else:
+        _safe_role = caller_role.replace("'", "''")  # SQL escape
+        _role_filter = f"AND (role_tag IS NULL OR role_tag IN ('{_safe_role}', 'public'))"
+
     # ====================================================================
     # EMBEDDING PREPARATION
     # ====================================================================
@@ -591,6 +599,7 @@ def recall_fixed(
     include_raw_turns: bool = False,
     project_id: str = None,
     include_synthesis: bool = True,
+    caller_role: str = "public",
 ) -> dict:
     """
     Recall relevant memories for agent context injection.
@@ -680,7 +689,7 @@ def recall_fixed(
     
     # Step 4: Retrieve candidates (tenant-scoped)
     _search_t0 = _time.time()
-    candidates, _vector_timing = _retrieve_candidates(agent_id, query_embedding, conversation_context, tenant_id=_tid, project_id=project_id, include_raw_turns=include_raw_turns, include_synthesis=include_synthesis)
+    candidates, _vector_timing = _retrieve_candidates(agent_id, query_embedding, conversation_context, tenant_id=_tid, project_id=project_id, include_raw_turns=include_raw_turns, include_synthesis=include_synthesis, caller_role=caller_role)
     _search_t1 = _time.time()
     _search_ms = (_search_t1 - _search_t0) * 1000
     # logger.info(f"[VECTOR SUBPHASES] embed={_embed_ms:.0f}ms s1={_vector_timing["s1_ms"]}ms s2={_vector_timing["s2_ms"]}ms s3={_vector_timing["s3_ms"]}ms")  # Old logging - consolidated query now logs internally
@@ -1124,6 +1133,7 @@ def recall_with_fallback(
     confidence_threshold: float = 0.6,
     tenant_id: str = None,
     project_id: str = None,
+    caller_role: str = "public",
 ) -> dict:
     """Recall with automatic cross-agent fallback.
     
@@ -1136,7 +1146,7 @@ def recall_with_fallback(
     logger.info(f"🎯 Recall with fallback: agent={agent_id}, threshold={confidence_threshold}")
     
     # Step 1: Try primary agent first
-    primary_result = recall_fixed(agent_id, conversation_context, budget_tokens, tenant_id, project_id=project_id)
+    primary_result = recall_fixed(agent_id, conversation_context, budget_tokens, tenant_id, project_id=project_id, caller_role=caller_role)
     
     # Step 2: Check confidence
     if primary_result["recall_details"]:

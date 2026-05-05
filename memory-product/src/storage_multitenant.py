@@ -742,7 +742,8 @@ def get_tenant_by_api_key(api_key_hash: str) -> Optional[dict]:
         SELECT
             t.id, t.name, t.plan, t.memory_limit, t.rate_limit_rpm, t.active, t.api_calls_count,
             ak.status,
-            (ak.status = 'rotating' AND ak.revoke_at IS NOT NULL AND ak.revoke_at <= now()) AS rotation_expired
+            (ak.status = 'rotating' AND ak.revoke_at IS NOT NULL AND ak.revoke_at <= now()) AS rotation_expired,
+            COALESCE(ak.metadata->>'role', 'public') AS caller_role
         FROM memory_service.api_keys ak
         JOIN memory_service.tenants t ON t.id = ak.tenant_id
         WHERE ak.key_hash = %s
