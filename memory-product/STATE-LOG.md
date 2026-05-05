@@ -33,3 +33,22 @@ Report: docs/profile/synthesis-writer-profile-2026-05-05.md
 Key finding: Embedding generation (72%) dominates runtime, not LLM call (24%).
 Hypothesis: sentence-transformer model loaded fresh per run.
 Stage 2 scope to be authored from this report. Branch held until then.
+
+## 2026-05-05 — CP-SYNTHESIS-PERF SHIPPED
+
+Synthesis writer latency on user-justin validation cluster
+6af31b14-900a-4c64-8031-6a7b5a1ea5b3 (12 members):
+- Before: 17,457ms wall-clock (embedding 12,585ms = 72% cold model load).
+- After: 5,899ms wall-clock (embedding 311ms after preload).
+- Improvement: 3.0x faster.
+
+Fix: FastAPI lifespan preload of SentenceTransformer model.
+Cold-load cost moved from per-synthesis (paid every call) to
+app-startup (paid once at boot, ~20s).
+
+Stages: S1 (profile) → S2.A (diagnosis, no code) → S2.B (fix + verify + merge).
+Branch cp-synthesis-perf-s1 merged to master and deleted.
+
+LongMemEval and Show HN unblocked (writer now sub-6s steady state).
+Next chain: Phase 5 (operational surface — redaction cascade,
+webhooks, decision journals, calibration, audit access, tier polish).
