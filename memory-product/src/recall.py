@@ -288,25 +288,25 @@ def _load_agent_config(agent_id: str, tenant_id: str = None) -> dict:
     # Use provided tenant_id or fall back to global context
     _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
     try:
-        rows = _db_execute("""
-            SELECT context_budget, recency_weight, semantic_weight, 
+        rows = _db_execute_rows("""
+            SELECT context_budget, recency_weight, semantic_weight,
                    importance_weight, access_weight, recency_half_life_days,
                    identity::text, user_profile::text
             FROM memory_service.agent_config
             WHERE agent_id = %s
         """, (agent_id,), tenant_id=_tid)
-        
+
         if rows:
-            parts = rows[0].split("|||")
+            row = rows[0]
             return {
-                "context_budget": int(parts[0]) if parts[0] else 4000,
-                "recency_weight": float(parts[1]) if parts[1] else 0.35,
-                "semantic_weight": float(parts[2]) if parts[2] else 0.4,
-                "importance_weight": float(parts[3]) if parts[3] else 0.15,
-                "access_weight": float(parts[4]) if parts[4] else 0.1,
-                "recency_half_life_days": int(parts[5]) if parts[5] else 3,
-                "identity": json.loads(parts[6]) if parts[6] and parts[6] != '{}' else {},
-                "user_profile": json.loads(parts[7]) if parts[7] and parts[7] != '{}' else {},
+                "context_budget": int(row[0]) if row[0] else 4000,
+                "recency_weight": float(row[1]) if row[1] else 0.35,
+                "semantic_weight": float(row[2]) if row[2] else 0.4,
+                "importance_weight": float(row[3]) if row[3] else 0.15,
+                "access_weight": float(row[4]) if row[4] else 0.1,
+                "recency_half_life_days": int(row[5]) if row[5] else 3,
+                "identity": json.loads(row[6]) if row[6] and row[6] != '{}' else {},
+                "user_profile": json.loads(row[7]) if row[7] and row[7] != '{}' else {},
             }
     except Exception as e:
         print(f"Warning: Could not load agent config: {e}")
