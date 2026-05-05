@@ -42,8 +42,14 @@ case "$MODE" in
     psql "$STAGING_DATABASE_URL" -c "SELECT version_num FROM memory_service.alembic_version;"
 
     echo "=== Step 5: apply to prod ==="
-    echo "Applying to prod in 5 seconds. Ctrl+C to abort."
-    sleep 5
+    echo ""
+    echo "Staging apply complete. About to apply to PRODUCTION."
+    echo "Type 'apply' (lowercase, exact) to confirm prod migration."
+    read -r -p "> " REPLY < /dev/tty
+    if [ "$REPLY" != "apply" ]; then
+      echo "Aborted. Reply was: '$REPLY'"
+      exit 1
+    fi
     alembic upgrade head
 
     echo "=== Step 6: verify prod ==="
@@ -63,8 +69,14 @@ case "$MODE" in
     psql "$STAGING_DATABASE_URL" -c "SELECT version_num FROM memory_service.alembic_version;"
 
     echo "=== Step 4: downgrade prod by 1 ==="
-    echo "Downgrading prod in 5 seconds. Ctrl+C to abort."
-    sleep 5
+    echo ""
+    echo "Staging downgrade complete. About to downgrade PRODUCTION."
+    echo "Type 'apply' (lowercase, exact) to confirm prod downgrade."
+    read -r -p "> " REPLY < /dev/tty
+    if [ "$REPLY" != "apply" ]; then
+      echo "Aborted. Reply was: '$REPLY'"
+      exit 1
+    fi
     alembic downgrade -1
 
     echo "=== Step 5: verify prod ==="

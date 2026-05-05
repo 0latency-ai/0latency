@@ -1633,6 +1633,40 @@ async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api
             recall_details=result.get("recall_details") if req.expand else None,
         )
 
+        # Enterprise audit: emit read event if synthesis memories returned
+        try:
+            if tenant.get("plan") == "enterprise" and result.get("recall_details"):
+                synthesis_ids = [
+                    detail.get("id") 
+                    for detail in result["recall_details"] 
+                    if detail.get("memory_type") == "synthesis" and detail.get("id")
+                ]
+                if synthesis_ids:
+                    from storage_multitenant import _db_execute_rows
+                    import json as json_module
+                    _db_execute_rows(
+                        """
+INSERT INTO memory_service.synthesis_audit_events
+  (tenant_id, target_memory_id, event_type, actor, occurred_at, event_payload)
+VALUES
+  (%s::uuid, NULL, %s, %s, NOW(), %s::jsonb)
+""",
+                        (
+                            tenant["id"],
+                            "read",
+                            agent_id or "api",
+                            json_module.dumps({
+                                "query": req.conversation_context[:1000],
+                                "returned_synthesis_ids": synthesis_ids,
+                                "expand": req.expand,
+                            })
+                        ),
+                        tenant_id=tenant["id"]
+                    )
+        except Exception as e:
+            import logging
+            logging.getLogger("api").warning(f"Failed to emit synthesis read audit event: {e}")
+
         # Phase 1: Log recall telemetry (non-blocking)
         try:
             trigger_recall_telemetry(

@@ -995,7 +995,7 @@ def _retrieve_candidates_cross_agent(
     for agent_id in agent_ids:
         try:
             # Semantic search across this agent's namespace
-            rows = _db_execute("""
+            rows = _db_execute_rows("""
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
                        created_at, superseded_at,
@@ -1011,10 +1011,9 @@ def _retrieve_candidates_cross_agent(
             
             if rows:
                 for row in rows:
-                    parts = row.split("|||")
-                    if len(parts) >= 11:
-                        mem_id = parts[0]
-                        candidate = _parse_candidate_row(parts)
+                    if len(row) >= 11:
+                        mem_id = row[0]
+                        candidate = _parse_candidate_row(row)
                         candidate["source_agent"] = agent_id  # Add source attribution
                         all_candidates[mem_id] = candidate
                         
