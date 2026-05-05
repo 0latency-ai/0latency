@@ -135,7 +135,7 @@ def _bm25_search(agent_id: str, query: str, tenant_id: str = None, limit: int = 
         # This handles "April 2026", "Sequoia Capital", etc. better than plainto_tsquery
         _bm25_project_filter = "AND project_id = %s" if project_id else ""
         _bm25_params = (clean_query, agent_id, _tid) + ((project_id,) if project_id else ()) + (clean_query, limit)
-        rows = _db_execute(f"""
+        rows = _db_execute_rows(f"""
             SELECT id, headline, context, full_content, memory_type,
                    importance, access_count, reinforcement_count,
                    created_at, superseded_at,
@@ -157,14 +157,13 @@ def _bm25_search(agent_id: str, query: str, tenant_id: str = None, limit: int = 
         candidates = {}
         if rows:
             for row in rows:
-                parts = row.split("|||")
-                if len(parts) >= 11:
-                    mem_id = parts[0]
-                    bm25_score = float(parts[10]) if parts[10] else 0
-                    parsed = _parse_candidate_row(parts)
+                if len(row) >= 11:
+                    mem_id = str(row[0])
+                    bm25_score = float(row[10]) if row[10] else 0
+                    parsed = _parse_candidate_row(row)
                     parsed['bm25_score'] = bm25_score
                     candidates[mem_id] = parsed
-                    logger.debug(f"  • BM25 match: {parts[1][:40]}... score={bm25_score:.3f}")
+                    logger.debug(f"  • BM25 match: {row[1][:40]}... score={bm25_score:.3f}")
         
         return list(candidates.values())
     
