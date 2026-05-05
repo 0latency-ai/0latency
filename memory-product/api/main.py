@@ -60,6 +60,8 @@ from schemas import (
     delete_schema as _delete_schema, get_schema,
 )
 from synthesis.orchestrator import run_synthesis_for_tenant
+from synthesis.redaction import transition_source_state
+from synthesis.resynthesis_worker import process_pending_resynthesis
 import tier_gates
 from org_memory import (
     create_organization, add_tenant_to_org, get_tenant_org,
@@ -2832,6 +2834,82 @@ async def batch_delete_endpoint(req: BatchDeleteRequest, tenant: dict = Depends(
     return {"deleted": deleted, "errors": errors if errors else None}
 
 
+
+@app.post("/memories/{memory_id}/redact", status_code=202)
+@track_critical_errors
+async def redact_memory(
+    memory_id: str,
+    request: Request,
+    tenant: dict = Depends(require_api_key)
+):
+    """
+    Redact a source memory and cascade to dependent syntheses.
+    Returns 202 with job_id, cascade_count, and redacted_memory_id.
+    """
+    try:
+        # Parse request body
+        body = await request.json()
+        reason = body.get('reason', '')
+        
+        # Validate reason is non-empty string
+        if not reason or not isinstance(reason, str):
+            raise HTTPException(422, detail="Field 'reason' is required and must be a non-empty string")
+        
+        # Validate memory exists in this tenant's namespace
+        from src.storage_multitenant import _get_connection_pool
+        pool = _get_connection_pool()
+        conn = pool.getconn()
+        
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT id FROM memory_service.memories
+                WHERE id = %s AND tenant_id = %s
+                """,
+                (memory_id, tenant["id"])
+            )
+            if not cur.fetchone():
+                raise HTTPException(404, detail=f"Memory {memory_id} not found")
+            
+            # Call transition_source_state - it handles cascade
+            result = transition_source_state(
+                memory_id=memory_id,
+                new_state='redacted',
+                conn=conn,
+                reason=reason
+            )
+            
+            conn.commit()
+            cascade_count = len(result.get('cascade_summary', []))
+            
+            # Create job for tracking (reuse existing jobs infrastructure)
+            from synthesis.jobs import create_job
+            job_id = create_job(
+                tenant_id=tenant["id"],
+                agent_id='system',
+                job_type='resynthesis',
+                payload={
+                    'redacted_memory_id': memory_id,
+                    'cascade_count': cascade_count,
+                }
+            )
+            
+            return {
+                "job_id": job_id,
+                "cascade_count": cascade_count,
+                "redacted_memory_id": memory_id
+            }
+            
+        finally:
+            pool.putconn(conn)
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Redaction failed for {memory_id}: {e}")
+        raise HTTPException(500, detail=f"Redaction failed: {str(e)}")
+
 class BatchSearchRequest(BaseModel):
     agent_id: str = Field(..., min_length=1, max_length=128)
     queries: list[str] = Field(..., min_length=1, max_length=20)
@@ -3371,3 +3449,27 @@ async def fix_github_tenant():
     )
     
     return {"fixed": True, "tenant_id": tenant_id, "api_key": api_key}
+
+@app.post("/admin/resynthesis/run")
+@track_critical_errors
+async def run_resynthesis(
+    request: Request,
+    limit: int = Query(10, ge=1, le=50),
+    tenant: dict = Depends(require_api_key)
+):
+    """
+    Manually trigger resynthesis worker to process pending_resynthesis rows.
+    Limit is capped at 50 to prevent abuse.
+    """
+    try:
+        # Call resynthesis worker
+        result = process_pending_resynthesis(
+            tenant_id=tenant["id"],
+            limit=min(limit, 50)
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Resynthesis worker failed for tenant {tenant['id']}: {e}")
+        raise HTTPException(500, detail=f"Resynthesis worker failed: {str(e)}")

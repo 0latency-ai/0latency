@@ -48,14 +48,16 @@ SOURCE_TRANSITIONS: Dict[str, FrozenSet[str]] = {
 SYNTHESIS_STATES: FrozenSet[str] = frozenset({
     'valid',
     'pending_review',
+    'pending_resynthesis',
     'invalidated',
     'resynthesized',
 })
 
 # Legal transitions for synthesis states
 SYNTHESIS_TRANSITIONS: Dict[str, FrozenSet[str]] = {
-    'valid': frozenset({'pending_review', 'invalidated', 'resynthesized'}),
+    'valid': frozenset({'pending_review', 'invalidated', 'resynthesized', 'pending_resynthesis'}),
     'pending_review': frozenset({'valid', 'invalidated', 'resynthesized'}),
+    'pending_resynthesis': frozenset({'resynthesized'}),
     'invalidated': frozenset({'resynthesized'}),
     'resynthesized': frozenset(),  # Terminal state
 }
