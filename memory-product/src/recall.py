@@ -453,7 +453,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                        1 - (local_embedding <=> %s::vector) as similarity,
                        'vector' as strategy
                 FROM memory_service.memories
-                WHERE agent_id = %s AND tenant_id = %s::UUID
+                WHERE (agent_id = %s OR memory_type = 'synthesis') AND tenant_id = %s::UUID
                   AND superseded_at IS NULL
                   AND local_embedding IS NOT NULL
                   {_raw_turn_filter}
@@ -470,7 +470,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                        0.5 as similarity,
                        'importance' as strategy
                 FROM memory_service.memories
-                WHERE agent_id = %s AND tenant_id = %s::UUID
+                WHERE (agent_id = %s OR memory_type = 'synthesis') AND tenant_id = %s::UUID
                   AND superseded_at IS NULL
                   AND importance > 0.8
                   {_raw_turn_filter}
@@ -488,7 +488,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                        0.35 as similarity,
                        'keyword' as strategy
                 FROM memory_service.memories
-                WHERE agent_id = %s AND tenant_id = %s::UUID
+                WHERE (agent_id = %s OR memory_type = 'synthesis') AND tenant_id = %s::UUID
                   AND superseded_at IS NULL
                   AND search_text @@ websearch_to_tsquery('english', %s)
                   {_raw_turn_filter}
@@ -783,7 +783,7 @@ def recall_fixed(
             selected.append({
                 "text": text,
                 "tier": tier,
-                "type": candidate["memory_type"],
+                "memory_type": candidate["memory_type"],
                 "composite": round(candidate["composite"], 3),
                 "headline": candidate["headline"],
                 "id": candidate["id"],
@@ -810,7 +810,6 @@ def recall_fixed(
             {
                 "id": s["id"],
                 "headline": s["headline"],
-                "type": s["type"],
                 "tier": s["tier"],
                 "composite": s["composite"],
                 "memory_type": s.get("memory_type", "fact"),
@@ -1188,7 +1187,7 @@ def recall_cross_agent(
             selected.append({
                 "text": text,
                 "tier": tier,
-                "type": candidate["memory_type"],
+                "memory_type": candidate["memory_type"],
                 "composite": round(candidate["composite"], 3),
                 "headline": candidate["headline"],
                 "source_agent": candidate["source_agent"],
@@ -1220,7 +1219,6 @@ def recall_cross_agent(
                 "id": s["id"],
                 "headline": s["headline"],
                 "source_agent": s["source_agent"],
-                "type": s["type"],
                 "tier": s["tier"],
                 "composite": s["composite"],
             }
