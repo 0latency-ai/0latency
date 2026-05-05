@@ -783,7 +783,7 @@ def recall_fixed(
             selected.append({
                 "text": text,
                 "tier": tier,
-                "type": candidate["memory_type"],
+                "memory_type": candidate["memory_type"],
                 "composite": round(candidate["composite"], 3),
                 "headline": candidate["headline"],
                 "id": candidate["id"],
@@ -810,7 +810,6 @@ def recall_fixed(
             {
                 "id": s["id"],
                 "headline": s["headline"],
-                "type": s["type"],
                 "tier": s["tier"],
                 "composite": s["composite"],
                 "memory_type": s.get("memory_type", "fact"),
@@ -1188,7 +1187,7 @@ def recall_cross_agent(
             selected.append({
                 "text": text,
                 "tier": tier,
-                "type": candidate["memory_type"],
+                "memory_type": candidate["memory_type"],
                 "composite": round(candidate["composite"], 3),
                 "headline": candidate["headline"],
                 "source_agent": candidate["source_agent"],
@@ -1220,7 +1219,6 @@ def recall_cross_agent(
                 "id": s["id"],
                 "headline": s["headline"],
                 "source_agent": s["source_agent"],
-                "type": s["type"],
                 "tier": s["tier"],
                 "composite": s["composite"],
             }
