@@ -133,17 +133,18 @@ async def startup_event():
     """Initialize services on startup."""
     warm_embedding_cache()
     
-    # Sprint 4: Pre-warm local embedding model
+    # Preload SentenceTransformer model
     try:
         import time as _time
-        print("[STARTUP] Pre-warming local embedding model...")
+        logger = logging.getLogger(__name__)
         _start = _time.time()
+        logger.info("[STARTUP] Preloading SentenceTransformer model...")
         model = _get_local_model()
         _load_time = _time.time() - _start
-        print(f"[STARTUP] Local model ready in {_load_time:.2f}s")
+        logger.info(f"[STARTUP] SentenceTransformer preloaded in {_load_time:.2f}s")
     except Exception as e:
-        print(f"[STARTUP] Warning: Failed to pre-warm local model: {e}")
-
+        logger = logging.getLogger(__name__)
+        logger.warning(f"[STARTUP] Failed to preload SentenceTransformer: {e}")
 from api.auth import router as auth_router
 app.include_router(auth_router)
 

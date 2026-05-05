@@ -1,9 +1,9 @@
 {
-  "wall_clock_ms": 17457,
+  "wall_clock_ms": 5899,
   "phases": [
     {
       "phase_name": "tenant_load",
-      "duration_ms": 98,
+      "duration_ms": 404,
       "metadata": {
         "tenant_id": "44c3080d-c196-407d-a606-4ea9f62ba0fc",
         "synthesis_id": null,
@@ -12,16 +12,16 @@
     },
     {
       "phase_name": "llm_call",
-      "duration_ms": 4261,
+      "duration_ms": 4445,
       "metadata": {
         "tenant_id": "44c3080d-c196-407d-a606-4ea9f62ba0fc",
         "synthesis_id": null,
-        "tokens_used": 1413
+        "tokens_used": 1421
       }
     },
     {
       "phase_name": "embedding",
-      "duration_ms": 12585,
+      "duration_ms": 311,
       "metadata": {
         "tenant_id": "44c3080d-c196-407d-a606-4ea9f62ba0fc",
         "synthesis_id": null
@@ -29,10 +29,10 @@
     },
     {
       "phase_name": "db_write",
-      "duration_ms": 416,
+      "duration_ms": 81,
       "metadata": {
         "tenant_id": "44c3080d-c196-407d-a606-4ea9f62ba0fc",
-        "synthesis_id": "51465483-9801-4f91-a1de-7150eacc47c9"
+        "synthesis_id": "03a08dbb-52fb-4935-ab51-a900d092d937"
       }
     }
   ],
@@ -40,8 +40,8 @@
   "cluster_size": 12,
   "synthesis_result": {
     "success": true,
-    "synthesis_id": "51465483-9801-4f91-a1de-7150eacc47c9",
-    "tokens_used": 1413,
+    "synthesis_id": "03a08dbb-52fb-4935-ab51-a900d092d937",
+    "tokens_used": 1421,
     "llm_model": "claude-sonnet-4-6"
   }
 }

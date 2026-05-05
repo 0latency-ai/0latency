@@ -10,6 +10,7 @@ import os
 import sys
 import json
 import logging
+import argparse
 from datetime import datetime
 from pathlib import Path
 
@@ -31,12 +32,45 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def find_suitable_cluster(tenant_id: str, agent_id: str) -> Cluster:
-    """Use a known-good cluster from prior synthesis run.
+def find_suitable_cluster(tenant_id: str, agent_id: str, cluster_id: str = None) -> Cluster:
+    """Find or use specified cluster.
     
-    References the parent_memory_ids from synthesis 9cbe65bd-301f-444e-9bf3-f814b4f6d5ca.
+    If cluster_id provided, fetch that specific cluster from DB.
+    Otherwise use known-good cluster from prior synthesis run.
     """
-    logger.info(f"Using known-good cluster for tenant={tenant_id}")
+    if cluster_id:
+        logger.info(f"Using specified cluster: {cluster_id}")
+        # Fetch cluster members from DB
+        set_tenant_context(tenant_id)
+        
+        # Get cluster members
+        query = """
+            SELECT id, context, embedding
+            FROM memory_service.memories
+            WHERE tenant_id = %s
+              AND cluster_id = %s
+              AND deleted_at IS NULL
+            ORDER BY created_at DESC
+        """
+        rows = _db_execute_rows(query, (tenant_id, cluster_id), tenant_id=tenant_id)
+        
+        if not rows:
+            raise ValueError(f"No memories found for cluster {cluster_id}")
+        
+        # Build Cluster object
+        members = [
+            {"id": str(row[0]), "context": row[1], "embedding": row[2]}
+            for row in rows
+        ]
+        cluster = Cluster(
+            id=cluster_id,
+            members=members,
+            centroid=None
+        )
+        logger.info(f"Cluster {cluster_id}: {len(members)} members")
+        return cluster
+    else:
+        logger.info(f"Using known-good cluster for tenant={tenant_id}")
     
     # Known cluster from CP8 P2 Chain B
     from uuid import UUID
@@ -72,6 +106,15 @@ def run_profile(tenant_id: str, agent_id: str, cluster: Cluster) -> dict:
     
     Returns profiler data dict.
     """
+    # Preload embedding model to avoid cold-load during profiling
+    logger.info("Preloading embedding model...")
+    import time as _preload_time
+    _preload_start = _preload_time.time()
+    from src.storage_multitenant import _get_local_model
+    _get_local_model()  # Force model load + warmup
+    _preload_duration = _preload_time.time() - _preload_start
+    logger.info(f"Model preloaded in {_preload_duration:.2f}s (excluded from profile)")
+    
     logger.info("Starting profiled synthesis run...")
     
     profiler = SynthesisProfiler()
@@ -193,6 +236,14 @@ def write_markdown_report(profile_data: dict, output_path: Path):
 
 def main():
     """Main driver."""
+    parser = argparse.ArgumentParser(description="Profile synthesis writer")
+    parser.add_argument(
+        "--cluster-id",
+        type=str,
+        default=None,
+        help="Specific cluster ID to profile (default: use known-good cluster)"
+    )
+    args = parser.parse_args()
     
     # Configuration
     tenant_id = "44c3080d-c196-407d-a606-4ea9f62ba0fc"
@@ -203,7 +254,7 @@ def main():
     logger.info("="*60)
     
     # Step 1: Find cluster
-    cluster = find_suitable_cluster(tenant_id, agent_id)
+    cluster = find_suitable_cluster(tenant_id, agent_id, args.cluster_id)
     
     # Step 2: Run profiled synthesis
     profile_data = run_profile(tenant_id, agent_id, cluster)

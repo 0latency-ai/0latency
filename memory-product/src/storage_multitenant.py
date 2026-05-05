@@ -37,6 +37,8 @@ def _get_local_model():
     if _local_embedding_model is None:
         from sentence_transformers import SentenceTransformer
         _local_embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+        # Warmup inference to avoid deferred init cost on first real call
+        _local_embedding_model.encode(["warmup"], show_progress_bar=False)
     return _local_embedding_model
 
 
