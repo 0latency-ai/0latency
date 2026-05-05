@@ -52,3 +52,16 @@ Branch cp-synthesis-perf-s1 merged to master and deleted.
 LongMemEval and Show HN unblocked (writer now sub-6s steady state).
 Next chain: Phase 5 (operational surface — redaction cascade,
 webhooks, decision journals, calibration, audit access, tier polish).
+
+## 2026-05-05 — CP8 P5.1 Stage 1 SHIPPED
+
+Redaction cascade inventory authored at docs/CP8-P5-1-S1-INVENTORY.md. No code change.
+
+Findings:
+- redaction.py exists (415 lines, Phase 1 partial: mark_pending_review + evidence_chain_only)
+- DB schema complete (4 columns via migrations 012, 017)
+- Recall filter correctly excludes redacted/pending_resynthesis
+- No HTTP endpoint exists
+- Validation cluster b28b7a99fd4791cb present (21 synthesis rows, 8 source memories)
+
+NEXT: P5.1 Stage 2 scope authoring (Opus, against this inventory).
