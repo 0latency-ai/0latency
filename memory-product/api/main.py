@@ -478,12 +478,14 @@ class RecallRequest(BaseModel):
     confidence_threshold: float = Field(default=0.6, ge=0.0, le=1.0, description="Min confidence before cross-agent fallback")
     dynamic_budget: bool = False
     include_synthesis: bool = Field(default=True, description="Include synthesis memories in results (1.15x rank promotion)")
+    expand: Optional[str] = Field(default=None, description="Comma-separated expansion options: evidence, cluster")
 
 class RecallResponse(BaseModel):
     context_block: str
     memories_used: int
     tokens_used: int
     memory_ids: List[str] = []
+    recall_details: Optional[List[dict]] = Field(default=None, description="Detailed memory info (only if expand param used)")
 
 class FeedbackRequest(BaseModel):
     agent_id: Optional[str] = Field(None, min_length=1, max_length=128, description="Agent namespace (auto-resolved if not provided)")
@@ -1628,6 +1630,7 @@ async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api
             memories_used=result["memories_used"],
             tokens_used=result["tokens_used"],
             memory_ids=memory_ids,
+            recall_details=result.get("recall_details") if req.expand else None,
         )
 
         # Phase 1: Log recall telemetry (non-blocking)

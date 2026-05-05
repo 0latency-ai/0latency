@@ -183,6 +183,7 @@ def recall_hybrid(
     project_id: str = None,
     include_synthesis: bool = True,
     caller_role: str = "public",
+    expand: str = None,
 ) -> dict:
     """
     Hybrid recall: tries BM25 first, falls back to vector search.
@@ -600,6 +601,7 @@ def recall_fixed(
     project_id: str = None,
     include_synthesis: bool = True,
     caller_role: str = "public",
+    expand: str = None,
 ) -> dict:
     """
     Recall relevant memories for agent context injection.
@@ -813,6 +815,8 @@ def recall_fixed(
                 "type": s["type"],
                 "tier": s["tier"],
                 "composite": s["composite"],
+                "memory_type": s.get("memory_type", "fact"),
+                "metadata": s.get("metadata", {}),
             }
             for s in selected
         ],
@@ -832,6 +836,58 @@ def recall_fixed(
         _recall_cache[cache_key] = (result, _time.time())
         elapsed = (_time.time() - _start) * 1000
         logger.info(f"💾 CACHE STORE: {cache_key[:12]}... size={len(_recall_cache)}, elapsed={elapsed:.0f}ms")
+
+
+    # B-4 Stage 02: Hierarchical expansion
+    if expand and "recall_details" in result:
+        expand_opts = set(opt.strip() for opt in expand.split(","))
+        if "evidence" in expand_opts:
+            # Collect all synthesis memory IDs that need evidence expansion
+            synthesis_ids_to_expand = []
+            for detail in result["recall_details"]:
+                if detail.get("memory_type") == "synthesis":
+                    parent_ids = detail.get("metadata", {}).get("parent_memory_ids", [])
+                    if parent_ids:
+                        synthesis_ids_to_expand.append({
+                            "memory_id": detail["id"],
+                            "parent_ids": parent_ids
+                        })
+            
+            # Fetch parent memories in a single batched query
+            if synthesis_ids_to_expand:
+                all_parent_ids = []
+                for item in synthesis_ids_to_expand:
+                    all_parent_ids.extend(item["parent_ids"])
+                
+                if all_parent_ids:
+                    from src.storage_multitenant import _db_execute_rows
+                    placeholders = ",".join(["%s"] * len(all_parent_ids))
+                    parent_query = f"""
+                        SELECT id, headline, context, full_content, memory_type, importance
+                        FROM memory_service.memories
+                        WHERE id = ANY(%s::uuid[])
+                          AND tenant_id = %s
+                    """
+                    parent_rows = _db_execute_rows(parent_query, (all_parent_ids, _tid), tenant_id=_tid)
+                    
+                    # Build lookup dict
+                    parent_lookup = {}
+                    for row in parent_rows:
+                        parent_lookup[str(row[0])] = {
+                            "id": str(row[0]),
+                            "headline": row[1],
+                            "context": row[2],
+                            "full_content": row[3],
+                            "memory_type": row[4],
+                            "importance": float(row[5]) if row[5] else 0.5
+                        }
+                    
+                    # Attach evidence to synthesis memories
+                    for detail in result["recall_details"]:
+                        if detail.get("memory_type") == "synthesis":
+                            parent_ids = detail.get("metadata", {}).get("parent_memory_ids", [])
+                            if parent_ids:
+                                detail["evidence"] = [parent_lookup[pid] for pid in parent_ids if pid in parent_lookup]
 
     return result
 
@@ -1134,6 +1190,7 @@ def recall_with_fallback(
     tenant_id: str = None,
     project_id: str = None,
     caller_role: str = "public",
+    expand: str = None,
 ) -> dict:
     """Recall with automatic cross-agent fallback.
     
@@ -1146,7 +1203,7 @@ def recall_with_fallback(
     logger.info(f"🎯 Recall with fallback: agent={agent_id}, threshold={confidence_threshold}")
     
     # Step 1: Try primary agent first
-    primary_result = recall_fixed(agent_id, conversation_context, budget_tokens, tenant_id, project_id=project_id, caller_role=caller_role)
+    primary_result = recall_fixed(agent_id, conversation_context, budget_tokens, tenant_id, project_id=project_id, caller_role=caller_role, expand=expand)
     
     # Step 2: Check confidence
     if primary_result["recall_details"]:
