@@ -21,3 +21,15 @@ everything in the same theme" — CP8 v3 Phase 4 Task 4). Not blocking.
 Candidate for focused 30-min chain after CP-SYNTHESIS-PERF.
 
 Next chain: CP-SYNTHESIS-PERF.
+
+## 2026-05-05 — CP-SYNTHESIS-PERF Stage 1 SHIPPED (profile)
+
+Branch: cp-synthesis-perf-s1 (NOT YET MERGED — awaiting operator review of profile report).
+Wall-clock total: 17457ms (cluster with 12 source memories, thomas tenant).
+Dominant phase: embedding, 72.1% of total (12585ms).
+Second phase: llm_call, 24.4% of total (4261ms).
+Report: docs/profile/synthesis-writer-profile-2026-05-05.md
+
+Key finding: Embedding generation (72%) dominates runtime, not LLM call (24%).
+Hypothesis: sentence-transformer model loaded fresh per run.
+Stage 2 scope to be authored from this report. Branch held until then.
