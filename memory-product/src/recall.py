@@ -888,6 +888,56 @@ def recall_fixed(
                             parent_ids = detail.get("metadata", {}).get("parent_memory_ids", [])
                             if parent_ids:
                                 detail["evidence"] = [parent_lookup[pid] for pid in parent_ids if pid in parent_lookup]
+        
+        if "cluster" in expand_opts:
+            # Collect all synthesis memory cluster IDs that need cluster expansion
+            synthesis_clusters = []
+            for detail in result["recall_details"]:
+                if detail.get("memory_type") == "synthesis":
+                    cluster_id = detail.get("metadata", {}).get("cluster_id")
+                    if cluster_id:
+                        synthesis_clusters.append({
+                            "memory_id": detail["id"],
+                            "cluster_id": cluster_id
+                        })
+            
+            # Fetch cluster members in a single batched query
+            if synthesis_clusters:
+                cluster_ids = list(set(item["cluster_id"] for item in synthesis_clusters))
+                
+                if cluster_ids:
+                    from src.storage_multitenant import _db_execute_rows
+                    cluster_query = """
+                        SELECT id, headline, context, full_content, memory_type, importance, metadata->>'cluster_id' as cluster_id
+                        FROM memory_service.memories
+                        WHERE metadata->>'cluster_id' = ANY(%s::text[])
+                          AND tenant_id = %s
+                          AND agent_id = %s
+                    """
+                    cluster_rows = _db_execute_rows(cluster_query, (cluster_ids, _tid, agent_id), tenant_id=_tid)
+                    
+                    # Build cluster lookup dict
+                    cluster_lookup = {}
+                    for row in cluster_rows:
+                        cluster_id = row[6]
+                        if cluster_id not in cluster_lookup:
+                            cluster_lookup[cluster_id] = []
+                        cluster_lookup[cluster_id].append({
+                            "id": str(row[0]),
+                            "headline": row[1],
+                            "context": row[2],
+                            "full_content": row[3],
+                            "memory_type": row[4],
+                            "importance": float(row[5]) if row[5] else 0.5
+                        })
+                    
+                    # Attach cluster to synthesis memories
+                    for detail in result["recall_details"]:
+                        if detail.get("memory_type") == "synthesis":
+                            cluster_id = detail.get("metadata", {}).get("cluster_id")
+                            if cluster_id and cluster_id in cluster_lookup:
+                                detail["cluster"] = cluster_lookup[cluster_id]
+
 
     return result
 

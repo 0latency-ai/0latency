@@ -20,3 +20,11 @@ Base: 32671c59d3f8082c133adbe948ab47b6408a6366
 **Evidence:** docs/chains/b-4/stage-02-evidence.md
 **Files:** api/main.py, src/recall.py
 **Verification:** expand param functional, recall_details returned when used, null otherwise
+
+## Stage 03 - Hierarchical Descent: expand=cluster
+**Timestamp:** 2026-05-05T00:20:00Z
+**Commit:** 077eac7
+**Outcome:** SHIPPED
+**Evidence:** docs/chains/b-4/stage-03-evidence.md
+**Files:** src/recall.py
+**Verification:** Cluster expansion logic added, accepts evidence,cluster combination
