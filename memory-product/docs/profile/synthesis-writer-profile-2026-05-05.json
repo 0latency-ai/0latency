@@ -1,0 +1,47 @@
+{
+  "wall_clock_ms": 17457,
+  "phases": [
+    {
+      "phase_name": "tenant_load",
+      "duration_ms": 98,
+      "metadata": {
+        "tenant_id": "44c3080d-c196-407d-a606-4ea9f62ba0fc",
+        "synthesis_id": null,
+        "cluster_size": 12
+      }
+    },
+    {
+      "phase_name": "llm_call",
+      "duration_ms": 4261,
+      "metadata": {
+        "tenant_id": "44c3080d-c196-407d-a606-4ea9f62ba0fc",
+        "synthesis_id": null,
+        "tokens_used": 1413
+      }
+    },
+    {
+      "phase_name": "embedding",
+      "duration_ms": 12585,
+      "metadata": {
+        "tenant_id": "44c3080d-c196-407d-a606-4ea9f62ba0fc",
+        "synthesis_id": null
+      }
+    },
+    {
+      "phase_name": "db_write",
+      "duration_ms": 416,
+      "metadata": {
+        "tenant_id": "44c3080d-c196-407d-a606-4ea9f62ba0fc",
+        "synthesis_id": "51465483-9801-4f91-a1de-7150eacc47c9"
+      }
+    }
+  ],
+  "cluster_id": "6af31b14-900a-4c64-8031-6a7b5a1ea5b3",
+  "cluster_size": 12,
+  "synthesis_result": {
+    "success": true,
+    "synthesis_id": "51465483-9801-4f91-a1de-7150eacc47c9",
+    "tokens_used": 1413,
+    "llm_model": "claude-sonnet-4-6"
+  }
+}
