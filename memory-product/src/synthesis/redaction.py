@@ -27,8 +27,14 @@ from .state_machine import (
     validate_source_transition,
     validate_synthesis_transition,
 )
+from .writer import _write_audit_event
 
 logger = logging.getLogger(__name__)
+
+CASCADE_FAN_OUT_CAP = 100
+
+# Cascade fan-out cap per Decision 6
+CASCADE_FAN_OUT_CAP = 100
 
 
 # ============================================================
@@ -140,6 +146,7 @@ def transition_source_state(
                     memory_id,
                     new_state,
                     conn,
+                    tenant_id=tenant_id,
                 )
 
             return {
@@ -168,6 +175,8 @@ def cascade_to_synthesis(
     source_memory_id: str,
     source_new_state: str,
     conn,
+    *,
+    tenant_id: str = None,
 ) -> List[Dict[str, Any]]:
     """Cascade a source state change to dependent synthesis rows.
 
@@ -181,6 +190,7 @@ def cascade_to_synthesis(
         source_memory_id: UUID of source memory that changed
         source_new_state: New redaction_state of source ('redacted' or 'modified')
         conn: psycopg connection (sync)
+        tenant_id: Tenant ID (optional, will be fetched if not provided)
 
     Returns:
         List of dicts with keys:
@@ -214,27 +224,53 @@ def cascade_to_synthesis(
                 logger.debug("No synthesis rows reference source %s", source_memory_id)
                 return []
 
+            # Build list of affected synthesis IDs
+            affected_synthesis_ids = [str(row[0]) for row in synthesis_rows]
+            total_affected = len(affected_synthesis_ids)
+
+            # Cascade overflow detection (Decision 5)
+            if total_affected > CASCADE_FAN_OUT_CAP:
+                # Get tenant_id from first row if not provided
+                if not tenant_id:
+                    tenant_id = str(synthesis_rows[0][1])
+                
+                _write_audit_event(
+                    tenant_id=tenant_id,
+                    target_memory_id=UUID(source_memory_id),
+                    event_type='redaction_cascade_overflow',
+                    actor='system',
+                    event_payload={
+                        'redacted_memory_id': str(source_memory_id),
+                        'total_affected': total_affected,
+                        'capped_at': CASCADE_FAN_OUT_CAP,
+                    },
+                )
+                # Cap the list
+                affected_synthesis_ids = affected_synthesis_ids[:CASCADE_FAN_OUT_CAP]
+                synthesis_rows = synthesis_rows[:CASCADE_FAN_OUT_CAP]
+
             # Group by tenant to load policy once per tenant
             rows_by_tenant: Dict[str, List[tuple]] = {}
             for row in synthesis_rows:
-                syn_id, tenant_id, syn_state = row
-                if tenant_id not in rows_by_tenant:
-                    rows_by_tenant[tenant_id] = []
-                rows_by_tenant[tenant_id].append((syn_id, syn_state))
+                syn_id, row_tenant_id, syn_state = row
+                row_tenant_id_str = str(row_tenant_id)
+                if row_tenant_id_str not in rows_by_tenant:
+                    rows_by_tenant[row_tenant_id_str] = []
+                rows_by_tenant[row_tenant_id_str].append((syn_id, syn_state))
 
             cascade_results = []
 
-            for tenant_id, rows in rows_by_tenant.items():
+            for row_tenant_id, rows in rows_by_tenant.items():
                 # Load tenant policy
-                policy = load_policy(tenant_id, conn)
+                policy = load_policy(row_tenant_id, conn)
                 redaction_rules = policy['redaction_rules']
 
                 # Check cascade depth
                 cascade_depth = redaction_rules['cascade_depth']
                 if cascade_depth != 'evidence_chain_only':
                     raise NotImplementedError(
-                        f"Phase 2-4 will implement full_cluster cascade depth. "
-                        f"Current policy for tenant {tenant_id} requires: {cascade_depth}"
+                        f"Out of scope for P5.1 Stage 2. "
+                        f"Current policy for tenant {row_tenant_id} requires: {cascade_depth}"
                     )
 
                 # Determine action based on source state
@@ -249,14 +285,14 @@ def cascade_to_synthesis(
                     )
                     continue
 
-                # Phase 1: Only mark_pending_review is implemented
+                # P5.1 Stage 2: Only mark_pending_review is implemented (Decision 9)
                 if action != 'mark_pending_review':
                     raise NotImplementedError(
-                        f"Phase 2-4 will implement {action} cascade action. "
-                        f"Current policy for tenant {tenant_id} requires: {action}"
+                        f"Out of scope for P5.1 Stage 2. "
+                        f"Current policy for tenant {row_tenant_id} requires: {action}"
                     )
 
-                # Apply mark_pending_review action to all rows
+                # Apply mark_pending_review action: transition to pending_resynthesis
                 for syn_id, old_syn_state in rows:
                     if old_syn_state is None:
                         logger.warning(
@@ -265,10 +301,10 @@ def cascade_to_synthesis(
                         )
                         continue
 
-                    # Transition to pending_review
+                    # Transition to pending_resynthesis (P5.1 S2 state)
                     result = transition_synthesis_state(
                         syn_id,
-                        'pending_review',
+                        'pending_resynthesis',
                         conn,
                         reason=f"Source {source_memory_id} → {source_new_state}",
                     )
@@ -277,6 +313,22 @@ def cascade_to_synthesis(
                         'old_state': result['old_state'],
                         'new_state': result['new_state'],
                     })
+
+            # Emit cascade initiated audit event (Decision 7)
+            if not tenant_id:
+                tenant_id = str(synthesis_rows[0][1])
+            
+            _write_audit_event(
+                tenant_id=tenant_id,
+                target_memory_id=UUID(source_memory_id),
+                event_type='redaction_cascade_initiated',
+                actor='system',
+                event_payload={
+                    'redacted_memory_id': str(source_memory_id),
+                    'affected_synthesis_count': total_affected,
+                    'affected_synthesis_ids': affected_synthesis_ids[:CASCADE_FAN_OUT_CAP],
+                },
+            )
 
             logger.info(
                 "Cascaded source %s (%s) to %d synthesis rows",
