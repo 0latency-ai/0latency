@@ -5,6 +5,8 @@ FastAPI REST endpoints for multi-tenant agent memory with real authentication.
 import os
 import sys
 import time
+import base64
+import json
 
 # Load .env file for environment variables (Stripe keys, etc.)
 try:
@@ -62,6 +64,7 @@ from schemas import (
 from synthesis.orchestrator import run_synthesis_for_tenant
 from synthesis.redaction import transition_source_state
 from synthesis.resynthesis_worker import process_pending_resynthesis
+from synthesis.writer import _write_audit_event
 import tier_gates
 from org_memory import (
     create_organization, add_tenant_to_org, get_tenant_org,
@@ -2910,6 +2913,172 @@ async def redact_memory(
         logger.error(f"Redaction failed for {memory_id}: {e}")
         raise HTTPException(500, detail=f"Redaction failed: {str(e)}")
 
+
+@app.get("/audit/events")
+@track_critical_errors
+async def get_audit_events(
+    event_type: List[str] = Query(default=None),
+    target_memory_id: Optional[str] = Query(default=None),
+    actor: Optional[str] = Query(default=None),
+    since: Optional[str] = Query(default=None),
+    until: Optional[str] = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=1000),
+    cursor: Optional[str] = Query(default=None),
+    tenant: dict = Depends(require_api_key)
+):
+    """
+    Query audit events for the tenant. Enterprise-tier only.
+    
+    Returns paginated audit events with filters for event_type, target_memory_id,
+    actor, and time range (since/until). Cursor pagination supported.
+    """
+    # Tier gate: Enterprise only
+    tenant_tier = tenant.get("plan", "free")
+    if tenant_tier not in ["enterprise"]:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "audit_read_requires_enterprise",
+                "tenant_tier": tenant_tier
+            }
+        )
+    
+    # Clamp limit to hard max of 500
+    effective_limit = min(limit, 500)
+    
+    # Parse cursor if provided
+    cursor_occurred_at = None
+    cursor_id = None
+    if cursor:
+        try:
+            cursor_data = json.loads(base64.b64decode(cursor).decode('utf-8'))
+            cursor_occurred_at = cursor_data.get('occurred_at')
+            cursor_id = cursor_data.get('id')
+        except Exception:
+            raise HTTPException(status_code=400, detail={"error": "invalid_cursor"})
+    
+    # Build query
+    conditions = ["tenant_id = %s"]
+    params = [tenant["id"]]
+    
+    # Filter by event_type (repeatable query param)
+    if event_type:
+        placeholders = ", ".join(["%s"] * len(event_type))
+        conditions.append(f"event_type IN ({placeholders})")
+        params.extend(event_type)
+    
+    # Filter by target_memory_id
+    if target_memory_id:
+        conditions.append("target_memory_id = %s::UUID")
+        params.append(target_memory_id)
+    
+    # Filter by actor
+    if actor:
+        conditions.append("actor = %s")
+        params.append(actor)
+    
+    # Filter by since (occurred_at >= since)
+    if since:
+        try:
+            # Validate ISO 8601 format
+            datetime.fromisoformat(since.replace('Z', '+00:00'))
+            conditions.append("occurred_at >= %s::timestamptz")
+            params.append(since)
+        except ValueError:
+            raise HTTPException(status_code=400, detail={"error": "invalid_since_format", "expected": "ISO 8601"})
+    
+    # Filter by until (occurred_at <= until)
+    if until:
+        try:
+            datetime.fromisoformat(until.replace('Z', '+00:00'))
+            conditions.append("occurred_at <= %s::timestamptz")
+            params.append(until)
+        except ValueError:
+            raise HTTPException(status_code=400, detail={"error": "invalid_until_format", "expected": "ISO 8601"})
+    
+    # Cursor pagination: continue from last row
+    if cursor_occurred_at and cursor_id:
+        conditions.append("(occurred_at, id) < (%s::timestamptz, %s::UUID)")
+        params.extend([cursor_occurred_at, cursor_id])
+    
+    # Build final query
+    where_clause = " AND ".join(conditions)
+    query = f"""
+        SELECT id, tenant_id, target_memory_id, event_type, actor, occurred_at, event_payload
+        FROM memory_service.synthesis_audit_events
+        WHERE {where_clause}
+        ORDER BY occurred_at DESC, id DESC
+        LIMIT %s
+    """
+    params.append(effective_limit + 1)  # Fetch +1 to detect has_more
+    
+    # Execute query
+    try:
+        rows = _db_execute_rows(query, tuple(params), tenant_id=tenant["id"])
+    except Exception as e:
+        logger.error(f"Audit events query failed: {e}")
+        raise HTTPException(status_code=500, detail={"error": "query_failed"})
+    
+    # Process results
+    events = []
+    has_more = False
+    
+    if rows and len(rows) > effective_limit:
+        has_more = True
+        rows = rows[:effective_limit]  # Trim to actual limit
+    
+    for row in rows or []:
+        events.append({
+            "id": str(row[0]),
+            "tenant_id": str(row[1]),
+            "target_memory_id": str(row[2]) if row[2] else None,
+            "event_type": str(row[3]),
+            "actor": str(row[4]),
+            "occurred_at": row[5].isoformat() if row[5] else None,
+            "event_payload": row[6] if row[6] else {}
+        })
+    
+    # Generate next cursor
+    next_cursor = None
+    if has_more and events:
+        last_event = events[-1]
+        cursor_data = {
+            "occurred_at": last_event["occurred_at"],
+            "id": last_event["id"]
+        }
+        next_cursor = base64.b64encode(json.dumps(cursor_data).encode('utf-8')).decode('utf-8')
+    
+    # Write self-audit event (best-effort, don't fail request if this fails)
+    try:
+        audit_payload = {
+            "filters": {
+                "event_type": event_type,
+                "target_memory_id": target_memory_id,
+                "actor": actor,
+                "since": since,
+                "until": until,
+                "limit": effective_limit
+            },
+            "returned": len(events),
+            "endpoint": "GET /audit/events"
+        }
+        _write_audit_event(
+            tenant_id=tenant["id"],
+            target_memory_id=None,
+            event_type="read",
+            actor="system",
+            event_payload=audit_payload
+        )
+    except Exception as e:
+        logger.warning(f"Self-audit write failed (non-blocking): {e}")
+    
+    # Return response
+    return {
+        "events": events,
+        "next_cursor": next_cursor,
+        "returned": len(events),
+        "has_more": has_more
+    }
 class BatchSearchRequest(BaseModel):
     agent_id: str = Field(..., min_length=1, max_length=128)
     queries: list[str] = Field(..., min_length=1, max_length=20)
