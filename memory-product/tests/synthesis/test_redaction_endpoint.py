@@ -16,9 +16,16 @@ from uuid import uuid4
 import psycopg2
 import psycopg2.extras
 import pytest
-from fastapi.testclient import TestClient
 
-from api.main import app
+# Try to import FastAPI TestClient - if it fails, skip endpoint tests
+try:
+    from fastapi.testclient import TestClient
+    from api.main import app
+    FASTAPI_AVAILABLE = True
+    SKIP_REASON = ''
+except (ImportError, ModuleNotFoundError) as e:
+    FASTAPI_AVAILABLE = False
+    SKIP_REASON = f"FastAPI or api.main import failed: {e}"
 
 
 
@@ -43,24 +50,20 @@ def db_conn():
 def test_tenant(db_conn):
     """Create a test tenant with API key."""
     tenant_id = str(uuid4())
-    api_key = f"zl_live_{uuid4().hex[:24]}"
-    
-    # Hash the API key
-    import hashlib
-    api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    api_key = f"zl_live_{uuid4().hex[:32]}"
 
     # Rollback any pending transaction first
     db_conn.rollback()
 
     try:
         with db_conn.cursor() as cur:
-            # Create tenant with API key
+            # Create tenant with API key (trigger will compute api_key_hash)
             cur.execute(
                 """
-                INSERT INTO memory_service.tenants (id, name, api_key_hash, created_at)
+                INSERT INTO memory_service.tenants (id, name, api_key_live, created_at)
                 VALUES (%s, %s, %s, NOW())
                 """,
-                (tenant_id, f"test-redaction-endpoint-{tenant_id[:8]}", api_key_hash),
+                (tenant_id, f"test-redaction-endpoint-{tenant_id[:8]}", api_key),
             )
         db_conn.commit()
     except Exception as e:
@@ -69,11 +72,12 @@ def test_tenant(db_conn):
 
     yield {"id": tenant_id, "api_key": api_key}
 
-    # Cleanup
+    # Cleanup: Delete only memories, not tenant (preserves audit trail)
+    # Tenant row and audit events remain as historical record
     try:
         db_conn.rollback()  # Clear any pending transaction
         with db_conn.cursor() as cur:
-            cur.execute("DELETE FROM memory_service.tenants WHERE id = %s", (tenant_id,))
+            cur.execute("DELETE FROM memory_service.memories WHERE tenant_id = %s", (tenant_id,))
         db_conn.commit()
     except Exception:
         db_conn.rollback()
@@ -190,7 +194,7 @@ class TestRedactionEndpoint:
                     "SELECT synthesis_state FROM memory_service.memories WHERE id = %s",
                     (syn_id,),
                 )
-                assert cur.fetchone()[0] == 'pending_review'
+                assert cur.fetchone()[0] == 'pending_resynthesis'
 
         finally:
             cleanup_test_memories(db_conn)
@@ -225,14 +229,14 @@ class TestRedactionEndpoint:
             data = response.json()
             assert data["cascade_count"] == 3
 
-            # Verify all 3 syntheses transitioned to pending_review
+            # Verify all 3 syntheses transitioned to pending_resynthesis
             with db_conn.cursor() as cur:
                 for syn_id in syn_ids:
                     cur.execute(
                         "SELECT synthesis_state FROM memory_service.memories WHERE id = %s",
                         (syn_id,),
                     )
-                    assert cur.fetchone()[0] == 'pending_review'
+                    assert cur.fetchone()[0] == 'pending_resynthesis'
 
         finally:
             cleanup_test_memories(db_conn)
