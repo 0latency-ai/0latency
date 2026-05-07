@@ -3539,6 +3539,273 @@ async def admin_delete_user(email: str):
 class SynthesisRunRequest(BaseModel):
     agent_id: str = Field(..., description="Agent namespace to run synthesis for")
     max_clusters: Optional[int] = Field(None, ge=1, le=10, description="Max clusters to synthesize (capped at 10)")
+
+
+# =============================================================================
+# Decision Journals (CP8 P5.3)
+# =============================================================================
+
+@app.post("/memories/decision", status_code=202)
+@track_critical_errors
+async def create_decision(
+    request: Request,
+    tenant: dict = Depends(require_api_key)
+):
+    """
+    Create a decision journal entry. Enterprise-tier only.
+    
+    Required fields: agent_id, decision_text, rationale, headline, context
+    Optional fields: alternatives_considered, predicted_outcome, actual_outcome, importance, metadata
+    
+    Returns 202 with memory_id.
+    """
+    # Tier gate: Enterprise only (decision_journals feature flag)
+    from src.tier_gates import is_feature_enabled
+    from src.storage_multitenant import _get_connection_pool
+    
+    pool = _get_connection_pool()
+    conn = pool.getconn()
+    
+    try:
+        if not is_feature_enabled(tenant["id"], "decision_journals", conn):
+            tenant_tier = tenant.get("plan", "free")
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "decision_journals_enterprise_only",
+                    "tenant_tier": tenant_tier
+                }
+            )
+        
+        # Parse request body
+        body = await request.json()
+        
+        # Validate required fields
+        required_fields = ["agent_id", "decision_text", "rationale", "headline", "context"]
+        missing = [f for f in required_fields if not body.get(f)]
+        if missing:
+            raise HTTPException(
+                status_code=422,
+                detail={"error": "missing_required_fields", "missing": missing}
+            )
+        
+        # Extract fields
+        agent_id = body["agent_id"]
+        decision_text = body["decision_text"]
+        rationale = body["rationale"]
+        headline = body["headline"]
+        context = body["context"]
+        alternatives_considered = body.get("alternatives_considered", [])
+        predicted_outcome = body.get("predicted_outcome")
+        actual_outcome = body.get("actual_outcome")
+        importance = body.get("importance", 0.5)
+        metadata = body.get("metadata", {})
+        
+        # Validate types
+        if not isinstance(alternatives_considered, list):
+            raise HTTPException(422, detail="alternatives_considered must be an array")
+        if not isinstance(importance, (int, float)) or not (0.0 <= importance <= 1.0):
+            raise HTTPException(422, detail="importance must be a number between 0.0 and 1.0")
+        if not isinstance(metadata, dict):
+            raise HTTPException(422, detail="metadata must be an object")
+        
+        # Insert decision memory
+        import uuid
+        memory_id = str(uuid.uuid4())
+        
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO memory_service.memories (
+                id, tenant_id, agent_id, memory_type,
+                headline, context, full_content, importance, metadata,
+                decision_text, alternatives_considered, rationale,
+                predicted_outcome, actual_outcome,
+                created_at
+            ) VALUES (
+                %s, %s, %s, 'decision',
+                %s, %s, %s, %s, %s,
+                %s, %s, %s,
+                %s, %s,
+                NOW()
+            )
+            RETURNING id
+            """,
+            (
+                memory_id, tenant["id"], agent_id,
+                headline, context, context, importance, json.dumps(metadata),
+                decision_text, alternatives_considered, rationale,
+                predicted_outcome, actual_outcome
+            )
+        )
+        result = cur.fetchone()
+        if not result:
+            raise HTTPException(500, detail="Failed to create decision memory")
+        
+        created_memory_id = str(result[0])
+        
+        # Write audit event
+        try:
+            from src.storage_multitenant import _db_execute_rows
+            _db_execute_rows(
+                """
+                INSERT INTO memory_service.synthesis_audit_events
+                  (tenant_id, target_memory_id, event_type, actor, occurred_at, event_payload)
+                VALUES
+                  (%s::uuid, %s::uuid, %s, %s, NOW(), %s::jsonb)
+                """,
+                (
+                    tenant["id"],
+                    created_memory_id,
+                    "decision_created",
+                    agent_id,
+                    json.dumps({
+                        "headline": headline,
+                        "importance": importance,
+                        "alternatives_count": len(alternatives_considered)
+                    })
+                ),
+                tenant_id=tenant["id"]
+            )
+        except Exception as e:
+            logger.warning(f"Failed to write decision_created audit event: {e}")
+        
+        conn.commit()
+        
+        return {
+            "memory_id": created_memory_id,
+            "status": "created"
+        }
+        
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Decision creation failed: {e}")
+        raise HTTPException(500, detail=str(e))
+    finally:
+        pool.putconn(conn)
+
+
+@app.patch("/memories/{memory_id}/outcome", status_code=200)
+@track_critical_errors
+async def update_decision_outcome(
+    memory_id: str,
+    request: Request,
+    tenant: dict = Depends(require_api_key)
+):
+    """
+    Update actual_outcome field for a decision memory. Enterprise-tier only.
+    
+    Body: {"actual_outcome": "..." }
+    
+    Returns 200 with memory_id, actual_outcome, and updated_at.
+    """
+    # Tier gate: Enterprise only (decision_journals feature flag)
+    from src.tier_gates import is_feature_enabled
+    from src.storage_multitenant import _get_connection_pool
+    
+    pool = _get_connection_pool()
+    conn = pool.getconn()
+    
+    try:
+        if not is_feature_enabled(tenant["id"], "decision_journals", conn):
+            tenant_tier = tenant.get("plan", "free")
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "decision_journals_enterprise_only",
+                    "tenant_tier": tenant_tier
+                }
+            )
+        
+        # Parse request body
+        body = await request.json()
+        actual_outcome = body.get("actual_outcome")
+        
+        if not actual_outcome or not isinstance(actual_outcome, str):
+            raise HTTPException(422, detail="Field 'actual_outcome' is required and must be a non-empty string")
+        
+        # Fetch memory and validate
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, memory_type, actual_outcome, agent_id
+            FROM memory_service.memories
+            WHERE id = %s AND tenant_id = %s
+            """,
+            (memory_id, tenant["id"])
+        )
+        row = cur.fetchone()
+        
+        if not row:
+            raise HTTPException(404, detail=f"Memory {memory_id} not found")
+        
+        memory_type, old_outcome, agent_id = row[1], row[2], row[3]
+        
+        if memory_type != 'decision':
+            raise HTTPException(400, detail="Memory is not a decision (memory_type must be 'decision')")
+        
+        # Update actual_outcome
+        cur.execute(
+            """
+            UPDATE memory_service.memories
+            SET actual_outcome = %s, updated_at = NOW()
+            WHERE id = %s
+            RETURNING updated_at
+            """,
+            (actual_outcome, memory_id)
+        )
+        updated_row = cur.fetchone()
+        if not updated_row:
+            raise HTTPException(500, detail="Failed to update actual_outcome")
+        
+        updated_at = updated_row[0]
+        
+        # Write audit event
+        try:
+            from src.storage_multitenant import _db_execute_rows
+            _db_execute_rows(
+                """
+                INSERT INTO memory_service.synthesis_audit_events
+                  (tenant_id, target_memory_id, event_type, actor, occurred_at, event_payload)
+                VALUES
+                  (%s::uuid, %s::uuid, %s, %s, NOW(), %s::jsonb)
+                """,
+                (
+                    tenant["id"],
+                    memory_id,
+                    "decision_outcome_recorded",
+                    agent_id or "api",
+                    json.dumps({
+                        "old_outcome": old_outcome,
+                        "new_outcome": actual_outcome
+                    })
+                ),
+                tenant_id=tenant["id"]
+            )
+        except Exception as e:
+            logger.warning(f"Failed to write decision_outcome_recorded audit event: {e}")
+        
+        conn.commit()
+        
+        return {
+            "memory_id": memory_id,
+            "actual_outcome": actual_outcome,
+            "updated_at": updated_at.isoformat()
+        }
+        
+    except HTTPException:
+        conn.rollback()
+        raise
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Decision outcome update failed: {e}")
+        raise HTTPException(500, detail=str(e))
+    finally:
+        pool.putconn(conn)
+
     force: Optional[bool] = Field(False, description="Skip cooldown check")
     role_scope: Optional[str] = Field("public", description="Role tag for synthesis memories")
 
