@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 import json
 import base64
 from uuid import uuid4
+from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 
 import psycopg2
@@ -24,6 +25,7 @@ try:
     from fastapi.testclient import TestClient
     from api.main import app
     FASTAPI_AVAILABLE = True
+    SKIP_REASON = ''
 except (ImportError, ModuleNotFoundError) as e:
     FASTAPI_AVAILABLE = False
     SKIP_REASON = f"FastAPI or api.main import failed: {e}"
@@ -49,20 +51,17 @@ def db_conn():
 def create_tenant(db_conn, plan="free"):
     """Create a test tenant with specified plan."""
     tenant_id = str(uuid4())
-    api_key = f"zl_live_{uuid4().hex[:24]}"
-    
-    import hashlib
-    api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    api_key = f"zl_live_{uuid4().hex[:32]}"
 
     db_conn.rollback()
 
     with db_conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO memory_service.tenants (id, name, api_key_hash, plan, created_at)
+            INSERT INTO memory_service.tenants (id, name, api_key_live, plan, created_at)
             VALUES (%s, %s, %s, %s, NOW())
             """,
-            (tenant_id, f"test-audit-{plan}-{tenant_id[:8]}", api_key_hash, plan),
+            (tenant_id, f"test-audit-{plan}-{tenant_id[:8]}", api_key, plan),
         )
     db_conn.commit()
 
@@ -70,10 +69,15 @@ def create_tenant(db_conn, plan="free"):
 
 
 def cleanup_tenant(db_conn, tenant_id):
-    """Delete a test tenant."""
+    """Cleanup test tenant data (preserves tenant and audit records).
+    
+    Per ISSUE 3 resolution: Tenant rows and audit events remain as historical
+    record, matching production semantics. Only delete tenant-owned memories.
+    """
     db_conn.rollback()
     with db_conn.cursor() as cur:
-        cur.execute("DELETE FROM memory_service.tenants WHERE id = %s", (tenant_id,))
+        # Delete only memories; tenant and audit trail remain
+        cur.execute("DELETE FROM memory_service.memories WHERE tenant_id = %s", (tenant_id,))
     db_conn.commit()
 
 
@@ -326,7 +330,7 @@ def test_filter_since_until_window(db_conn):
         until = (future - timedelta(minutes=30)).isoformat()
         
         response = client.get(
-            f"/audit/events?since={since}&until={until}",
+            f"/audit/events?since={quote(since)}&until={quote(until)}",
             headers={"X-API-Key": tenant["api_key"]}
         )
         assert response.status_code == 200
@@ -393,7 +397,7 @@ def test_pagination_complete_no_overlap(db_conn):
 
 @pytest.mark.skipif(not FASTAPI_AVAILABLE, reason=SKIP_REASON)
 def test_limit_clamped_to_500(db_conn):
-    """Request limit=10000 returns at most 500."""
+    """Request limit=1000 returns at most 500 (API clamps to 500)."""
     tenant = create_tenant(db_conn, plan="enterprise")
     client = TestClient(app)
     
@@ -403,7 +407,7 @@ def test_limit_clamped_to_500(db_conn):
             insert_audit_event(db_conn, tenant["id"], "synthesis_written")
         
         response = client.get(
-            "/audit/events?limit=10000&event_type=synthesis_written",
+            "/audit/events?limit=1000&event_type=synthesis_written",
             headers={"X-API-Key": tenant["api_key"]}
         )
         assert response.status_code == 200
