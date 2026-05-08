@@ -128,6 +128,18 @@ SELECT version_num FROM alembic_version;
 ```
 
 ## Security Rules
+## Migration Discipline
+
+**DROP TABLE halt rule:**
+- Any DROP TABLE in a migration → mandatory halt to operator regardless of Tier classification, even if table appears empty
+- Before proceeding: grep codebase for table references, confirm zero hits in non-migration code
+- If table was superseded: audit and delete the old code path in the same migration commit, never leave orphan modules
+
+**Table supersession protocol:**
+- When superseding a table with a new schema, always audit for orphan code referencing the old table
+- Delete dead code files in the same commit as the migration that drops the table
+- Document the supersession in the migration comment and commit message
+
 
 - Never log API keys in terminal output, files, or git commits
 - Never echo secrets - pipe sensitive data directly to consumers
