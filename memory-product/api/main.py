@@ -4124,3 +4124,65 @@ async def oauth_device_token(body: DeviceTokenRequest):
     except Exception as e:
         logger.error(f"oauth_device_token failed: {e}")
         raise HTTPException(500, detail="Failed to process token request")
+
+class DeviceApproveRequest(BaseModel):
+    user_code: str
+
+@app.post("/oauth/device/approve")
+async def oauth_device_approve(body: DeviceApproveRequest, request: Request, tenant=Depends(require_api_key)):
+    """
+    Approve a device authorization request from the dashboard.
+    Requires user to be logged in (API key auth).
+    Sets approved_at and tenant_id for the given user_code.
+    """
+    try:
+        user_code = body.user_code.strip().upper()
+        
+        # Look up the device code by user_code
+        rows = _db_execute_rows(
+            """
+            SELECT device_code, expires_at, approved_at
+            FROM memory_service.oauth_device_codes
+            WHERE user_code = %s
+            """,
+            params=(user_code,),
+            tenant_id="00000000-0000-0000-0000-000000000000"
+        )
+        
+        if not rows:
+            logger.warning(f"oauth_device_approve invalid_code user_code={user_code}")
+            raise HTTPException(400, detail={"error": "invalid_code"})
+        
+        device_code, expires_at, approved_at = rows[0]
+        
+        # Check expiration
+        if datetime.now(timezone.utc) > expires_at:
+            logger.warning(f"oauth_device_approve expired user_code={user_code}")
+            raise HTTPException(400, detail={"error": "invalid_code"})
+        
+        # Check if already approved
+        if approved_at:
+            logger.warning(f"oauth_device_approve already_approved user_code={user_code}")
+            raise HTTPException(400, detail={"error": "already_approved"})
+        
+        # Approve it: set approved_at and tenant_id
+        _db_execute_rows(
+            """
+            UPDATE memory_service.oauth_device_codes
+            SET approved_at = NOW(), tenant_id = %s
+            WHERE user_code = %s
+            """,
+            params=(tenant["id"], user_code),
+            tenant_id="00000000-0000-0000-0000-000000000000",
+            fetch_results=False
+        )
+        
+        logger.info(f"oauth_device_approve success user_code={user_code} tenant_id={tenant['id']}")
+        
+        return {"status": "approved"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"oauth_device_approve failed: {e}")
+        raise HTTPException(500, detail="Failed to approve device")
