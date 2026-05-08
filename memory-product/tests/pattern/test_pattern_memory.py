@@ -63,7 +63,7 @@ def setup_test_data(db_connection):
     db_connection.commit()
 
 
-class TestPatternSchemaTask TestPatternExtractionJob:
+class TestPatternExtractionJob:
     """Test pattern extraction worker (Task 10)."""
     
     def test_extraction_with_sufficient_feedback(self, setup_test_data, db_connection):
