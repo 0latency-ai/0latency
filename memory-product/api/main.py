@@ -3881,3 +3881,68 @@ async def run_resynthesis(
     except Exception as e:
         logger.error(f"Resynthesis worker failed for tenant {tenant['id']}: {e}")
         raise HTTPException(500, detail=f"Resynthesis worker failed: {str(e)}")
+
+
+
+@app.post("/patterns/run")
+def patterns_run(tenant=Depends(require_api_key)):
+    """
+    Manual pattern extraction trigger endpoint.
+    Free/Pro tier: blocked (403).
+    Scale/Enterprise tiers: allowed with rate limiting.
+    """
+    try:
+        # Check tier gate
+        from storage_multitenant import _get_connection_pool
+        import tier_gates
+        
+        pool = _get_connection_pool()
+        conn = pool.getconn()
+        try:
+            tier = tier_gates.get_tier(tenant["id"], conn)
+            tier_matrix = tier_gates.TIER_MATRIX.get(tier, {})
+            
+            if not tier_matrix.get("pattern_extraction_enabled", False):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"{tier.capitalize()} tier does not have access to pattern extraction"
+                )
+        finally:
+            pool.putconn(conn)
+        
+        # Run pattern extraction
+        from api.pattern_worker import run_pattern_extraction
+        
+        result = run_pattern_extraction(tenant_id=tenant["id"])
+        
+        # Log audit event
+        conn2 = pool.getconn()
+        try:
+            cur = conn2.cursor()
+            cur.execute(
+                """
+                INSERT INTO memory_service.synthesis_audit_events
+                  (tenant_id, event_type, actor, occurred_at, event_payload)
+                VALUES
+                  (%s::uuid, 'pattern_extraction_triggered', 'manual_api', NOW(), %s::jsonb)
+                """,
+                (tenant["id"], json.dumps(result))
+            )
+            conn2.commit()
+        finally:
+            pool.putconn(conn2)
+        
+        logger.info(f"Pattern extraction: tenant={tenant['id']} result={result}")
+        
+        return {
+            "status": "completed",
+            "stats": result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Pattern extraction failed: {e}")
+        raise HTTPException(status_code=500, detail="Pattern extraction failed")
+
+
