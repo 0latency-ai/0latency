@@ -208,7 +208,7 @@ def write_pattern_memory(
                 UPDATE memory_service.memories
                 SET observation_count = %s,
                     last_observation_at = %s,
-                    triggering_event_ids = %s,
+                    triggering_event_ids = %s::uuid[],
                     confidence = %s,
                     context = %s,
                     updated_at = NOW()
@@ -226,6 +226,10 @@ def write_pattern_memory(
             logger.debug(f"Updated existing pattern {memory_id}")
         else:
             # Create new pattern memory
+            # Create serializable copy of pattern for full_content JSONB field
+            pattern_serializable = pattern.copy()
+            if isinstance(pattern_serializable.get("last_observation_at"), datetime):
+                pattern_serializable["last_observation_at"] = pattern_serializable["last_observation_at"].isoformat()
             cur.execute(
                 """
                 INSERT INTO memory_service.memories
@@ -237,7 +241,7 @@ def write_pattern_memory(
                 VALUES
                   (%s::uuid, %s, 'pattern', %s,
                    %s, %s, %s,
-                   %s, %s, %s, %s,
+                   %s, %s, %s::uuid[], %s,
                    0.8, NOW())
                 RETURNING id
                 """,
@@ -247,7 +251,7 @@ def write_pattern_memory(
                     pattern["pattern_type"],
                     pattern["headline"],
                     pattern["context"],
-                    json.dumps(pattern),  # full_content contains the raw pattern data
+                    json.dumps(pattern_serializable),  # full_content contains the raw pattern data
                     pattern["observation_count"],
                     pattern["last_observation_at"],
                     pattern["triggering_event_ids"],

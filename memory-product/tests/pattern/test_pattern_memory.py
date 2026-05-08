@@ -9,6 +9,7 @@ import pytest
 import json
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
+import hashlib
 
 
 @pytest.fixture
@@ -25,12 +26,13 @@ def setup_test_data(db_conn):
     
     # Create enterprise tenant
     tenant_id = str(uuid4())
+    api_key_live = f'test_key_{tenant_id}'
     cur.execute(
         """
         INSERT INTO memory_service.tenants (id, name, plan, api_key_live, api_key_hash)
-        VALUES (cast(%s as uuid), 'test-tenant', 'enterprise', 'test_key', 'hash')
+        VALUES (cast(%s as uuid), 'test-tenant', 'enterprise', %s, %s)
         """,
-        (tenant_id,)
+        (tenant_id, api_key_live, hashlib.sha256(api_key_live.encode()).hexdigest())
     )
     
     # Create some memories for pattern extraction
@@ -116,8 +118,8 @@ class TestPatternExtractionJob:
         tenant_id = str(uuid4())
         cur = db_conn.cursor()
         cur.execute(
-            "INSERT INTO memory_service.tenants (id, name, plan) VALUES (%s::uuid, 'test-tenant-minimal', 'enterprise')",
-            (tenant_id,)
+            "INSERT INTO memory_service.tenants (id, name, plan, api_key_hash) VALUES (%s::uuid, 'test-tenant-minimal', 'enterprise', %s)",
+            (tenant_id, hashlib.sha256(f'minimal_{tenant_id}'.encode()).hexdigest())
         )
         db_conn.commit()
         
@@ -299,9 +301,9 @@ class TestTierGating:
         cur.execute(
             """
             INSERT INTO memory_service.tenants (id, name, plan, api_key_live)
-            VALUES (cast(%s as uuid), 'test-free', 'free', %s)
+            VALUES (cast(%s as uuid), 'test-free', 'free', %s, %s)
             """,
-            (tenant_id, api_key)
+            (tenant_id, api_key, api_key_hash)
         )
         db_conn.commit()
         
@@ -469,13 +471,14 @@ class TestPatternRateLimiting:
         # Create a Scale tenant with rate limit tracking
         tenant_id = str(uuid4())
         api_key = f"test_scale_key_{tenant_id[:8]}"
+        api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
         
         cur.execute(
             """
             INSERT INTO memory_service.tenants (id, name, plan, api_key_live, api_key_hash)
-            VALUES (cast(%s as uuid), 'test-scale', 'scale', %s, 'hash')
+            VALUES (cast(%s as uuid), 'test-scale', 'scale', %s, %s)
             """,
-            (tenant_id, api_key)
+            (tenant_id, api_key, api_key_hash)
         )
         
         # Initialize rate limit row
@@ -539,6 +542,101 @@ class TestPatternRateLimiting:
         assert detail["tier"] == "scale"
         assert detail["limit"] == scale_limit
         assert detail["used"] == scale_limit
+        
+        # Cleanup
+        cur.execute("DELETE FROM memory_service.tenants WHERE id = %s::uuid", (tenant_id,))
+        db_conn.commit()
+
+
+class TestDatetimeSerialization:
+    """Test T7 fix: datetime serialization in pattern_worker."""
+    
+    def test_pattern_with_datetime_writes_successfully(self, db_conn):
+        """Pattern with datetime last_observation_at serializes correctly (T7 fix)."""
+        from api.pattern_worker import write_pattern_memory
+        
+        # Create test tenant
+        tenant_id = str(uuid4())
+        agent_id = "test-agent-datetime"
+        api_key_live = f"test_key_datetime_{tenant_id}"
+        api_key_hash = hashlib.sha256(api_key_live.encode()).hexdigest()
+        cur = db_conn.cursor()
+        
+        cur.execute(
+            """
+            INSERT INTO memory_service.tenants (id, name, plan, api_key_live, api_key_hash)
+            VALUES (cast(%s as uuid), 'test-datetime', 'enterprise', %s, %s)
+            """,
+            (tenant_id, api_key_live, api_key_hash)
+        )
+        
+        # Create feedback row for pattern triggering_event_ids
+        cur.execute(
+            """
+            INSERT INTO memory_service.memories (tenant_id, agent_id, headline, context, full_content)
+            VALUES (%s::uuid, %s, 'Test memory', 'context', 'content')
+            RETURNING id
+            """,
+            (tenant_id, agent_id)
+        )
+        memory_id = cur.fetchone()[0]
+        
+        cur.execute(
+            """
+            INSERT INTO memory_service.recall_feedback 
+              (tenant_id, agent_id, memory_id, feedback_type, context, created_at)
+            VALUES (%s::uuid, %s, %s::uuid, 'contradicted', 'test feedback', %s)
+            RETURNING id
+            """,
+            (tenant_id, agent_id, memory_id, datetime.now(timezone.utc))
+        )
+        feedback_id = cur.fetchone()[0]
+        db_conn.commit()
+        
+        # Create pattern dict with datetime object (this is what extract_patterns_for_agent returns)
+        pattern = {
+            "pattern_type": "correction",
+            "headline": "Test pattern with datetime",
+            "context": "This pattern contains a datetime object that needs serialization",
+            "observation_count": 5,
+            "last_observation_at": datetime.now(timezone.utc),  # Real datetime object
+            "triggering_event_ids": [str(feedback_id)],
+            "confidence": 0.85
+        }
+        
+        # This should NOT raise "Object of type datetime is not JSON serializable"
+        memory_id = write_pattern_memory(db_conn, tenant_id, agent_id, pattern)
+        
+        assert memory_id is not None, "Pattern memory should be written successfully"
+        
+        # Verify the pattern row exists and full_content is valid JSON
+        cur.execute(
+            """
+            SELECT id, pattern_type, full_content, last_observation_at
+            FROM memory_service.memories
+            WHERE id = %s::uuid
+            """,
+            (memory_id,)
+        )
+        
+        row = cur.fetchone()
+        assert row is not None, "Pattern row should exist"
+        assert row[1] == "correction"
+        
+        # Verify full_content is valid JSON and contains ISO-formatted datetime
+        full_content = row[2] if isinstance(row[2], dict) else json.loads(row[2])
+        assert "last_observation_at" in full_content
+        assert isinstance(full_content["last_observation_at"], str), "Should be ISO string, not datetime"
+        
+        # Verify it's a valid ISO format datetime string
+        try:
+            parsed = datetime.fromisoformat(full_content["last_observation_at"])
+            assert parsed is not None
+        except ValueError:
+            pytest.fail("last_observation_at should be valid ISO 8601 datetime string")
+        
+        # Verify last_observation_at column still has the actual datetime
+        assert row[3] is not None, "last_observation_at column should have datetime value"
         
         # Cleanup
         cur.execute("DELETE FROM memory_service.tenants WHERE id = %s::uuid", (tenant_id,))
