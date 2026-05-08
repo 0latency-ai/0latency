@@ -161,6 +161,9 @@ app.include_router(billing_router)
 from api.security import router as security_router, check_for_secrets
 from api.checkpoint_validation import validate_session_checkpoint_metadata
 app.include_router(security_router)
+# --- Webhooks Module (CP8 P5.4) ---
+from api.webhooks import router as webhooks_router
+app.include_router(webhooks_router)
 
 @app.middleware("http")
 async def request_logging(request: Request, call_next):
