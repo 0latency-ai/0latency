@@ -68,7 +68,9 @@ def setup_test_data(db_conn):
     yield {"tenant_id": tenant_id, "memory_ids": memory_ids, "agent_id": "test-agent"}
     
     # Cleanup
-    cur.execute("DELETE FROM memory_service.tenants WHERE id = %s::uuid", (tenant_id,))
+    # Delete test data - skip tenants due to append-only audit FK cascade
+    cur.execute("DELETE FROM memory_service.recall_feedback WHERE tenant_id = %s::uuid", (tenant_id,))
+    cur.execute("DELETE FROM memory_service.memories WHERE tenant_id = %s::uuid", (tenant_id,))
     db_conn.commit()
 
 
