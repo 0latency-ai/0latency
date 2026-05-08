@@ -76,7 +76,7 @@ def _require_tier(tenant: dict, allowed_tiers: List[str], feature_name: str):
         )
 
 
-@router.post("")
+@router.post("", status_code=201)
 async def create_webhook(
     req: WebhookCreateRequest,
     x_api_key: str = Header(None, alias="X-API-Key")
