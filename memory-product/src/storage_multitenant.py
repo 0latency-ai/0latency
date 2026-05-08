@@ -551,14 +551,10 @@ def _handle_correction(memory: dict, correction_id: str, tenant_id: str):
         LIMIT 5
     """
     
-    rows = _db_execute(query, (correction_id, embedding), tenant_id=tenant_id)
+    rows = _db_execute_rows(query, (correction_id, embedding), tenant_id=tenant_id)
     
     if rows:
-        for row in rows:
-            parts = row.split("|||")
-            old_id = parts[0].strip()
-            old_headline = parts[1].strip() if len(parts) > 1 else ""
-            
+        for (old_id, old_headline, agent_id) in rows:
             # Snapshot version before superseding
             try:
                 from versioning import snapshot_version
