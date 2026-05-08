@@ -743,6 +743,21 @@ def recall_fixed(
                 composite *= 1.2   # Recent decisions are highly relevant
             elif c["memory_type"] == "synthesis":
                 composite *= 1.15  # Phase 4: synthesis rows promoted above constituents
+            elif c["memory_type"] == "pattern":
+                # CP8 P5.5 Task 11: Pattern-aware recall
+                # Boost patterns based on observation count and recency
+                pattern_boost = 1.2  # Base boost for pattern memories
+                obs_count = c.get("observation_count", 0)
+                if obs_count >= 5:
+                    pattern_boost *= 1.1  # Additional boost for well-established patterns
+                if days_since < 3:
+                    pattern_boost *= 1.15  # Recent patterns are more relevant
+                composite *= pattern_boost
+            
+            # CP8 P5.5 Task 12: Pin-wins-over-pattern
+            # Pinned memories get highest priority, overriding all other boosts
+            if c.get("is_pinned"):
+                composite *= 2.0  # Strong boost for pinned memories
             
             if c.get("superseded_at"):
                 continue
