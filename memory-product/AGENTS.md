@@ -171,6 +171,26 @@ curl -s -X POST https://mcp.0latency.ai/memories/decision \
 
 WARNING: NEVER commit or log the API key value in any output files or git commits.
 
+## CI Collection Smoke Check
+
+**Purpose:** Detect test collection errors (import failures, syntax errors) before running the test suite. Collection errors produce silent "no tests ran" results that appear as green builds but mask broken imports.
+
+**Usage:**
+```bash
+bash scripts/ci_collection_smoke.sh
+```
+
+**Exit codes:**
+- `0` - Collection succeeded, safe to run tests
+- `3` - Collection errors detected, build should fail
+
+**When to run:**
+- Every PR (before running full test suite)
+- Before any autonomy test-suite execution
+- After major refactoring or import path changes
+
+**Pattern:** Follows scripts/contract_test.py exit-code conventions (0=pass, 1=fail, 2=hollow, 3=collection-error).
+
 ## Deployment Incidents
 
 See `docs/PROD-DEPLOY-*.md` for incident reports and deployment verifications.
