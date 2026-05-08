@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 def process_pending_resynthesis(tenant_id: str, limit: int = 10) -> dict:
     """
     Process up to `limit` pending_resynthesis rows for a tenant.
-    
+
     Returns: {
         'processed': int,
         'succeeded': int,
@@ -36,13 +36,13 @@ def process_pending_resynthesis(tenant_id: str, limit: int = 10) -> dict:
     """
     pool = _get_connection_pool()
     conn = pool.getconn()
-    
+
     processed = 0
     succeeded = 0
     failed = 0
     rebuilt = []
     errors = []
-    
+
     def parse_uuid_array(pg_array):
         """Parse PostgreSQL UUID array string to Python list."""
         if isinstance(pg_array, list):
@@ -51,12 +51,12 @@ def process_pending_resynthesis(tenant_id: str, limit: int = 10) -> dict:
             # Remove braces and split by comma
             return pg_array.strip("{}").split(",") if pg_array.strip("{}") else []
         return pg_array
-    
+
     try:
         set_tenant_context(tenant_id)
         conn.autocommit = False
         cur = conn.cursor()
-        
+
         # Claim pending_resynthesis rows using SKIP LOCKED
         cur.execute(
             """
@@ -71,20 +71,20 @@ def process_pending_resynthesis(tenant_id: str, limit: int = 10) -> dict:
             """,
             (tenant_id, limit)
         )
-        
+
         rows = cur.fetchall()
-        
+
         # Parse PostgreSQL arrays
         parsed_rows = []
         for row in rows:
             old_id, source_memory_ids, metadata, agent_id = row
             parsed_rows.append((old_id, parse_uuid_array(source_memory_ids), metadata, agent_id))
         rows = parsed_rows
-        
+
         for row in rows:
             old_id, source_memory_ids, metadata, agent_id = row
             processed += 1
-            
+
             try:
                 # Fetch current redaction state of all source memories
                 cur.execute(
@@ -96,18 +96,18 @@ def process_pending_resynthesis(tenant_id: str, limit: int = 10) -> dict:
                     (source_memory_ids,)
                 )
                 source_states = {str(r[0]): r[1] for r in cur.fetchall()}
-                
+
                 # Filter out redacted sources
                 filtered_source_ids = [
                     sid for sid in source_memory_ids
                     if source_states.get(str(sid)) != 'redacted'
                 ]
-                
+
                 excluded_source_ids = [
                     str(sid) for sid in source_memory_ids
                     if str(sid) not in [str(fid) for fid in filtered_source_ids]
                 ]
-                
+
                 # Degenerate case: all sources redacted
                 if not filtered_source_ids:
                     # Mark as resynthesized with no successor
@@ -121,7 +121,7 @@ def process_pending_resynthesis(tenant_id: str, limit: int = 10) -> dict:
                         """,
                         (old_id,)
                     )
-                    
+
                     # Emit audit event
                     cur.execute(
                         """
@@ -140,22 +140,22 @@ def process_pending_resynthesis(tenant_id: str, limit: int = 10) -> dict:
                             })
                         )
                     )
-                    
+
                     succeeded += 1
                     rebuilt.append({'old_id': str(old_id), 'new_id': None})
                     conn.commit()
                     continue
-                
+
                 # Rebuild with filtered sources
                 cluster = Cluster(
                     memory_ids=[UUID(sid) for sid in filtered_source_ids],
                     centroid_embedding=[],  # synthesize_cluster recalculates
                     cluster_signature=""  # synthesize_cluster recalculates
                 )
-                
+
                 # Commit current transaction first to release lock
                 conn.commit()
-                
+
                 # synthesize_cluster writes its own transaction
                 result = synthesize_cluster(
                     cluster=cluster,
@@ -163,15 +163,36 @@ def process_pending_resynthesis(tenant_id: str, limit: int = 10) -> dict:
                     agent_id=agent_id,
                     persist=True,
                 )
-                
+
                 # Check if synthesis succeeded
                 if not result.success or result.synthesis_id is None:
                     raise ValueError(f"Synthesis failed: {result.rejected_reason}")
-                
+
                 # Start new transaction for update
                 cur = conn.cursor()
                 new_synthesis_id = result.synthesis_id
-                
+
+                # Fetch old and new memory details for webhook payload
+                cur.execute(
+                    """
+                    SELECT id, headline, context, full_content, created_at, agent_id
+                    FROM memory_service.memories
+                    WHERE id = %s
+                    """,
+                    (old_id,)
+                )
+                old_memory_row = cur.fetchone()
+
+                cur.execute(
+                    """
+                    SELECT id, headline, context, full_content, created_at, agent_id
+                    FROM memory_service.memories
+                    WHERE id = %s
+                    """,
+                    (str(new_synthesis_id),)
+                )
+                new_memory_row = cur.fetchone()
+
                 # Update old row: set superseded_by and transition to resynthesized
                 cur.execute(
                     """
@@ -183,13 +204,15 @@ def process_pending_resynthesis(tenant_id: str, limit: int = 10) -> dict:
                     """,
                     (str(new_synthesis_id) if new_synthesis_id else None, old_id)
                 )
-                
+
                 # Emit audit event
+                audit_event_id = None
                 cur.execute(
                     """
                     INSERT INTO memory_service.synthesis_audit_events
                     (tenant_id, target_memory_id, event_type, actor, event_payload)
                     VALUES (%s, %s, 'resynthesized', 'system', %s::jsonb)
+                    RETURNING id
                     """,
                     (
                         tenant_id,
@@ -201,18 +224,63 @@ def process_pending_resynthesis(tenant_id: str, limit: int = 10) -> dict:
                         })
                     )
                 )
-                
+                audit_result = cur.fetchone()
+                if audit_result:
+                    audit_event_id = str(audit_result[0])
+
+                # Enqueue webhook event (within same transaction)
+                if old_memory_row and new_memory_row:
+                    try:
+                        from api.webhook_emission import build_synthesis_replaced_payload, enqueue_webhook_event
+
+                        old_memory = {
+                            "id": old_memory_row[0],
+                            "headline": old_memory_row[1],
+                            "context": old_memory_row[2],
+                            "full_content": old_memory_row[3],
+                            "created_at": old_memory_row[4]
+                        }
+
+                        new_memory = {
+                            "id": new_memory_row[0],
+                            "headline": new_memory_row[1],
+                            "context": new_memory_row[2],
+                            "full_content": new_memory_row[3],
+                            "created_at": new_memory_row[4]
+                        }
+
+                        payload = build_synthesis_replaced_payload(
+                            old_memory=old_memory,
+                            new_memory=new_memory,
+                            tenant_id=tenant_id,
+                            agent_id=agent_id or "system",
+                            change_reason="Redaction cascade resynthesis",
+                            audit_event_id=audit_event_id
+                        )
+
+                        enqueue_webhook_event(
+                            conn=conn,
+                            tenant_id=tenant_id,
+                            event_type="synthesis.replaced",
+                            payload=payload
+                        )
+
+                        logger.debug(f"Enqueued webhook for synthesis replacement: {old_id} -> {new_synthesis_id}")
+                    except Exception as webhook_error:
+                        # Log but don't fail the resynthesis
+                        logger.warning(f"Failed to enqueue webhook for {old_id}: {webhook_error}")
+
                 conn.commit()
                 succeeded += 1
                 rebuilt.append({'old_id': str(old_id), 'new_id': str(new_synthesis_id)})
-                
+
             except Exception as e:
                 conn.rollback()
                 failed += 1
                 error_msg = str(e)[:500]
                 errors.append({'old_id': str(old_id), 'error': error_msg})
                 logger.error(f"Failed to resynthesize {old_id}: {e}")
-        
+
         return {
             'processed': processed,
             'succeeded': succeeded,
@@ -220,7 +288,7 @@ def process_pending_resynthesis(tenant_id: str, limit: int = 10) -> dict:
             'rebuilt': rebuilt,
             'errors': errors,
         }
-        
+
     finally:
         conn.rollback()  # Clean up any uncommitted transaction
         pool.putconn(conn)

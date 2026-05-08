@@ -52,7 +52,6 @@ from graph import (
     find_path, upsert_entity, add_relationship,
 )
 from versioning import snapshot_version, get_history
-from webhooks import register_webhook, list_webhooks, delete_webhook, trigger_event
 from criteria import (
     create_criteria as _create_criteria, list_criteria as _list_criteria,
     delete_criteria as _delete_criteria,
@@ -161,6 +160,9 @@ app.include_router(billing_router)
 from api.security import router as security_router, check_for_secrets
 from api.checkpoint_validation import validate_session_checkpoint_metadata
 app.include_router(security_router)
+# --- Webhooks Module (CP8 P5.4) ---
+from api.webhooks import router as webhooks_router
+app.include_router(webhooks_router)
 
 @app.middleware("http")
 async def request_logging(request: Request, call_next):
@@ -2709,36 +2711,6 @@ async def update_memory_endpoint(
 
 
 # === WEBHOOK ENDPOINTS ===
-
-class WebhookRequest(BaseModel):
-    url: str = Field(..., min_length=10, max_length=2048)
-    events: list[str] = Field(..., min_length=1, max_length=10)
-    secret: Optional[str] = Field(None, max_length=256)
-
-@app.post("/webhooks")
-async def create_webhook_endpoint(req: WebhookRequest, tenant: dict = Depends(require_api_key)):
-    """Register a webhook for memory events."""
-    try:
-        return register_webhook(tenant["id"], req.url, req.events, req.secret)
-    except ValueError as e:
-        raise HTTPException(400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(500, detail="Webhook creation failed.")
-
-
-@app.get("/webhooks")
-async def list_webhooks_endpoint(tenant: dict = Depends(require_api_key)):
-    """List all webhooks for the current tenant."""
-    return list_webhooks(tenant["id"])
-
-
-@app.delete("/webhooks/{webhook_id}")
-async def delete_webhook_endpoint(webhook_id: str, tenant: dict = Depends(require_api_key)):
-    """Delete a webhook."""
-    if delete_webhook(tenant["id"], webhook_id):
-        return {"deleted": webhook_id}
-    raise HTTPException(404, detail="Webhook not found")
-
 
 # === CRITERIA ENDPOINTS ===
 
