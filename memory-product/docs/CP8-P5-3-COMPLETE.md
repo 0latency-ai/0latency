@@ -238,3 +238,281 @@ Verified via  in both endpoints.
 **Operator Approval Required:** Branch  ready for review. Do NOT merge to master without approval.
 
 **Next:** P5.4 (diff webhooks) is fully unblocked.
+
+═══════════════════════════════════════════════════════════════════════════════
+## Merge Verification
+═══════════════════════════════════════════════════════════════════════════════
+
+**Merge commit:** 7c64439276c1890f1c118146d27b69554e9b8d7a  
+**Merged to master:** 2026-05-08 06:20:03 UTC  
+**Source branch:** origin/cp-p5-3-decision-journals (08c8fe3)
+
+### Diff Scope
+
+```
+ ...d6554297a_027_add_decision_audit_event_types.py |  95 +++++
+ ...ef15800b092_026_add_decision_journal_columns.py |  88 ++++
+ memory-product/api/main.py                         | 267 +++++++++++++
+ memory-product/docs/CP8-P5-3-COMPLETE.md           | 240 +++++++++++
+ .../026_add_decision_journal_columns.sql           |  24 ++
+ memory-product/tests/decisions/__init__.py         |   0
+ .../tests/decisions/test_decision_endpoint.py      | 442 +++++++++++++++++++++
+ 7 files changed, 1156 insertions(+)
+```
+
+**api/main.py LOC delta:** 267 lines added (2 endpoints + validation + tier gates)  
+**Scope:** Clean — only expected files modified, no refactoring creep.
+
+### Schema Verification
+
+**Decision columns present:**
+```
+ decision_text            | text     |
+ alternatives_considered  | text[]   |
+ rationale                | text     |
+ predicted_outcome        | text     |
+ actual_outcome           | text     |
+```
+
+**Partial CHECK constraint:**
+```sql
+CHECK (((memory_type <> decision::text) 
+  OR ((decision_text IS NOT NULL) AND (rationale IS NOT NULL))))
+```
+
+**Audit event_type CHECK (excerpt):**
+```sql
+... decision_created::text, decision_outcome_recorded::text ...
+```
+
+**Partial index:**
+```sql
+CREATE INDEX idx_memories_decision_tenant_agent 
+  ON memory_service.memories USING btree (tenant_id, agent_id, created_at DESC) 
+  WHERE (memory_type = decision::text)
+```
+
+### Test Suite Results
+
+```
+======================== 30 passed, 5 warnings in 9.50s ========================
+```
+
+**Breakdown:**
+- 12 decision endpoint tests (POST validation, tier gates, PATCH outcome, constraints)
+- 13 audit endpoint tests (P5.2 regression — tier gates, filters, pagination)
+- 5 redaction endpoint tests (P5.1 regression — cascade, auth, validation)
+
+**Result:** 0 failures, 0 regressions, full suite clean.
+
+### Live Smoke Test (Local Dev Server)
+
+**POST /memories/decision:**
+```json
+{
+  "memory_id": "fb056c64-3de8-439b-8e42-b44662e9fffa",
+  "status": "created"
+}
+```
+Status: 202 Accepted
+
+**PATCH /memories/{id}/outcome:**
+```json
+{
+  "memory_id": "fb056c64-3de8-439b-8e42-b44662e9fffa",
+  "actual_outcome": "P5.3 shipped clean — both endpoints live, 30/30 tests, no regression",
+  "updated_at": "2026-05-08T06:19:32.322281+00:00"
+}
+```
+Status: 200 OK
+
+**Audit query (GET /audit/events?target_memory_id={id}):**
+```json
+{
+  "events": [
+    {
+      "event_type": "decision_outcome_recorded",
+      "actor": "user-justin",
+      "occurred_at": "2026-05-08T06:19:32.464652+00:00",
+      "event_payload": {
+        "new_outcome": "P5.3 shipped clean — both endpoints live, 30/30 tests...",
+        "old_outcome": null
+      }
+    },
+    {
+      "event_type": "decision_created",
+      "actor": "user-justin",
+      "occurred_at": "2026-05-08T06:18:34.319264+00:00",
+      "event_payload": {
+        "headline": "P5.3 PATCH endpoint scope",
+        "importance": 0.7,
+        "alternatives_count": 2
+      }
+    }
+  ],
+  "returned": 2
+}
+```
+
+**Verification:** Both `decision_created` and `decision_outcome_recorded` audit events logged correctly.
+
+### Pre-Merge Checklist
+
+- [x] Diff scope clean (7 files, no unexpected changes)
+- [x] All 4 schema verifications populated
+- [x] 30/30 tests passed (12 decisions, 13 audit, 5 redaction)
+- [x] POST + PATCH + audit query work end-to-end
+- [x] No regressions in P5.1 (redaction) or P5.2 (audit) test suites
+- [x] Migrations applied in DB (026, 027)
+- [x] Partial index created
+- [x] Constraint enforcement verified
+
+### Deployment Notes
+
+**Migrations:** Already applied to production DB (Tier 2 migrations via db_migrate.sh).  
+**Backfill:** 817 legacy rows processed (no-op for non-decision rows).  
+**API restart required:** Yes — new endpoints will be available after next deploy.  
+**Breaking changes:** None.
+
+**Next step:** Deploy master to production, restart API servers to load new endpoint code.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════════════════════════
+## Merge Verification
+═══════════════════════════════════════════════════════════════════════════════
+
+**Merge commit:** 7c64439276c1890f1c118146d27b69554e9b8d7a  
+**Merged to master:** 2026-05-08 06:20:03 UTC  
+**Source branch:** origin/cp-p5-3-decision-journals (08c8fe3)
+
+### Diff Scope
+
+```
+ ...d6554297a_027_add_decision_audit_event_types.py |  95 +++++
+ ...ef15800b092_026_add_decision_journal_columns.py |  88 ++++
+ memory-product/api/main.py                         | 267 +++++++++++++
+ memory-product/docs/CP8-P5-3-COMPLETE.md           | 240 +++++++++++
+ .../026_add_decision_journal_columns.sql           |  24 ++
+ memory-product/tests/decisions/__init__.py         |   0
+ .../tests/decisions/test_decision_endpoint.py      | 442 +++++++++++++++++++++
+ 7 files changed, 1156 insertions(+)
+```
+
+**api/main.py LOC delta:** 267 lines added (2 endpoints + validation + tier gates)  
+**Scope:** Clean — only expected files modified, no refactoring creep.
+
+### Schema Verification
+
+**Decision columns present:**
+```
+ decision_text            | text     |
+ alternatives_considered  | text[]   |
+ rationale                | text     |
+ predicted_outcome        | text     |
+ actual_outcome           | text     |
+```
+
+**Partial CHECK constraint:**
+```sql
+CHECK (((memory_type <> decision::text) 
+  OR ((decision_text IS NOT NULL) AND (rationale IS NOT NULL))))
+```
+
+**Audit event_type CHECK (excerpt):**
+```sql
+... decision_created::text, decision_outcome_recorded::text ...
+```
+
+**Partial index:**
+```sql
+CREATE INDEX idx_memories_decision_tenant_agent 
+  ON memory_service.memories USING btree (tenant_id, agent_id, created_at DESC) 
+  WHERE (memory_type = decision::text)
+```
+
+### Test Suite Results
+
+```
+======================== 30 passed, 5 warnings in 9.50s ========================
+```
+
+**Breakdown:**
+- 12 decision endpoint tests (POST validation, tier gates, PATCH outcome, constraints)
+- 13 audit endpoint tests (P5.2 regression — tier gates, filters, pagination)
+- 5 redaction endpoint tests (P5.1 regression — cascade, auth, validation)
+
+**Result:** 0 failures, 0 regressions, full suite clean.
+
+### Live Smoke Test (Local Dev Server)
+
+**POST /memories/decision:**
+```json
+{
+  "memory_id": "fb056c64-3de8-439b-8e42-b44662e9fffa",
+  "status": "created"
+}
+```
+Status: 202 Accepted
+
+**PATCH /memories/{id}/outcome:**
+```json
+{
+  "memory_id": "fb056c64-3de8-439b-8e42-b44662e9fffa",
+  "actual_outcome": "P5.3 shipped clean — both endpoints live, 30/30 tests, no regression",
+  "updated_at": "2026-05-08T06:19:32.322281+00:00"
+}
+```
+Status: 200 OK
+
+**Audit query (GET /audit/events?target_memory_id={id}):**
+```json
+{
+  "events": [
+    {
+      "event_type": "decision_outcome_recorded",
+      "actor": "user-justin",
+      "occurred_at": "2026-05-08T06:19:32.464652+00:00",
+      "event_payload": {
+        "new_outcome": "P5.3 shipped clean — both endpoints live, 30/30 tests...",
+        "old_outcome": null
+      }
+    },
+    {
+      "event_type": "decision_created",
+      "actor": "user-justin",
+      "occurred_at": "2026-05-08T06:18:34.319264+00:00",
+      "event_payload": {
+        "headline": "P5.3 PATCH endpoint scope",
+        "importance": 0.7,
+        "alternatives_count": 2
+      }
+    }
+  ],
+  "returned": 2
+}
+```
+
+**Verification:** Both decision_created and decision_outcome_recorded audit events logged correctly.
+
+### Pre-Merge Checklist
+
+- [x] Diff scope clean (7 files, no unexpected changes)
+- [x] All 4 schema verifications populated
+- [x] 30/30 tests passed (12 decisions, 13 audit, 5 redaction)
+- [x] POST + PATCH + audit query work end-to-end
+- [x] No regressions in P5.1 (redaction) or P5.2 (audit) test suites
+- [x] Migrations applied in DB (026, 027)
+- [x] Partial index created
+- [x] Constraint enforcement verified
+
+### Deployment Notes
+
+**Migrations:** Already applied to production DB (Tier 2 migrations via db_migrate.sh).  
+**Backfill:** 817 legacy rows processed (no-op for non-decision rows).  
+**API restart required:** Yes — new endpoints will be available after next deploy.  
+**Breaking changes:** None.
+
+**Next step:** Deploy master to production, restart API servers to load new endpoint code.
+
+═══════════════════════════════════════════════════════════════════════════════
