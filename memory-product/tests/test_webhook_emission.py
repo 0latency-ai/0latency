@@ -6,6 +6,7 @@ Per docs/CP8-P5-4-SCOPE.md Test Plan section
 import pytest
 import json
 import httpx
+import uuid
 from unittest.mock import patch
 import sys
 from pathlib import Path
@@ -33,16 +34,16 @@ def enterprise_tenant_with_webhook(db_conn):
     
     tenant_id, api_key = row
     
-    # Clean up existing webhooks
-    cur.execute("DELETE FROM memory_service.webhook_deliveries WHERE tenant_id = %s::uuid", (tenant_id,))
-    cur.execute("DELETE FROM memory_service.tenant_webhooks WHERE tenant_id = %s::uuid", (tenant_id,))
+    # Clean up existing webhooks/deliveries
+    cur.execute("DELETE FROM memory_service.webhook_deliveries WHERE tenant_id = %s", (tenant_id,))
+    cur.execute("DELETE FROM memory_service.tenant_webhooks WHERE tenant_id = %s", (tenant_id,))
     db_conn.commit()
     
     # Create webhook
     cur.execute("""
         INSERT INTO memory_service.tenant_webhooks 
         (tenant_id, name, url, secret, event_types, enabled)
-        VALUES (%s::uuid, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s)
         RETURNING id, secret
     """, (tenant_id, "test-webhook", "https://webhook.site/test", "a" * 64, ["synthesis.replaced"], True))
     
@@ -51,16 +52,16 @@ def enterprise_tenant_with_webhook(db_conn):
     db_conn.commit()
     
     yield {
-        "tenant_id": tenant_id,
+        "tenant_id": str(tenant_id),
         "api_key": api_key,
-        "webhook_id": webhook_id,
+        "webhook_id": str(webhook_id),
         "webhook_secret": secret,
         "db_conn": db_conn
     }
     
     # Cleanup
-    cur.execute("DELETE FROM memory_service.webhook_deliveries WHERE tenant_id = %s::uuid", (tenant_id,))
-    cur.execute("DELETE FROM memory_service.tenant_webhooks WHERE tenant_id = %s::uuid", (tenant_id,))
+    cur.execute("DELETE FROM memory_service.webhook_deliveries WHERE tenant_id = %s", (tenant_id,))
+    cur.execute("DELETE FROM memory_service.tenant_webhooks WHERE tenant_id = %s", (tenant_id,))
     db_conn.commit()
 
 
@@ -70,37 +71,40 @@ def test_supersession_creates_delivery_row(enterprise_tenant_with_webhook):
     db_conn = fixture["db_conn"]
     tenant_id = fixture["tenant_id"]
     
+    # Use valid UUID for event_id
+    event_id = str(uuid.uuid4())
+    
     # Simulate enqueue_webhook_event call
     payload = {
-        "event_id": "test-event-123",
+        "event_id": event_id,
         "event_type": "synthesis.replaced",
         "occurred_at": "2026-05-08T12:00:00Z",
         "tenant_id": tenant_id,
-        "synthesis": {"memory_id": "test-mem-123"}
+        "synthesis": {"memory_id": str(uuid.uuid4())}
     }
     
     cur = db_conn.cursor()
     cur.execute("""
         SELECT id FROM memory_service.tenant_webhooks 
-        WHERE tenant_id = %s::uuid AND enabled = true
+        WHERE tenant_id = %s AND enabled = true
     """, (tenant_id,))
     webhook_rows = cur.fetchall()
     
     for webhook_row in webhook_rows:
-        webhook_id = webhook_row[0]
+        webhook_id = str(webhook_row[0])
         cur.execute("""
             INSERT INTO memory_service.webhook_deliveries
             (webhook_id, tenant_id, event_id, event_type, payload, status, next_attempt_at)
-            VALUES (%s::uuid, %s::uuid, %s::uuid, %s, %s, 'pending', now())
-        """, (webhook_id, tenant_id, "test-event-123", "synthesis.replaced", json.dumps(payload)))
+            VALUES (%s, %s, %s, %s, %s, 'pending', now())
+        """, (webhook_id, tenant_id, event_id, "synthesis.replaced", json.dumps(payload)))
     
     db_conn.commit()
     
     # Verify delivery row exists
     cur.execute("""
         SELECT COUNT(*) FROM memory_service.webhook_deliveries 
-        WHERE tenant_id = %s::uuid AND event_id = %s::uuid
-    """, (tenant_id, "test-event-123"))
+        WHERE tenant_id = %s AND event_id = %s
+    """, (tenant_id, event_id))
     
     count = cur.fetchone()[0]
     assert count == 1
@@ -113,16 +117,18 @@ def test_mock_200_response_marks_delivered(enterprise_tenant_with_webhook):
     tenant_id = fixture["tenant_id"]
     webhook_id = fixture["webhook_id"]
     
+    event_id = str(uuid.uuid4())
+    
     # Create pending delivery
     cur = db_conn.cursor()
     cur.execute("""
         INSERT INTO memory_service.webhook_deliveries
         (webhook_id, tenant_id, event_id, event_type, payload, status, next_attempt_at)
-        VALUES (%s::uuid, %s::uuid, %s::uuid, %s, %s, 'pending', now())
+        VALUES (%s, %s, %s, %s, %s, 'pending', now())
         RETURNING id
-    """, (webhook_id, tenant_id, "test-200-event", "synthesis.replaced", json.dumps({"test": "data"})))
+    """, (webhook_id, tenant_id, event_id, "synthesis.replaced", json.dumps({"test": "data"})))
     
-    delivery_id = cur.fetchone()[0]
+    delivery_id = str(cur.fetchone()[0])
     db_conn.commit()
     
     # Mock httpx client to return 200
@@ -137,7 +143,7 @@ def test_mock_200_response_marks_delivered(enterprise_tenant_with_webhook):
     # Verify delivery marked as delivered
     cur.execute("""
         SELECT status, last_status_code FROM memory_service.webhook_deliveries 
-        WHERE id = %s::uuid
+        WHERE id = %s
     """, (delivery_id,))
     
     row = cur.fetchone()
@@ -152,16 +158,18 @@ def test_mock_500_response_retries(enterprise_tenant_with_webhook):
     tenant_id = fixture["tenant_id"]
     webhook_id = fixture["webhook_id"]
     
+    event_id = str(uuid.uuid4())
+    
     # Create pending delivery
     cur = db_conn.cursor()
     cur.execute("""
         INSERT INTO memory_service.webhook_deliveries
         (webhook_id, tenant_id, event_id, event_type, payload, status, next_attempt_at, attempt_count)
-        VALUES (%s::uuid, %s::uuid, %s::uuid, %s, %s, 'pending', now(), 0)
+        VALUES (%s, %s, %s, %s, %s, 'pending', now(), 0)
         RETURNING id
-    """, (webhook_id, tenant_id, "test-500-event", "synthesis.replaced", json.dumps({"test": "data"})))
+    """, (webhook_id, tenant_id, event_id, "synthesis.replaced", json.dumps({"test": "data"})))
     
-    delivery_id = cur.fetchone()[0]
+    delivery_id = str(cur.fetchone()[0])
     db_conn.commit()
     
     # Mock httpx client to return 500
@@ -177,7 +185,7 @@ def test_mock_500_response_retries(enterprise_tenant_with_webhook):
     cur.execute("""
         SELECT status, attempt_count, last_status_code, next_attempt_at > now() as has_future_retry
         FROM memory_service.webhook_deliveries 
-        WHERE id = %s::uuid
+        WHERE id = %s
     """, (delivery_id,))
     
     row = cur.fetchone()
@@ -194,16 +202,18 @@ def test_five_failures_marks_dead(enterprise_tenant_with_webhook):
     tenant_id = fixture["tenant_id"]
     webhook_id = fixture["webhook_id"]
     
+    event_id = str(uuid.uuid4())
+    
     # Create pending delivery with 4 attempts already
     cur = db_conn.cursor()
     cur.execute("""
         INSERT INTO memory_service.webhook_deliveries
         (webhook_id, tenant_id, event_id, event_type, payload, status, next_attempt_at, attempt_count)
-        VALUES (%s::uuid, %s::uuid, %s::uuid, %s, %s, 'pending', now(), 4)
+        VALUES (%s, %s, %s, %s, %s, 'pending', now(), 4)
         RETURNING id
-    """, (webhook_id, tenant_id, "test-dead-event", "synthesis.replaced", json.dumps({"test": "data"})))
+    """, (webhook_id, tenant_id, event_id, "synthesis.replaced", json.dumps({"test": "data"})))
     
-    delivery_id = cur.fetchone()[0]
+    delivery_id = str(cur.fetchone()[0])
     db_conn.commit()
     
     # Mock httpx client to return 500
@@ -218,7 +228,7 @@ def test_five_failures_marks_dead(enterprise_tenant_with_webhook):
     # Verify delivery marked as dead
     cur.execute("""
         SELECT status, attempt_count FROM memory_service.webhook_deliveries 
-        WHERE id = %s::uuid
+        WHERE id = %s
     """, (delivery_id,))
     
     row = cur.fetchone()
@@ -233,12 +243,14 @@ def test_forty_failures_auto_disables(enterprise_tenant_with_webhook):
     tenant_id = fixture["tenant_id"]
     webhook_id = fixture["webhook_id"]
     
+    event_id = str(uuid.uuid4())
+    
     # Set webhook to 39 consecutive failures
     cur = db_conn.cursor()
     cur.execute("""
         UPDATE memory_service.tenant_webhooks 
         SET consecutive_failures = 39
-        WHERE id = %s::uuid
+        WHERE id = %s
     """, (webhook_id,))
     db_conn.commit()
     
@@ -246,9 +258,9 @@ def test_forty_failures_auto_disables(enterprise_tenant_with_webhook):
     cur.execute("""
         INSERT INTO memory_service.webhook_deliveries
         (webhook_id, tenant_id, event_id, event_type, payload, status, next_attempt_at, attempt_count)
-        VALUES (%s::uuid, %s::uuid, %s::uuid, %s, %s, 'pending', now(), 0)
+        VALUES (%s, %s, %s, %s, %s, 'pending', now(), 0)
         RETURNING id
-    """, (webhook_id, tenant_id, "test-autodisable-event", "synthesis.replaced", json.dumps({"test": "data"})))
+    """, (webhook_id, tenant_id, event_id, "synthesis.replaced", json.dumps({"test": "data"})))
     
     db_conn.commit()
     
@@ -264,7 +276,7 @@ def test_forty_failures_auto_disables(enterprise_tenant_with_webhook):
     # Verify webhook disabled
     cur.execute("""
         SELECT enabled, consecutive_failures FROM memory_service.tenant_webhooks 
-        WHERE id = %s::uuid
+        WHERE id = %s
     """, (webhook_id,))
     
     row = cur.fetchone()
@@ -284,14 +296,14 @@ def test_disabled_webhook_not_enqueued(enterprise_tenant_with_webhook):
     cur.execute("""
         UPDATE memory_service.tenant_webhooks 
         SET enabled = false
-        WHERE id = %s::uuid
+        WHERE id = %s
     """, (webhook_id,))
     db_conn.commit()
     
     # Try to enqueue
     cur.execute("""
         SELECT COUNT(*) FROM memory_service.tenant_webhooks 
-        WHERE tenant_id = %s::uuid AND enabled = true
+        WHERE tenant_id = %s AND enabled = true
     """, (tenant_id,))
     
     enabled_count = cur.fetchone()[0]
@@ -310,14 +322,14 @@ def test_soft_deleted_webhook_not_enqueued(enterprise_tenant_with_webhook):
     cur.execute("""
         UPDATE memory_service.tenant_webhooks 
         SET deleted_at = now()
-        WHERE id = %s::uuid
+        WHERE id = %s
     """, (webhook_id,))
     db_conn.commit()
     
     # Verify not included in active webhooks query
     cur.execute("""
         SELECT COUNT(*) FROM memory_service.tenant_webhooks 
-        WHERE tenant_id = %s::uuid AND deleted_at IS NULL
+        WHERE tenant_id = %s AND deleted_at IS NULL
     """, (tenant_id,))
     
     active_count = cur.fetchone()[0]
@@ -331,6 +343,8 @@ def test_transaction_rollback_no_delivery(enterprise_tenant_with_webhook):
     tenant_id = fixture["tenant_id"]
     webhook_id = fixture["webhook_id"]
     
+    event_id = str(uuid.uuid4())
+    
     # Start transaction
     cur = db_conn.cursor()
     
@@ -338,11 +352,11 @@ def test_transaction_rollback_no_delivery(enterprise_tenant_with_webhook):
     cur.execute("""
         INSERT INTO memory_service.webhook_deliveries
         (webhook_id, tenant_id, event_id, event_type, payload, status, next_attempt_at)
-        VALUES (%s::uuid, %s::uuid, %s::uuid, %s, %s, 'pending', now())
+        VALUES (%s, %s, %s, %s, %s, 'pending', now())
         RETURNING id
-    """, (webhook_id, tenant_id, "test-rollback-event", "synthesis.replaced", json.dumps({"test": "data"})))
+    """, (webhook_id, tenant_id, event_id, "synthesis.replaced", json.dumps({"test": "data"})))
     
-    delivery_id = cur.fetchone()[0]
+    delivery_id = str(cur.fetchone()[0])
     
     # Rollback
     db_conn.rollback()
@@ -350,7 +364,7 @@ def test_transaction_rollback_no_delivery(enterprise_tenant_with_webhook):
     # Verify no delivery row exists
     cur.execute("""
         SELECT COUNT(*) FROM memory_service.webhook_deliveries 
-        WHERE id = %s::uuid
+        WHERE id = %s
     """, (delivery_id,))
     
     count = cur.fetchone()[0]

@@ -10,9 +10,6 @@ and this conftest.py. The presence of conftest.py at tests/ root tells pytest
 to treat this as a proper test package hierarchy.
 """
 
-# This file intentionally left minimal. Its mere existence tells pytest
-# that tests/ is a package root separate from src/.
-
 import pytest
 import psycopg2
 import os
@@ -23,15 +20,28 @@ except ImportError:
     register_vector = None
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def db_conn():
-    """Get database connection from environment."""
+    """Get database connection from environment with transaction management."""
     db_url = os.environ.get("MEMORY_DB_CONN") or os.environ.get("DATABASE_URL")
     if not db_url:
         pytest.skip("MEMORY_DB_CONN or DATABASE_URL not set; skipping DB integration tests")
 
     conn = psycopg2.connect(db_url)
+    conn.autocommit = False  # Ensure transactions
+    
     if register_vector is not None:
         register_vector(conn)
+    
+    # Start with clean slate
+    conn.rollback()
+    
     yield conn
+    
+    # Rollback any uncommitted changes
+    try:
+        conn.rollback()
+    except:
+        pass
+    
     conn.close()

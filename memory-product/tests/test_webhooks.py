@@ -50,6 +50,12 @@ def scale_api_key(db_conn):
         WHERE plan='scale' AND active=true LIMIT 1
     """)
     row = cur.fetchone()
+    if row:
+        # Clean up existing webhooks for this tenant
+        tenant_id = row[1]
+        cur.execute("DELETE FROM memory_service.webhook_deliveries WHERE tenant_id = %s", (tenant_id,))
+        cur.execute("DELETE FROM memory_service.tenant_webhooks WHERE tenant_id = %s", (tenant_id,))
+        db_conn.commit()
     return (row[0], row[1]) if row else (None, None)
 
 
@@ -62,6 +68,12 @@ def enterprise_api_key(db_conn):
         WHERE plan='enterprise' AND active=true LIMIT 1
     """)
     row = cur.fetchone()
+    if row:
+        # Clean up existing webhooks for this tenant
+        tenant_id = row[1]
+        cur.execute("DELETE FROM memory_service.webhook_deliveries WHERE tenant_id = %s", (tenant_id,))
+        cur.execute("DELETE FROM memory_service.tenant_webhooks WHERE tenant_id = %s", (tenant_id,))
+        db_conn.commit()
     return (row[0], row[1]) if row else (None, None)
 
 
@@ -80,7 +92,11 @@ def test_webhook_tier_gate_free_blocked(free_api_key):
         }
     )
     assert response.status_code == 403
-    assert "not available" in response.json()["detail"].lower() or "tier" in response.json()["detail"].lower()
+    detail = response.json()["detail"]
+    # Detail is a dict with "error", "tenant_tier", "required_tiers"
+    assert isinstance(detail, dict)
+    assert "error" in detail
+    assert "webhooks" in detail["error"]
 
 
 def test_webhook_tier_gate_pro_blocked(pro_api_key):
@@ -145,11 +161,6 @@ def test_webhook_scale_limit_one(scale_api_key, db_conn):
     if not api_key:
         pytest.skip("No Scale tier tenant available")
     
-    # Clean up first
-    cur = db_conn.cursor()
-    cur.execute("DELETE FROM memory_service.tenant_webhooks WHERE tenant_id = %s::uuid", (tenant_id,))
-    db_conn.commit()
-    
     # Create first webhook
     response1 = client.post(
         "/webhooks",
@@ -180,11 +191,6 @@ def test_webhook_enterprise_limit_ten(enterprise_api_key, db_conn):
     api_key, tenant_id = enterprise_api_key
     if not api_key:
         pytest.skip("No Enterprise tier tenant available")
-    
-    # Clean up first
-    cur = db_conn.cursor()
-    cur.execute("DELETE FROM memory_service.tenant_webhooks WHERE tenant_id = %s::uuid", (tenant_id,))
-    db_conn.commit()
     
     # Create 10 webhooks
     for i in range(10):
@@ -236,11 +242,6 @@ def test_webhook_get_omits_secret(scale_api_key, db_conn):
     if not api_key:
         pytest.skip("No Scale tier tenant available")
     
-    # Clean up first
-    cur = db_conn.cursor()
-    cur.execute("DELETE FROM memory_service.tenant_webhooks WHERE tenant_id = %s::uuid", (tenant_id,))
-    db_conn.commit()
-    
     # Create webhook
     create_response = client.post(
         "/webhooks",
@@ -270,10 +271,6 @@ def test_webhook_rotate_secret_enterprise_only(scale_api_key, enterprise_api_key
     # Test Scale tier blocked
     scale_key, scale_tenant_id = scale_api_key
     if scale_key:
-        cur = db_conn.cursor()
-        cur.execute("DELETE FROM memory_service.tenant_webhooks WHERE tenant_id = %s::uuid", (scale_tenant_id,))
-        db_conn.commit()
-        
         create_response = client.post(
             "/webhooks",
             headers={"X-API-Key": scale_key},
@@ -294,10 +291,6 @@ def test_webhook_rotate_secret_enterprise_only(scale_api_key, enterprise_api_key
     # Test Enterprise tier allowed
     ent_key, ent_tenant_id = enterprise_api_key
     if ent_key:
-        cur = db_conn.cursor()
-        cur.execute("DELETE FROM memory_service.tenant_webhooks WHERE tenant_id = %s::uuid", (ent_tenant_id,))
-        db_conn.commit()
-        
         create_response = client.post(
             "/webhooks",
             headers={"X-API-Key": ent_key},
@@ -325,11 +318,6 @@ def test_webhook_delete_soft_deletes(scale_api_key, db_conn):
     api_key, tenant_id = scale_api_key
     if not api_key:
         pytest.skip("No Scale tier tenant available")
-    
-    # Clean up first
-    cur = db_conn.cursor()
-    cur.execute("DELETE FROM memory_service.tenant_webhooks WHERE tenant_id = %s::uuid", (tenant_id,))
-    db_conn.commit()
     
     # Create webhook
     create_response = client.post(
@@ -365,7 +353,7 @@ def test_webhook_delete_soft_deletes(scale_api_key, db_conn):
     cur = db_conn.cursor()
     cur.execute("""
         SELECT deleted_at FROM memory_service.tenant_webhooks 
-        WHERE id = %s::uuid
+        WHERE id = %s
     """, (webhook_id,))
     row = cur.fetchone()
     assert row is not None
