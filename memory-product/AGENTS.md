@@ -140,6 +140,12 @@ SELECT version_num FROM alembic_version;
 - Delete dead code files in the same commit as the migration that drops the table
 - Document the supersession in the migration comment and commit message
 
+**Same-migration rule for memory_type and event_type additions:**
+- When a migration introduces a new `memory_type` value, it MUST also widen any audit `event_type` CHECK constraints in the SAME migration if the new memory_type emits novel audit events
+- Splitting these across separate migrations causes runtime failures: production code emits the new event type before the constraint allows it
+- The failure mode is silent retry storms or 500 errors that don't surface in dry-run testing
+- Context: P5.5 pattern memory rollout hit this exact failure (migration 029 added pattern memory type, migration 030 was emergency-authored to widen the audit constraint)
+
 
 - Never log API keys in terminal output, files, or git commits
 - Never echo secrets - pipe sensitive data directly to consumers
