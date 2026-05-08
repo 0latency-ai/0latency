@@ -32,6 +32,7 @@ TIER_MATRIX: dict[str, dict[str, Any]] = {
         "webhooks": False,
         "audit_log_read": False,
         "cron_enabled": False,
+        "pattern_extraction_enabled": False,
     },
     "pro": {
         "manual_runs_per_month": 10,
@@ -45,6 +46,7 @@ TIER_MATRIX: dict[str, dict[str, Any]] = {
         "webhooks": False,
         "audit_log_read": False,
         "cron_enabled": False,
+        "pattern_extraction_enabled": False,
     },
     "scale": {
         "manual_runs_per_month": 200,
@@ -58,6 +60,7 @@ TIER_MATRIX: dict[str, dict[str, Any]] = {
         "webhooks": True,
         "audit_log_read": False,
         "cron_enabled": True,
+        "pattern_extraction_enabled": True,
     },
     "enterprise": {
         "manual_runs_per_month": 1_000,
@@ -71,6 +74,7 @@ TIER_MATRIX: dict[str, dict[str, Any]] = {
         "webhooks": True,
         "audit_log_read": True,
         "cron_enabled": True,
+        "pattern_extraction_enabled": True,
     },
 }
 
