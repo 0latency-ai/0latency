@@ -7,6 +7,8 @@ Create Date: 2026-05-08 00:00:00.000000
 Migration 028: Add webhook infrastructure tables
 Tier 2: Creates tenant_webhooks and webhook_deliveries tables (additive, reversible)
 Required for CP8 P5.4 diff webhooks feature.
+
+NOTE: Drops old webhooks tables from feature gap implementation (empty, not in use).
 """
 from typing import Sequence, Union
 
@@ -23,6 +25,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Create webhook tables and extend audit event types."""
+
+    # Drop old webhook tables if they exist (from feature gap implementation)
+    op.execute("DROP TABLE IF EXISTS memory_service.webhook_deliveries CASCADE")
+    op.execute("DROP TABLE IF EXISTS memory_service.webhooks CASCADE")
 
     # Create tenant_webhooks table
     op.execute("""
