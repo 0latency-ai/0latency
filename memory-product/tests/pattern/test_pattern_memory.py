@@ -446,3 +446,93 @@ class TestE2EWorkflow:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestPatternRateLimiting:
+    """Test that pattern extraction shares synthesis rate limit (T1)."""
+    
+    def test_rate_limit_429_response(self, db_connection):
+        """Pattern extraction returns 429 when monthly limit exceeded."""
+        from fastapi.testclient import TestClient
+        from api.main import app
+        import tier_gates
+        
+        cur = db_connection.cursor()
+        
+        # Create a Scale tenant with rate limit tracking
+        tenant_id = str(uuid4())
+        api_key = f"test_scale_key_{tenant_id[:8]}"
+        
+        cur.execute(
+            """
+            INSERT INTO memory_service.tenants (id, plan, api_key_live, api_key_hash)
+            VALUES (%s::uuid, scale, %s, hash)
+            """,
+            (tenant_id, api_key)
+        )
+        
+        # Initialize rate limit row
+        cur.execute(
+            """
+            INSERT INTO memory_service.synthesis_rate_limits
+              (tenant_id, synthesis_runs_this_month)
+            VALUES (%s::uuid, 0)
+            """,
+            (tenant_id,)
+        )
+        db_connection.commit()
+        
+        # Set usage to limit - 1 (one slot remaining)
+        scale_limit = tier_gates.TIER_MATRIX["scale"]["manual_runs_per_month"]
+        cur.execute(
+            """
+            UPDATE memory_service.synthesis_rate_limits
+            SET synthesis_runs_this_month = %s
+            WHERE tenant_id = %s::uuid
+            """,
+            (scale_limit - 1, tenant_id)
+        )
+        db_connection.commit()
+        
+        # First call should succeed (uses last slot)
+        client = TestClient(app)
+        response1 = client.post(
+            "/patterns/run",
+            headers={"Authorization": f"Bearer {api_key}"}
+        )
+        
+        # Should succeed or fail gracefully (may fail if no feedback data)
+        assert response1.status_code in [200, 500], f"First call unexpected status: {response1.status_code}"
+        
+        # Verify counter was incremented
+        cur.execute(
+            """
+            SELECT synthesis_runs_this_month
+            FROM memory_service.synthesis_rate_limits
+            WHERE tenant_id = %s::uuid
+            """,
+            (tenant_id,)
+        )
+        usage = cur.fetchone()[0]
+        assert usage == scale_limit, f"Expected usage={scale_limit}, got {usage}"
+        
+        # Second call should return 429
+        response2 = client.post(
+            "/patterns/run",
+            headers={"Authorization": f"Bearer {api_key}"}
+        )
+        
+        assert response2.status_code == 429, f"Expected 429, got {response2.status_code}"
+        
+        # Verify response body structure
+        data = response2.json()
+        assert "detail" in data
+        detail = data["detail"]
+        assert detail["error"] == "rate_limit_exceeded"
+        assert detail["tier"] == "scale"
+        assert detail["limit"] == scale_limit
+        assert detail["used"] == scale_limit
+        
+        # Cleanup
+        cur.execute("DELETE FROM memory_service.tenants WHERE id = %s::uuid", (tenant_id,))
+        db_connection.commit()

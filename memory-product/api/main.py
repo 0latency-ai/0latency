@@ -3889,7 +3889,8 @@ def patterns_run(tenant=Depends(require_api_key)):
     """
     Manual pattern extraction trigger endpoint.
     Free/Pro tier: blocked (403).
-    Scale/Enterprise tiers: allowed with rate limiting.
+    Scale/Enterprise tiers: allowed.
+    Pattern extraction counts against the same monthly synthesis rate limit.
     """
     try:
         # Check tier gate
@@ -3907,6 +3908,27 @@ def patterns_run(tenant=Depends(require_api_key)):
                     status_code=403,
                     detail=f"{tier.capitalize()} tier does not have access to pattern extraction"
                 )
+            
+            # Check rate limit (pattern extraction shares synthesis quota)
+            allowed, reason = tier_gates.check_synthesis_quota(
+                tenant["id"], "manual_run", conn
+            )
+            
+            if not allowed:
+                # Get current usage for 429 response
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT synthesis_runs_this_month FROM memory_service.synthesis_rate_limits WHERE tenant_id = %s::uuid",
+                    (tenant["id"],)
+                )
+                row = cur.fetchone()
+                used = row[0] if row else 0
+                limit = tier_matrix["manual_runs_per_month"]
+                
+                raise HTTPException(
+                    status_code=429,
+                    detail={"error": "rate_limit_exceeded", "tier": tier, "limit": limit, "used": used}
+                )
         finally:
             pool.putconn(conn)
         
@@ -3915,10 +3937,18 @@ def patterns_run(tenant=Depends(require_api_key)):
         
         result = run_pattern_extraction(tenant_id=tenant["id"])
         
-        # Log audit event
+        # Increment rate limit counter (same bucket as synthesis)
         conn2 = pool.getconn()
         try:
-            cur = conn2.cursor()
+            tier_gates.increment_synthesis_counter(tenant["id"], "manual_run", conn2, 1)
+            conn2.commit()
+        finally:
+            pool.putconn(conn2)
+        
+        # Log audit event
+        conn3 = pool.getconn()
+        try:
+            cur = conn3.cursor()
             cur.execute(
                 """
                 INSERT INTO memory_service.synthesis_audit_events
@@ -3928,9 +3958,9 @@ def patterns_run(tenant=Depends(require_api_key)):
                 """,
                 (tenant["id"], json.dumps(result))
             )
-            conn2.commit()
+            conn3.commit()
         finally:
-            pool.putconn(conn2)
+            pool.putconn(conn3)
         
         logger.info(f"Pattern extraction: tenant={tenant['id']} result={result}")
         
