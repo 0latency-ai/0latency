@@ -12,16 +12,23 @@ from uuid import uuid4
 
 
 @pytest.fixture
-def setup_test_data(db_connection):
+def client():
+    """Create FastAPI TestClient."""
+    from fastapi.testclient import TestClient
+    from api.main import app
+    return TestClient(app)
+@pytest.fixture
+
+def setup_test_data(db_conn):
     """Create test tenant, memories, and feedback events."""
-    cur = db_connection.cursor()
+    cur = db_conn.cursor()
     
     # Create enterprise tenant
     tenant_id = str(uuid4())
     cur.execute(
         """
-        INSERT INTO memory_service.tenants (id, plan, api_key_live, api_key_hash)
-        VALUES (%s::uuid, 'enterprise', 'test_key', 'hash')
+        INSERT INTO memory_service.tenants (id, name, plan, api_key_live, api_key_hash)
+        VALUES (cast(%s as uuid), 'test-tenant', 'enterprise', 'test_key', 'hash')
         """,
         (tenant_id,)
     )
@@ -54,19 +61,19 @@ def setup_test_data(db_connection):
             (tenant_id, mem_id, len(memory_ids) - memory_ids.index(mem_id))
         )
     
-    db_connection.commit()
+    db_conn.commit()
     
     yield {"tenant_id": tenant_id, "memory_ids": memory_ids, "agent_id": "test-agent"}
     
     # Cleanup
     cur.execute("DELETE FROM memory_service.tenants WHERE id = %s::uuid", (tenant_id,))
-    db_connection.commit()
+    db_conn.commit()
 
 
 class TestPatternExtractionJob:
     """Test pattern extraction worker (Task 10)."""
     
-    def test_extraction_with_sufficient_feedback(self, setup_test_data, db_connection):
+    def test_extraction_with_sufficient_feedback(self, setup_test_data, db_conn):
         """Pattern extraction creates pattern memory when sufficient feedback exists."""
         from api.pattern_worker import run_pattern_extraction
         
@@ -80,7 +87,7 @@ class TestPatternExtractionJob:
         assert result["agents_processed"] >= 1
         
         # Verify pattern memory was created
-        cur = db_connection.cursor()
+        cur = db_conn.cursor()
         cur.execute(
             """
             SELECT id, pattern_type, headline, observation_count, triggering_event_ids
@@ -101,18 +108,18 @@ class TestPatternExtractionJob:
         assert pattern[3] >= 3  # observation_count >= MIN_OBSERVATIONS
         assert len(pattern[4]) >= 3  # triggering_event_ids
     
-    def test_extraction_insufficient_feedback(self, db_connection):
+    def test_extraction_insufficient_feedback(self, db_conn):
         """Pattern extraction skips agents with insufficient feedback."""
         from api.pattern_worker import run_pattern_extraction
         
         # Create tenant with minimal feedback
         tenant_id = str(uuid4())
-        cur = db_connection.cursor()
+        cur = db_conn.cursor()
         cur.execute(
-            "INSERT INTO memory_service.tenants (id, plan) VALUES (%s::uuid, 'enterprise')",
+            "INSERT INTO memory_service.tenants (id, name, plan) VALUES (%s::uuid, 'test-tenant-minimal', 'enterprise')",
             (tenant_id,)
         )
-        db_connection.commit()
+        db_conn.commit()
         
         result = run_pattern_extraction(tenant_id=tenant_id)
         
@@ -121,13 +128,13 @@ class TestPatternExtractionJob:
         
         # Cleanup
         cur.execute("DELETE FROM memory_service.tenants WHERE id = %s::uuid", (tenant_id,))
-        db_connection.commit()
+        db_conn.commit()
 
 
 class TestPatternAwareRecall:
     """Test pattern-aware recall (Task 11)."""
     
-    def test_pattern_memory_boosted_in_recall(self, setup_test_data, db_connection):
+    def test_pattern_memory_boosted_in_recall(self, setup_test_data, db_conn):
         """Pattern memories receive boost in recall scoring."""
         from src.recall import recall_fixed
         
@@ -135,7 +142,7 @@ class TestPatternAwareRecall:
         agent_id = setup_test_data["agent_id"]
         
         # Create a pattern memory
-        cur = db_connection.cursor()
+        cur = db_conn.cursor()
         cur.execute(
             """
             INSERT INTO memory_service.memories
@@ -149,7 +156,7 @@ class TestPatternAwareRecall:
             (tenant_id, agent_id)
         )
         pattern_id = cur.fetchone()[0]
-        db_connection.commit()
+        db_conn.commit()
         
         # Recall with relevant query
         result = recall_fixed(
@@ -163,7 +170,7 @@ class TestPatternAwareRecall:
         recall_ids = [detail["id"] for detail in result.get("recall_details", [])]
         assert str(pattern_id) in recall_ids, "Pattern memory should be recalled"
     
-    def test_synthesis_recall_not_regressed(self, setup_test_data, db_connection):
+    def test_synthesis_recall_not_regressed(self, setup_test_data, db_conn):
         """Synthesis memories still work after pattern memory changes."""
         from src.recall import recall_fixed
         
@@ -171,7 +178,7 @@ class TestPatternAwareRecall:
         agent_id = setup_test_data["agent_id"]
         
         # Create a synthesis memory
-        cur = db_connection.cursor()
+        cur = db_conn.cursor()
         cur.execute(
             """
             INSERT INTO memory_service.memories
@@ -185,7 +192,7 @@ class TestPatternAwareRecall:
             (tenant_id, agent_id)
         )
         synth_id = cur.fetchone()[0]
-        db_connection.commit()
+        db_conn.commit()
         
         # Recall should still work
         result = recall_fixed(
@@ -205,14 +212,14 @@ class TestPatternAwareRecall:
 class TestPinWinsOverPattern:
     """Test pin-wins-over-pattern conflict resolution (Task 12)."""
     
-    def test_pinned_memory_beats_pattern(self, setup_test_data, db_connection):
+    def test_pinned_memory_beats_pattern(self, setup_test_data, db_conn):
         """Pinned memory ranks higher than pattern memory."""
         from src.recall import recall_fixed
         
         tenant_id = setup_test_data["tenant_id"]
         agent_id = setup_test_data["agent_id"]
         
-        cur = db_connection.cursor()
+        cur = db_conn.cursor()
         
         # Create pattern memory
         cur.execute(
@@ -244,7 +251,7 @@ class TestPinWinsOverPattern:
             (tenant_id, agent_id)
         )
         pinned_id = cur.fetchone()[0]
-        db_connection.commit()
+        db_conn.commit()
         
         # Recall with relevant query
         result = recall_fixed(
@@ -282,23 +289,23 @@ class TestTierGating:
         enabled = TIER_MATRIX[tier].get("pattern_extraction_enabled", False)
         assert enabled == expected_enabled
     
-    def test_patterns_run_endpoint_free_blocked(self, api_client, db_connection):
+    def test_patterns_run_endpoint_free_blocked(self, client, db_conn):
         """POST /patterns/run returns 403 for Free tier."""
         # Create free tier tenant
         tenant_id = str(uuid4())
         api_key = f"test_free_{uuid4()}"
         
-        cur = db_connection.cursor()
+        cur = db_conn.cursor()
         cur.execute(
             """
-            INSERT INTO memory_service.tenants (id, plan, api_key_live)
-            VALUES (%s::uuid, 'free', %s)
+            INSERT INTO memory_service.tenants (id, name, plan, api_key_live)
+            VALUES (cast(%s as uuid), 'test-free', 'free', %s)
             """,
             (tenant_id, api_key)
         )
-        db_connection.commit()
+        db_conn.commit()
         
-        response = api_client.post(
+        response = client.post(
             "/patterns/run",
             headers={"Authorization": f"Bearer {api_key}"}
         )
@@ -308,22 +315,22 @@ class TestTierGating:
         
         # Cleanup
         cur.execute("DELETE FROM memory_service.tenants WHERE id = %s::uuid", (tenant_id,))
-        db_connection.commit()
+        db_conn.commit()
     
-    def test_patterns_run_endpoint_enterprise_allowed(self, api_client, setup_test_data, db_connection):
+    def test_patterns_run_endpoint_enterprise_allowed(self, client, setup_test_data, db_conn):
         """POST /patterns/run returns 200 for Enterprise tier."""
         tenant_id = setup_test_data["tenant_id"]
         api_key = f"test_ent_{uuid4()}"
         
         # Update tenant with API key
-        cur = db_connection.cursor()
+        cur = db_conn.cursor()
         cur.execute(
             "UPDATE memory_service.tenants SET api_key_live = %s WHERE id = %s::uuid",
             (api_key, tenant_id)
         )
-        db_connection.commit()
+        db_conn.commit()
         
-        response = api_client.post(
+        response = client.post(
             "/patterns/run",
             headers={"Authorization": f"Bearer {api_key}"}
         )
@@ -336,7 +343,7 @@ class TestTierGating:
 class TestAuditLogging:
     """Test pattern extraction audit logging (Task 10)."""
     
-    def test_pattern_extraction_audit_event(self, setup_test_data, db_connection):
+    def test_pattern_extraction_audit_event(self, setup_test_data, db_conn):
         """Pattern extraction creates audit log entries."""
         from api.pattern_worker import run_pattern_extraction
         
@@ -346,7 +353,7 @@ class TestAuditLogging:
         run_pattern_extraction(tenant_id=tenant_id)
         
         # Check audit log
-        cur = db_connection.cursor()
+        cur = db_conn.cursor()
         cur.execute(
             """
             SELECT event_type, event_payload
@@ -371,7 +378,7 @@ class TestAuditLogging:
 class TestE2EWorkflow:
     """End-to-end pattern memory workflow tests."""
     
-    def test_full_pattern_lifecycle(self, setup_test_data, db_connection):
+    def test_full_pattern_lifecycle(self, setup_test_data, db_conn):
         """Complete workflow: feedback → extraction → recall → pin override."""
         from api.pattern_worker import run_pattern_extraction
         from src.recall import recall_fixed
@@ -380,7 +387,7 @@ class TestE2EWorkflow:
         agent_id = setup_test_data["agent_id"]
         
         # Step 1: Verify feedback exists
-        cur = db_connection.cursor()
+        cur = db_conn.cursor()
         cur.execute(
             "SELECT COUNT(*) FROM memory_service.recall_feedback WHERE tenant_id = %s::uuid",
             (tenant_id,)
@@ -427,7 +434,7 @@ class TestE2EWorkflow:
             (tenant_id, agent_id)
         )
         pinned_id = cur.fetchone()[0]
-        db_connection.commit()
+        db_conn.commit()
         
         # Step 6: Recall again - pin should rank higher
         recall_result2 = recall_fixed(
@@ -451,13 +458,13 @@ if __name__ == "__main__":
 class TestPatternRateLimiting:
     """Test that pattern extraction shares synthesis rate limit (T1)."""
     
-    def test_rate_limit_429_response(self, db_connection):
+    def test_rate_limit_429_response(self, db_conn):
         """Pattern extraction returns 429 when monthly limit exceeded."""
         from fastapi.testclient import TestClient
         from api.main import app
         import tier_gates
         
-        cur = db_connection.cursor()
+        cur = db_conn.cursor()
         
         # Create a Scale tenant with rate limit tracking
         tenant_id = str(uuid4())
@@ -465,8 +472,8 @@ class TestPatternRateLimiting:
         
         cur.execute(
             """
-            INSERT INTO memory_service.tenants (id, plan, api_key_live, api_key_hash)
-            VALUES (%s::uuid, scale, %s, hash)
+            INSERT INTO memory_service.tenants (id, name, plan, api_key_live, api_key_hash)
+            VALUES (cast(%s as uuid), 'test-scale', 'scale', %s, 'hash')
             """,
             (tenant_id, api_key)
         )
@@ -480,7 +487,7 @@ class TestPatternRateLimiting:
             """,
             (tenant_id,)
         )
-        db_connection.commit()
+        db_conn.commit()
         
         # Set usage to limit - 1 (one slot remaining)
         scale_limit = tier_gates.TIER_MATRIX["scale"]["manual_runs_per_month"]
@@ -492,7 +499,7 @@ class TestPatternRateLimiting:
             """,
             (scale_limit - 1, tenant_id)
         )
-        db_connection.commit()
+        db_conn.commit()
         
         # First call should succeed (uses last slot)
         client = TestClient(app)
@@ -535,4 +542,4 @@ class TestPatternRateLimiting:
         
         # Cleanup
         cur.execute("DELETE FROM memory_service.tenants WHERE id = %s::uuid", (tenant_id,))
-        db_connection.commit()
+        db_conn.commit()
