@@ -3976,3 +3976,213 @@ def patterns_run(tenant=Depends(require_api_key)):
         raise HTTPException(status_code=500, detail="Pattern extraction failed")
 
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# OAuth 2.0 Device Authorization Grant (RFC 8628)
+# CP10 P1 Chain 1 — Server-side endpoints for wrapper CLI authentication
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class DeviceCodeRequest(BaseModel):
+    pass
+
+class DeviceCodeResponse(BaseModel):
+    device_code: str
+    user_code: str
+    verification_uri: str
+    expires_in: int
+    interval: int
+
+class DeviceTokenRequest(BaseModel):
+    device_code: str
+
+class DeviceTokenResponse(BaseModel):
+    access_token: str
+    tenant_id: str
+
+class DeviceTokenError(BaseModel):
+    error: str
+
+def _generate_user_code() -> str:
+    """Generate a user-friendly 8-character code (format: ABCD-EFGH)."""
+    import random
+    import string
+    chars = string.ascii_uppercase + string.digits
+    # Exclude ambiguous characters
+    chars = chars.replace('0', '').replace('O', '').replace('I', '').replace('1', '')
+    code = ''.join(random.choice(chars) for _ in range(8))
+    return f"{code[:4]}-{code[4:]}"
+
+@app.post("/oauth/device/code", response_model=DeviceCodeResponse)
+async def oauth_device_code(request: Request):
+    """
+    Generate device code and user code for OAuth device authorization flow.
+    Public endpoint (no authentication required).
+    
+    Returns:
+        device_code: UUID that client polls with
+        user_code: 8-character code user enters at verification_uri
+        verification_uri: URL where user approves the device
+        expires_in: Seconds until codes expire (600 = 10 minutes)
+        interval: Seconds client should wait between polls (5)
+    """
+    try:
+        device_code = str(uuid.uuid4())
+        user_code = _generate_user_code()
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+        
+        # Store in database (no tenant_id yet - will be set on approval)
+        _db_execute_rows(
+            """
+            INSERT INTO memory_service.oauth_device_codes 
+            (device_code, user_code, expires_at, created_at)
+            VALUES (%s, %s, %s, NOW())
+            """,
+            params=(device_code, user_code, expires_at),
+            tenant_id="00000000-0000-0000-0000-000000000000",  # Public operation
+            fetch_results=False
+        )
+        
+        logger.info(f"oauth_device_code generated user_code={user_code} device_code={device_code[:8]}...")
+        
+        return DeviceCodeResponse(
+            device_code=device_code,
+            user_code=user_code,
+            verification_uri="https://0latency.ai/auth/device",
+            expires_in=600,
+            interval=5
+        )
+    except Exception as e:
+        logger.error(f"oauth_device_code failed: {e}")
+        raise HTTPException(500, detail="Failed to generate device code")
+
+@app.post("/oauth/device/token")
+async def oauth_device_token(body: DeviceTokenRequest):
+    """
+    Poll for device authorization status. Client calls this repeatedly.
+    Public endpoint (no authentication required).
+    
+    Returns:
+        - 200 + {access_token, tenant_id} if approved
+        - 400 + {error: "authorization_pending"} if not yet approved
+        - 400 + {error: "expired_token"} if code expired
+        - 400 + {error: "invalid_grant"} if code doesn't exist
+    """
+    try:
+        # Look up device code
+        rows = _db_execute_rows(
+            """
+            SELECT user_code, tenant_id, approved_at, expires_at
+            FROM memory_service.oauth_device_codes
+            WHERE device_code = %s
+            """,
+            params=(body.device_code,),
+            tenant_id="00000000-0000-0000-0000-000000000000"
+        )
+        
+        if not rows:
+            logger.warning(f"oauth_device_token invalid_grant device_code={body.device_code[:8]}...")
+            raise HTTPException(400, detail={"error": "invalid_grant"})
+        
+        user_code, tenant_id, approved_at, expires_at = rows[0]
+        
+        # Check expiration
+        if datetime.now(timezone.utc) > expires_at:
+            logger.warning(f"oauth_device_token expired user_code={user_code}")
+            raise HTTPException(400, detail={"error": "expired_token"})
+        
+        # Check if approved
+        if not approved_at:
+            # Still pending approval
+            raise HTTPException(400, detail={"error": "authorization_pending"})
+        
+        # Approved! Fetch the tenant's API key
+        tenant_rows = _db_execute_rows(
+            """
+            SELECT api_key_live
+            FROM memory_service.tenants
+            WHERE id = %s AND active = true
+            """,
+            params=(tenant_id,),
+            tenant_id="00000000-0000-0000-0000-000000000000"
+        )
+        
+        if not tenant_rows:
+            logger.error(f"oauth_device_token approved but tenant not found tenant_id={tenant_id}")
+            raise HTTPException(500, detail="Internal error: tenant not found")
+        
+        api_key_live = tenant_rows[0][0]
+        
+        logger.info(f"oauth_device_token success user_code={user_code} tenant_id={tenant_id}")
+        
+        return DeviceTokenResponse(
+            access_token=api_key_live,
+            tenant_id=str(tenant_id)
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"oauth_device_token failed: {e}")
+        raise HTTPException(500, detail="Failed to process token request")
+
+class DeviceApproveRequest(BaseModel):
+    user_code: str
+
+@app.post("/oauth/device/approve")
+async def oauth_device_approve(body: DeviceApproveRequest, request: Request, tenant=Depends(require_api_key)):
+    """
+    Approve a device authorization request from the dashboard.
+    Requires user to be logged in (API key auth).
+    Sets approved_at and tenant_id for the given user_code.
+    """
+    try:
+        user_code = body.user_code.strip().upper()
+        
+        # Look up the device code by user_code
+        rows = _db_execute_rows(
+            """
+            SELECT device_code, expires_at, approved_at
+            FROM memory_service.oauth_device_codes
+            WHERE user_code = %s
+            """,
+            params=(user_code,),
+            tenant_id="00000000-0000-0000-0000-000000000000"
+        )
+        
+        if not rows:
+            logger.warning(f"oauth_device_approve invalid_code user_code={user_code}")
+            raise HTTPException(400, detail={"error": "invalid_code"})
+        
+        device_code, expires_at, approved_at = rows[0]
+        
+        # Check expiration
+        if datetime.now(timezone.utc) > expires_at:
+            logger.warning(f"oauth_device_approve expired user_code={user_code}")
+            raise HTTPException(400, detail={"error": "invalid_code"})
+        
+        # Check if already approved
+        if approved_at:
+            logger.warning(f"oauth_device_approve already_approved user_code={user_code}")
+            raise HTTPException(400, detail={"error": "already_approved"})
+        
+        # Approve it: set approved_at and tenant_id
+        _db_execute_rows(
+            """
+            UPDATE memory_service.oauth_device_codes
+            SET approved_at = NOW(), tenant_id = %s
+            WHERE user_code = %s
+            """,
+            params=(tenant["id"], user_code),
+            tenant_id="00000000-0000-0000-0000-000000000000",
+            fetch_results=False
+        )
+        
+        logger.info(f"oauth_device_approve success user_code={user_code} tenant_id={tenant['id']}")
+        
+        return {"status": "approved"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"oauth_device_approve failed: {e}")
+        raise HTTPException(500, detail="Failed to approve device")
