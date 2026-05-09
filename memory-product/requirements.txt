@@ -8,3 +8,9 @@ psutil==6.1.1
 posthog==3.5.0
 jsonschema==4.23.0
 alembic
+anthropic==0.92.0
+numpy==2.4.4
+pgvector==0.4.2
+openai==2.30.0
+passlib==1.7.4
+PyJWT==2.12.1
