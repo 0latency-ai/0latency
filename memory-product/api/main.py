@@ -4204,7 +4204,7 @@ async def require_bearer_token(authorization: str = Header(None)):
     rows = _db_execute_rows("""
         SELECT id, name, active FROM memory_service.tenants
         WHERE api_key_live = %s AND active = true
-    """, (token,))
+    """, (token,), tenant_id="00000000-0000-0000-0000-000000000000")
     
     if not rows:
         raise HTTPException(
@@ -4217,6 +4217,7 @@ async def require_bearer_token(authorization: str = Header(None)):
         "name": rows[0][1],
         "active": rows[0][2]
     }
+    set_tenant_context(tenant["id"])
     return tenant
 
 
@@ -4233,7 +4234,7 @@ async def write_atom(req: dict, tenant: dict = Depends(require_bearer_token)):
     - tool_payload (optional)
     """
     try:
-        # Extract fields
+        # Extract fields from atom payload
         atom_id = req.get('id') or str(uuid.uuid4())
         agent_id = req['agent_id']
         role = req['role']
@@ -4244,39 +4245,49 @@ async def write_atom(req: dict, tenant: dict = Depends(require_bearer_token)):
         agent_name = req.get('agent_name', 'unknown')
         agent_version = req.get('agent_version')
         tool_payload = req.get('tool_payload')
+        timestamp = req.get('timestamp', datetime.now(timezone.utc).isoformat())
         
-        # Decode content_raw from base64
-        import base64
-        try:
-            content_raw = base64.b64decode(content_raw_b64)
-        except:
-            content_raw = content_raw_b64.encode('utf-8') if isinstance(content_raw_b64, str) else content_raw_b64
+        # Create headline from role and truncated content
+        content_preview = content[:100] + '...' if len(content) > 100 else content
+        headline = f"{role}: {content_preview}"
         
-        # Write to memories table
-        # Note: This is a simplified write - P2 will add proper atom table
+        # Store atom role and all metadata in metadata JSONB
+        atom_metadata = {
+            'atom_role': role,  # Store original role here since memory_type must be raw_turn
+            'verbatim': verbatim,
+            'surface': surface,
+            'agent_name': agent_name,
+            'agent_version': agent_version,
+            'tool_payload': tool_payload,
+            'content_raw_b64': content_raw_b64,
+            'timestamp': timestamp,
+            'recovered': req.get('recovered', False),
+            'is_interactive_prompt': req.get('is_interactive_prompt', False),
+            'chunk_index': req.get('chunk_index'),
+            'chunk_total': req.get('chunk_total'),
+            'tool_call_index': req.get('tool_call_index'),
+            'tool_call_total': req.get('tool_call_total')
+        }
+        
+        # Write to memories table using correct schema
         _db_execute_rows("""
             INSERT INTO memory_service.memories (
-                id, tenant_id, agent_id, memory_type, content, 
-                created_at, source_detail
+                id, tenant_id, agent_id, headline, context, full_content, 
+                memory_type, created_at, metadata
             )
             VALUES (
-                %s::UUID, %s::UUID, %s, %s, %s,
-                NOW(), %s::JSONB
+                %s::UUID, %s::UUID, %s, %s, %s, %s,
+                %s, NOW(), %s::JSONB
             )
         """, (
             atom_id,
             tenant['id'],
             agent_id,
-            f'atom:{role}',  # Store role as memory_type prefix
-            content,
-            json.dumps({
-                'verbatim': verbatim,
-                'surface': surface,
-                'agent_name': agent_name,
-                'agent_version': agent_version,
-                'tool_payload': tool_payload,
-                'content_raw_b64': content_raw_b64
-            })
+            headline,
+            f"Atom captured at {timestamp} from {agent_name}",  # context
+            content,  # full_content
+            'raw_turn',  # memory_type - use raw_turn for verbatim CLI atoms
+            json.dumps(atom_metadata)
         ), tenant_id=tenant['id'])
         
         return {
@@ -4286,4 +4297,4 @@ async def write_atom(req: dict, tenant: dict = Depends(require_bearer_token)):
     
     except Exception as e:
         print(f"Error writing atom: {e}", file=sys.stderr)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Database operation failed. Please try again.")
