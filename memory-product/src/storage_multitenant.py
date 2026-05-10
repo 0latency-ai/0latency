@@ -800,9 +800,16 @@ def get_tenant_by_api_key(api_key_hash: str) -> Optional[dict]:
 
 
 def create_tenant(name: str, plan: str = 'free') -> dict:
-    """Create a new tenant and return tenant info with API key."""
+    """Create a new tenant with default roles and return tenant info with API key.
+    
+    Atomically creates tenant + seeds 5 default roles (public, engineering, product, revenue, legal).
+    Uses explicit transaction - both succeed or both rollback.
+    """
     import hashlib
     import secrets
+    import logging
+    
+    logger = logging.getLogger("zerolatency")
     
     # Generate API key
     api_key = f"zl_live_{''.join(secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(32))}"
@@ -817,37 +824,87 @@ def create_tenant(name: str, plan: str = 'free') -> dict:
     
     plan_limits = limits.get(plan, limits['free'])
     
-    # Insert tenant (bypassing RLS for admin operation)
-    query = """
-        INSERT INTO memory_service.tenants (name, api_key_hash, api_key_live, plan, memory_limit, rate_limit_rpm)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        RETURNING id, created_at;
-    """
+    # Default roles from migration 013_cp8_tenant_roles.sql (verbatim)
+    default_roles = [
+        ('public', 'Public role - visible to all consumers within this tenant'),
+        ('engineering', 'Engineering team role - technical context and implementation details'),
+        ('product', 'Product team role - feature context and user-facing decisions'),
+        ('revenue', 'Revenue team role - sales, pricing, and business metrics'),
+        ('legal', 'Legal team role - compliance, contracts, and risk management')
+    ]
     
-    params = (
-        name,
-        api_key_hash,
-        api_key,  # Store plaintext key for dashboard display
-        plan,
-        plan_limits['memory_limit'],
-        plan_limits['rate_limit_rpm']
-    )
+    # Get connection and execute in transaction
+    pool = _get_connection_pool()
+    conn = None
+    cur = None
     
-    rows = _db_execute(query, params, tenant_id="00000000-0000-0000-0000-000000000000")
-    
-    if rows:
-        parts = rows[0].split("|||")
+    try:
+        conn = pool.getconn()
+        conn.autocommit = False  # Explicit transaction mode
+        cur = conn.cursor()
+        
+        # Set tenant context for RLS bypass (admin operation)
+        cur.execute("SELECT memory_service.set_tenant_context(%s)", ('00000000-0000-0000-0000-000000000000',))
+        
+        # Insert tenant
+        cur.execute("""
+            INSERT INTO memory_service.tenants (name, api_key_hash, api_key_live, plan, memory_limit, rate_limit_rpm)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id, created_at;
+        """, (name, api_key_hash, api_key, plan, plan_limits['memory_limit'], plan_limits['rate_limit_rpm']))
+        
+        result = cur.fetchone()
+        if not result:
+            raise RuntimeError("Failed to insert tenant - no RETURNING data")
+        
+        tenant_id, created_at = result
+        
+        # Seed default roles for this tenant
+        for role_name, description in default_roles:
+            try:
+                cur.execute("""
+                    INSERT INTO memory_service.tenant_roles (tenant_id, role_name, description)
+                    VALUES (%s::UUID, %s, %s)
+                    ON CONFLICT (tenant_id, role_name) DO NOTHING
+                """, (tenant_id, role_name, description))
+            except NotImplementedError:
+                # Re-raise NotImplementedError before catch-all (per redaction.py incident rule)
+                raise
+            except Exception as e:
+                logger.error(f"Failed to seed role {role_name} for tenant {tenant_id}: {e}")
+                raise  # Fail the transaction if role seeding fails
+        
+        # Commit transaction - both tenant + roles succeed atomically
+        conn.commit()
+        
+        logger.info(f"Created tenant {tenant_id} with {len(default_roles)} default roles")
+        
         return {
-            "tenant_id": parts[0],
+            "tenant_id": str(tenant_id),
             "name": name,
             "api_key": api_key,
             "plan": plan,
-            "created_at": parts[1],
+            "created_at": str(created_at),
             "memory_limit": plan_limits['memory_limit'],
             "rate_limit_rpm": plan_limits['rate_limit_rpm']
         }
-    
-    raise RuntimeError("Failed to create tenant")
+        
+    except NotImplementedError:
+        # Re-raise NotImplementedError before catch-all (per redaction.py incident rule)
+        if conn:
+            conn.rollback()
+        raise
+    except Exception as e:
+        # Rollback on any error
+        if conn:
+            conn.rollback()
+        logger.error(f"Failed to create tenant: {e}")
+        raise RuntimeError(f"Failed to create tenant: {e}")
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            pool.putconn(conn)
 
 
 def track_api_usage(tenant_id: str, endpoint: str, tokens_used: int = 0, 
