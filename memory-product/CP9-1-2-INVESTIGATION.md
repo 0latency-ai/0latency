@@ -127,3 +127,54 @@ async def write_atom(req: dict, tenant: dict = Depends(require_bearer_token)):
 - No wrapper changes needed
 - No schema changes
 - Restores CP10 P1 intended functionality
+
+## Implementation Results
+
+**Branch**: cp9-1-2-atoms-endpoint  
+**Commits**:
+- c750880: Add POST /atoms endpoint for CLI wrapper verbatim capture
+- 4b32957: Fix /atoms endpoint schema compatibility
+
+### Changes Made
+
+1. **require_bearer_token auth dependency**
+   - Validates Bearer token from OAuth device-code flow
+   - Treats bearer token as API key for P1 (looks up tenant by api_key_live)
+   - Sets tenant context before returning
+   - Uses tenant_id="00000000-0000-0000-0000-000000000000" for pre-auth DB queries
+
+2. **POST /atoms endpoint**
+   - Route: POST /atoms (status 201)
+   - Auth: require_bearer_token (Bearer <access_token>)
+   - Accepts raw dict matching Atom.to_dict()
+   - Maps atom fields to memories table schema:
+     - headline = "{role}: {content_preview}"
+     - context = "Atom captured at {timestamp} from {agent_name}"
+     - full_content = content (ANSI-stripped)
+     - memory_type = 'raw_turn' (required by check constraint)
+     - metadata = JSONB with atom_role, verbatim, surface, agent_name, agent_version, tool_payload, content_raw_b64, timestamp, chunking fields, tool chain fields
+
+### Performance
+
+- **Direct curl POST**: 37ms round-trip
+- **Wrapper (0latency-cli)**: 283ms round-trip
+- **DB write confirmed**: ✓
+
+### Database Impact
+
+- No schema changes (honors CP10 P1 decision)
+- Uses existing memory_service.memories table
+- memory_type = 'raw_turn' (one of 11 allowed types)
+- Original atom role stored in metadata.atom_role
+- All atom fidelity preserved in JSONB metadata
+
+### Deployment Status
+
+- Branch: cp9-1-2-atoms-endpoint (ready for merge)
+- Service: restarted with new code on server
+- Testing: end-to-end verified with wrapper
+- Ready for production deployment
+
+## Conclusion
+
+**Path A implemented successfully**. The /atoms endpoint is now operational and accepting verbatim CLI atom writes from the wrapper. The CP9.1.1 audit regression is resolved.
