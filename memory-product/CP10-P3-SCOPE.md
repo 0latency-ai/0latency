@@ -841,3 +841,13 @@ If catastrophic failure:
 **END OF SCOPE**
 
 **Operator approval required before CC execution begins.**
+
+---
+
+## G11 Verification Source-of-Truth
+
+**Canonical gate:** `tests/soak_test_4hr.py` — 4-hour wall-clock soak, 400 atoms, RSS < 500MB, p95 < 50ms.
+
+**Dev shortcut (NOT a gate):** `tests/soak_test_dev.py` — 5-minute accelerated soak for fast iteration. Running this file and claiming G11 PASS is a scope-doc violation. The dev test includes explicit guard docstrings to prevent confusion.
+
+Only a successful run of `tests/soak_test_4hr.py` satisfies the CP10 P3 G11 requirement.

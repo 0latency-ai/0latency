@@ -4186,3 +4186,115 @@ async def oauth_device_approve(body: DeviceApproveRequest, request: Request, ten
     except Exception as e:
         logger.error(f"oauth_device_approve failed: {e}")
         raise HTTPException(500, detail="Failed to approve device")
+
+
+# CP10 P1 / CP9.1.2: Bearer token auth for OAuth device-code flow
+async def require_bearer_token(authorization: str = Header(None)):
+    """Dependency that validates Bearer token from OAuth device-code flow."""
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(
+            status_code=401,
+            detail="Missing or invalid Authorization header. Expected 'Bearer <token>'."
+        )
+    
+    token = authorization[7:]  # Remove 'Bearer ' prefix
+    
+    # Treat the bearer token as an API key and look it up
+    # (For P1, OAuth tokens are the same as API keys)
+    rows = _db_execute_rows("""
+        SELECT id, name, active FROM memory_service.tenants
+        WHERE api_key_live = %s AND active = true
+    """, (token,), tenant_id="00000000-0000-0000-0000-000000000000")
+    
+    if not rows:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired bearer token"
+        )
+    
+    tenant = {
+        "id": rows[0][0],
+        "name": rows[0][1],
+        "active": rows[0][2]
+    }
+    set_tenant_context(tenant["id"])
+    return tenant
+
+
+# CP10 P1 / CP9.1.2: Verbatim atom write endpoint for CLI wrapper
+@app.post("/atoms", status_code=201)
+@track_critical_errors
+async def write_atom(req: dict, tenant: dict = Depends(require_bearer_token)):
+    """
+    Write a verbatim atom from CLI wrapper.
+    
+    Schema matches wrapper Atom dataclass:
+    - id, agent_id, role, content, content_raw (base64)
+    - verbatim, surface, agent_name, agent_version
+    - tool_payload (optional)
+    """
+    try:
+        # Extract fields from atom payload
+        atom_id = req.get('id') or str(uuid.uuid4())
+        agent_id = req['agent_id']
+        role = req['role']
+        content = req['content']
+        content_raw_b64 = req.get('content_raw', '')
+        verbatim = req.get('verbatim', True)
+        surface = req.get('surface', 'cli')
+        agent_name = req.get('agent_name', 'unknown')
+        agent_version = req.get('agent_version')
+        tool_payload = req.get('tool_payload')
+        timestamp = req.get('timestamp', datetime.now(timezone.utc).isoformat())
+        
+        # Create headline from role and truncated content
+        content_preview = content[:100] + '...' if len(content) > 100 else content
+        headline = f"{role}: {content_preview}"
+        
+        # Store atom role and all metadata in metadata JSONB
+        atom_metadata = {
+            'atom_role': role,  # Store original role here since memory_type must be raw_turn
+            'verbatim': verbatim,
+            'surface': surface,
+            'agent_name': agent_name,
+            'agent_version': agent_version,
+            'tool_payload': tool_payload,
+            'content_raw_b64': content_raw_b64,
+            'timestamp': timestamp,
+            'recovered': req.get('recovered', False),
+            'is_interactive_prompt': req.get('is_interactive_prompt', False),
+            'chunk_index': req.get('chunk_index'),
+            'chunk_total': req.get('chunk_total'),
+            'tool_call_index': req.get('tool_call_index'),
+            'tool_call_total': req.get('tool_call_total')
+        }
+        
+        # Write to memories table using correct schema
+        _db_execute_rows("""
+            INSERT INTO memory_service.memories (
+                id, tenant_id, agent_id, headline, context, full_content, 
+                memory_type, created_at, metadata
+            )
+            VALUES (
+                %s::UUID, %s::UUID, %s, %s, %s, %s,
+                %s, NOW(), %s::JSONB
+            )
+        """, (
+            atom_id,
+            tenant['id'],
+            agent_id,
+            headline,
+            f"Atom captured at {timestamp} from {agent_name}",  # context
+            content,  # full_content
+            'raw_turn',  # memory_type - use raw_turn for verbatim CLI atoms
+            json.dumps(atom_metadata)
+        ), tenant_id=tenant['id'])
+        
+        return {
+            'id': atom_id,
+            'status': 'created'
+        }
+    
+    except Exception as e:
+        print(f"Error writing atom: {e}", file=sys.stderr)
+        raise HTTPException(status_code=400, detail="Database operation failed. Please try again.")
