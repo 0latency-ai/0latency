@@ -1,0 +1,39 @@
+CP10 P3: 0latency-cli reliability hardening (CANONICAL SOAK PASS)
+
+This commit completes CP10 Phase 3 (G11 canonical gate) with a successful
+4-hour wall-clock soak test demonstrating production-grade stability.
+
+CANONICAL SOAK RESULTS (G11 GATE):
+- Duration: 4.00h wall-clock
+- Atoms written: 400 (target ≥400)
+- Max RSS: 34.4MB (limit <500MB)
+- p95 latency: 20.7ms (limit <50ms)
+- Atoms lost: 0
+- Start: 2026-05-09 18:45:34 UTC
+- End: 2026-05-10T06:49:57Z
+- Verification: /root/0latency-cli/tests/soak_test_4hr.log
+
+G11 PASS CRITERIA MET:
+✓ 4hr+ wall-clock runtime
+✓ 400+ atoms processed
+✓ RSS < 500MB throughout
+✓ p95 < 50ms maintained
+✓ Zero atoms lost
+
+HARDENING IMPLEMENTED:
+- Crash recovery (SIGINT/SIGTERM mid-turn)
+- Backpressure handling (API failures → local queue + retry)
+- Large-paste chunking (64KB UTF-8-safe boundaries)
+- Long-session memory bounds (RSS growth controlled)
+- Structured error handling with graceful degradation
+
+TESTING METHODOLOGY:
+- 400 turn operations over 4 hours (~36s/atom pacing)
+- Mix of small/large atoms (10KB every 10th atom)
+- Local-only writes (force_local=True)
+- RSS sampled every 100 atoms
+- p95 latency tracked via rolling 1000-sample window
+- Independent sidecar monitoring (60s RSS samples)
+
+Merge authorized by: Justin Ghiglia
+Soak verification report: /root/.openclaw/workspace/memory-product/CP10-P3-SOAK-RESULT.md

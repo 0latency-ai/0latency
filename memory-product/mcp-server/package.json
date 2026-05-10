@@ -1,6 +1,6 @@
 {
   "name": "@0latency/mcp-server",
-  "version": "0.1.4",
+  "version": "0.2.2",
   "description": "MCP server for 0Latency — persistent memory layer for AI agents. Give Claude, Cursor, or any MCP client long-term memory.",
   "author": "Justin Ghiglia <justin@0latency.ai>",
   "license": "MIT",
@@ -31,7 +31,10 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.0"
+    "@modelcontextprotocol/sdk": "^1.27.0",
+    "@types/inquirer": "^9.0.9",
+    "commander": "^14.0.3",
+    "inquirer": "^9.3.8"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
