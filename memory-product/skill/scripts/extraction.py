@@ -397,7 +397,7 @@ def test_extraction():
     print(f"Agent message: {agent[:100]}...")
     print()
     
-    memories = extract_memories(
+    memories, raw_turn_id = extract_memories(
         human_message=human,
         agent_message=agent,
         agent_id="thomas",

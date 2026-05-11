@@ -128,7 +128,7 @@ def _call_anthropic(prompt: str) -> str:
     }
     
     body = {
-        "model": "claude-haiku-4-5-20251001",
+        "model": EXTRACTION_MODEL,
         "max_tokens": 4096,
         "temperature": 0.1,
         "messages": [{"role": "user", "content": prompt}]
@@ -220,7 +220,13 @@ def extract_memories(
         source: Source of extraction (api|mcp|extension)
         metadata: Optional metadata dict (may contain raw_turn_id for idempotency)
     Returns:
-        Tuple of (memories list, raw_turn_id)
+        tuple[list[dict], Optional[str]]: A tuple containing:
+            - memories: List of extracted memory dictionaries  
+            - raw_turn_id: String identifier for the turn (required for caller)
+        
+        IMPORTANT: Both elements of tuple are required for all callers.
+        Tuple signature restored 2026-05-10 after ed6343d regression.
+        Do not change this return signature without updating all 18+ call sites.
     """
     # Skip extraction for very short exchanges (greetings, acks)
     if len(human_message) < 20 and len(agent_message) < 50:
@@ -408,7 +414,7 @@ def extract_memories(
     # DEBUG: Log filtering results
     logger.info(f"Kept {len(validated)} memories, filtered {filtered_count}")
     if filtered_reasons:
-        logger.debug(f"Filtered: {filtered_reasons[:5]}")
+        logger.debug(f"Filtered: {filtered_reasons[:5]}")  # Show first 5
     
     return (validated, raw_turn_id)
 

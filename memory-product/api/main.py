@@ -22,6 +22,8 @@ from typing import Optional, List
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query, BackgroundTasks
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from api.analytics import track_posthog_event, is_first_api_call, is_first_memory_stored, is_first_memory_recalled, check_activation_milestone
+from api.errors import (raise_invalid_api_key, raise_memory_limit, raise_extraction_failed, raise_recall_failed, raise_not_found, raise_validation_error, raise_forbidden, raise_service_unavailable)
+from api.onboarding_helpers import should_show_recall_prompt, create_next_action_response, extract_keywords_from_headline
 from api.email_service import email_service
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -229,16 +231,7 @@ def _check_rate_limit(tenant_id: str, rate_limit_rpm: int):
             if count > rate_limit_rpm:
                 ttl = max(r.ttl(key), 1)
                 logger.warning(f"rate_limit_hit tenant={tenant_id} plan_rpm={rate_limit_rpm} count={count} retry_after={ttl}")
-                raise HTTPException(
-                    status_code=429,
-                    detail={
-                        "error": "rate_limit_exceeded",
-                        "message": f"Rate limit exceeded ({rate_limit_rpm} requests/min). Retry after {ttl}s.",
-                        "limit": rate_limit_rpm,
-                        "retry_after": ttl,
-                    },
-                    headers={"Retry-After": str(ttl)},
-                )
+                raise_memory_limit(rate_limit_rpm, retry_after=ttl)
             return
         except HTTPException:
             raise
@@ -251,16 +244,7 @@ def _check_rate_limit(tenant_id: str, rate_limit_rpm: int):
     _rate_limits_fallback[tenant_id] = [t for t in window if now - t < 60]
     if len(_rate_limits_fallback[tenant_id]) >= rate_limit_rpm:
         logger.warning(f"rate_limit_hit tenant={tenant_id} plan_rpm={rate_limit_rpm} (in-memory fallback)")
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "error": "rate_limit_exceeded",
-                "message": f"Rate limit exceeded ({rate_limit_rpm} requests/min). Retry after 60s.",
-                "limit": rate_limit_rpm,
-                "retry_after": 60,
-            },
-            headers={"Retry-After": "60"},
-        )
+        raise_memory_limit(rate_limit_rpm, retry_after=60)
     _rate_limits_fallback[tenant_id].append(now)
 
 _rate_limits_fallback: dict[str, list[float]] = {}
@@ -270,8 +254,16 @@ _rate_limits_fallback: dict[str, list[float]] = {}
 _tenant_cache: dict[str, tuple[dict, float]] = {}
 _TENANT_CACHE_TTL = 30  # 30 seconds
 
-async def require_api_key(x_api_key: str = Header(None, alias="X-API-Key")):
-    """Multi-tenant auth via API key header with cached validation."""
+async def require_api_key(
+    authorization: str = Header(None),
+    x_api_key: str = Header(None, alias="X-API-Key")
+):
+    """Multi-tenant auth via API key header with cached validation.
+    
+    Accepts authentication via either:
+    - Authorization: Bearer zl_live_... (industry standard, recommended)
+    - X-API-Key: zl_live_... (legacy support)
+    """
     from api.auth_messages import (
         MISSING_HEADER,
         INVALID_FORMAT,
@@ -280,15 +272,28 @@ async def require_api_key(x_api_key: str = Header(None, alias="X-API-Key")):
         ACCOUNT_SUSPENDED,
     )
     
-    # Missing header (Header(None) catches absence; Header(...) would 422 instead)
-    if not x_api_key:
-        raise HTTPException(401, detail=MISSING_HEADER)
+    # Extract API key from Authorization header (Bearer token) or X-API-Key header
+    api_key = None
+    
+    # Try Authorization header first (Bearer token)
+    if authorization:
+        # Strip "Bearer " prefix case-insensitively
+        if authorization.lower().startswith("bearer "):
+            api_key = authorization[7:].strip()
+    
+    # Fall back to X-API-Key header
+    if not api_key and x_api_key:
+        api_key = x_api_key
+    
+    # Missing both headers
+    if not api_key:
+        raise_invalid_api_key("missing")
 
     # Format validation
-    if not x_api_key.startswith("zl_live_") or len(x_api_key) != 40:
-        raise HTTPException(401, detail=INVALID_FORMAT)
+    if not api_key.startswith("zl_live_") or len(api_key) != 40:
+        raise_invalid_api_key("invalid_format")
 
-    api_key_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
+    api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
     now = time.time()
 
     _check_cache_bust()
@@ -298,7 +303,7 @@ async def require_api_key(x_api_key: str = Header(None, alias="X-API-Key")):
         cached_tenant, cached_at = _tenant_cache[api_key_hash]
         if now - cached_at < _TENANT_CACHE_TTL:
             if not cached_tenant["active"]:
-                raise HTTPException(401, detail=ACCOUNT_SUSPENDED)
+                raise_invalid_api_key("suspended")
             _check_rate_limit(cached_tenant["id"], cached_tenant["rate_limit_rpm"])
             set_tenant_context(cached_tenant["id"])
             return cached_tenant
@@ -320,11 +325,11 @@ async def require_api_key(x_api_key: str = Header(None, alias="X-API-Key")):
             tenant_id="00000000-0000-0000-0000-000000000000",
         )
         if revoked_rows:
-            raise HTTPException(401, detail=REVOKED)
-        raise HTTPException(401, detail=NOT_FOUND)
+            raise_invalid_api_key("revoked")
+        raise_invalid_api_key("not_found")
 
     if not tenant["active"]:
-        raise HTTPException(401, detail=ACCOUNT_SUSPENDED)
+        raise_invalid_api_key("suspended")
 
     _tenant_cache[api_key_hash] = (tenant, now)
     _check_rate_limit(tenant["id"], tenant["rate_limit_rpm"])
@@ -374,7 +379,7 @@ def auto_resolve_agent_id(tenant_id: str, provided_agent_id: Optional[str] = Non
     """, (tenant_id, tenant_id), tenant_id=tenant_id)
 
     if not rows:
-        raise HTTPException(status_code=404, detail="No agents found for this tenant")
+        raise_not_found("Agents")
 
     return rows[0][0]
 
@@ -384,13 +389,13 @@ async def require_admin_key(request: Request, x_admin_key: str = Header(..., ali
     client_ip = request.client.host if request.client else "unknown"
     allowed_ips = {"127.0.0.1", "::1", "localhost"}
     if client_ip not in allowed_ips:
-        raise HTTPException(403, detail="Admin endpoints are only accessible from localhost")
+        raise_forbidden("Admin endpoints are only accessible from localhost")
     
     if not _admin_key():
-        raise HTTPException(500, detail="Admin endpoint not configured")
+        raise_service_unavailable("Admin endpoint not configured")
     
     if x_admin_key != _admin_key():
-        raise HTTPException(401, detail="Invalid admin key")
+        raise_invalid_api_key("invalid")
     
     return True
 
@@ -566,7 +571,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
         """, (tenant["id"],), tenant_id=tenant["id"])
         current_count = int(count_rows[0][0]) if count_rows else 0
         if current_count >= tenant["memory_limit"]:
-            raise HTTPException(429, detail=f"Memory limit reached ({tenant['memory_limit']}). Upgrade plan or delete old memories.")
+            raise_memory_limit(tenant[memory_limit])
         
         # Fetch recent headlines for dedup context
         existing_context = ""
@@ -676,7 +681,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
         raise  # Re-raise HTTP exceptions (429, 401, etc.) as-is
     except Exception as e:
         track_api_usage(tenant["id"], "/extract", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
-        raise HTTPException(500, detail="Extraction failed. Please check your input and try again.")
+        raise_extraction_failed()
 
 
 @app.post("/memories/seed", response_model=SeedResponse)
@@ -712,9 +717,9 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
         current_count = int(count_rows[0][0]) if count_rows else 0
         remaining = tenant["memory_limit"] - current_count
         if remaining <= 0:
-            raise HTTPException(429, detail=f"Memory limit reached ({tenant['memory_limit']}). Upgrade plan or delete old memories.")
+            raise_memory_limit(tenant[memory_limit])
         if len(req.facts) > remaining:
-            raise HTTPException(429, detail=f"Would exceed memory limit. {remaining} slots remaining, {len(req.facts)} facts submitted.")
+            raise_memory_limit(tenant[memory_limit], current=tenant[memory_limit] - remaining)
 
         # Build memory dicts from facts and store them
         memories = []
@@ -758,7 +763,7 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
                        response_time_ms=int((time.time() - start_time) * 1000),
                        status_code=500)
         logger.error(f"Seed endpoint failed: {e}")
-        raise HTTPException(500, detail="Seed failed. Please check your input and try again.")
+        raise_extraction_failed(details="Seed operation failed")
 
 
 # --- Async Extraction Job Store (in-memory for now, Redis-backed in production) ---
@@ -872,9 +877,9 @@ async def get_extract_job(job_id: str, tenant: dict = Depends(require_api_key)):
     """Check status of an async job (extract or resume). Job type indicated by job_type field."""
     job = _extract_jobs.get(job_id)
     if not job:
-        raise HTTPException(404, detail="Job not found")
+        raise_not_found("Job")
     if job["tenant_id"] != tenant["id"]:
-        raise HTTPException(404, detail="Job not found")
+        raise_not_found("Job")
     return {k: v for k, v in job.items() if k != "tenant_id"}
 
 
@@ -924,10 +929,10 @@ async def create_checkpoint(req: CheckpointRequest, tenant: dict = Depends(requi
         """, (req.parent_memory_ids,), tenant_id=tenant["id"])
     except Exception as e:
         logger.error(f"Failed to fetch parent atoms: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch parent memories")
+        raise_service_unavailable("Failed to fetch parent memories")
 
     if not parent_atoms:
-        raise HTTPException(status_code=400, detail="No parent memories found")
+        raise_validation_error("No parent memories found")
 
     # Assemble turns_text
     turns_text = ""
@@ -1131,7 +1136,7 @@ Prior checkpoint in this thread: {"present" if req.parent_checkpoint_id else "no
         logger.error(f"Synchronous checkpoint creation failed: {e}")
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Checkpoint creation failed: {str(e)}")
+        raise_service_unavailable(f"Checkpoint creation failed: {str(e)}")
 
 
 
@@ -1496,11 +1501,11 @@ Prior checkpoints (newest first):
             
             if not has_all_headers:
                 logger.error(f"Meta-summary still malformed after retry")
-                raise HTTPException(status_code=503, detail={"detail": "resume_generation_failed", "error": "Malformed output after retry"})
+                raise_service_unavailable("resume_generation_failed: Malformed output after retry")
     
     except requests.exceptions.RequestException as e:
         logger.error(f"Haiku call failed for resume meta-summary: {e}")
-        raise HTTPException(status_code=503, detail={"detail": "resume_generation_failed", "error": str(e)})
+        raise_service_unavailable("resume_generation_failed")
     
     # B.6: Write checkpoint via store_memory
     parent_ids = [c['id'] for c in selected_checkpoints]
@@ -1742,7 +1747,7 @@ VALUES
         return response
     except Exception as e:
         background_tasks.add_task(track_api_usage, tenant["id"], "/recall", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
-        raise HTTPException(500, detail="Recall failed. Please check your input and try again.")
+        raise_recall_failed()
 
 
 
@@ -1765,15 +1770,15 @@ async def feedback_endpoint(req: FeedbackRequest, tenant: dict = Depends(require
     # Validate feedback_type
     valid_types = {'used', 'ignored', 'contradicted', 'miss'}
     if req.feedback_type not in valid_types:
-        raise HTTPException(400, f"feedback_type must be one of {valid_types}")
+        raise_validation_error(f"feedback_type must be one of {valid_types}")
     
     # For non-miss feedback, memory_id is required
     if req.feedback_type != 'miss' and not req.memory_id:
-        raise HTTPException(400, f"memory_id required for feedback_type={req.feedback_type}")
+        raise_validation_error(f"memory_id required for feedback_type={req.feedback_type}")
     
     # For miss feedback, context is required
     if req.feedback_type == 'miss' and not req.context:
-        raise HTTPException(400, "context required for feedback_type=miss")
+        raise_validation_error("context required for feedback_type=miss")
     
     # Auto-resolve agent_id if not provided
     agent_id = auto_resolve_agent_id(tenant["id"], req.agent_id)
@@ -1819,7 +1824,7 @@ async def feedback_endpoint(req: FeedbackRequest, tenant: dict = Depends(require
             
     except Exception as e:
         logger.error(f"Feedback endpoint failed: {e}")
-        raise HTTPException(500, f"Failed to record feedback: {str(e)}")
+        raise_service_unavailable(f"Failed to record feedback: {str(e)}")
 
 @app.get("/memories", response_model=list[MemoryItem])
 async def list_memories(
@@ -1871,7 +1876,7 @@ async def list_memories(
         return items
     except Exception as e:
         track_api_usage(tenant["id"], "/memories", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
-        raise HTTPException(500, detail="Failed to list memories. Please try again.")
+        raise_service_unavailable("Failed to list memories. Please try again.")
 
 
 @app.delete("/memories/{memory_id}")
@@ -1884,7 +1889,7 @@ async def delete_memory(memory_id: str, tenant: dict = Depends(require_api_key))
             RETURNING id
         """, (memory_id, tenant["id"]), tenant_id=tenant["id"])
         if not rows:
-            raise HTTPException(404, detail="Memory not found")
+            raise_not_found("Memory")
         
         # Clean up entity index and edges
         _db_execute_rows("""
@@ -1906,7 +1911,7 @@ async def delete_memory(memory_id: str, tenant: dict = Depends(require_api_key))
     except HTTPException:
         raise
     except Exception:
-        raise HTTPException(500, detail="Failed to delete memory.")
+        raise_service_unavailable("Failed to delete memory.")
 
 
 @app.get("/memories/search")
@@ -1943,7 +1948,7 @@ async def search_memories(
             })
         return results
     except Exception:
-        raise HTTPException(500, detail="Search failed.")
+        raise_service_unavailable("Search failed")
 
 
 class BatchExtractItem(BaseModel):
@@ -2099,7 +2104,7 @@ async def bulk_import_endpoint(req: BulkImportRequest, tenant: dict = Depends(re
     """, (tenant["id"],), tenant_id=tenant["id"])
     current_count = int(count_rows[0][0]) if count_rows else 0
     if current_count >= tenant["memory_limit"]:
-        raise HTTPException(429, detail=f"Memory limit reached ({tenant['memory_limit']}). Upgrade plan or delete old memories.")
+        raise_memory_limit(tenant[memory_limit])
     
     # Chunk the content
     chunks = _chunk_text(req.content)
@@ -2180,7 +2185,7 @@ async def thread_import_endpoint(req: ThreadImportRequest, tenant: dict = Depend
     """, (tenant["id"],), tenant_id=tenant["id"])
     current_count = int(count_rows[0][0]) if count_rows else 0
     if current_count >= tenant["memory_limit"]:
-        raise HTTPException(429, detail=f"Memory limit reached ({tenant['memory_limit']}). Upgrade plan or delete old memories.")
+        raise_memory_limit(tenant[memory_limit])
     
     # Pair human+assistant turns
     turns_processed = 0
@@ -2328,11 +2333,7 @@ def _check_demo_rate_limit(client_ip: str, max_per_hour: int = 5):
                 r.expire(key, 3600)
             if count > max_per_hour:
                 ttl = max(r.ttl(key), 1)
-                raise HTTPException(
-                    status_code=429,
-                    detail=f"Demo rate limit exceeded ({max_per_hour} requests/hour). Try again in {ttl}s.",
-                    headers={"Retry-After": str(ttl)},
-                )
+                raise_memory_limit(max_per_hour, retry_after=ttl)
             return
         except HTTPException:
             raise
@@ -2343,7 +2344,7 @@ def _check_demo_rate_limit(client_ip: str, max_per_hour: int = 5):
     window = _demo_rate_limits.setdefault(client_ip, [])
     _demo_rate_limits[client_ip] = [t for t in window if now - t < 3600]
     if len(_demo_rate_limits[client_ip]) >= max_per_hour:
-        raise HTTPException(429, detail=f"Demo rate limit exceeded ({max_per_hour} requests/hour). Try again later.")
+        raise_memory_limit(max_per_hour)
     _demo_rate_limits[client_ip].append(now)
 
 _demo_rate_limits: dict[str, list[float]] = {}
@@ -2386,7 +2387,7 @@ async def demo_extract_endpoint(req: DemoExtractRequest, request: Request):
         }
     except Exception as e:
         logger.error(f"Demo extraction failed: {e}")
-        raise HTTPException(500, detail="Extraction failed. Please try again.")
+        raise_extraction_failed()
 
 
 @app.api_route("/health", methods=["GET", "HEAD"], response_model=HealthResponse)
@@ -2503,7 +2504,7 @@ async def graph_entity_endpoint(
         return result
     except Exception as e:
         logger.error(f"Graph query failed: {e}")
-        raise HTTPException(500, detail="Graph query failed. Check agent_id and entity name.")
+        raise_service_unavailable("Graph query failed. Check agent_id and entity name.")
 
 
 @app.get("/graph/entities")
@@ -2517,7 +2518,7 @@ async def graph_entities_endpoint(
     try:
         return list_entities(agent_id, entity_type=entity_type, limit=limit, tenant_id=tenant["id"])
     except Exception as e:
-        raise HTTPException(500, detail="Failed to list entities.")
+        raise_service_unavailable("Failed to list entities.")
 
 
 @app.get("/graph/entity/memories")
@@ -2531,7 +2532,7 @@ async def graph_entity_memories_endpoint(
     try:
         return get_entity_memories(agent_id, entity, limit=limit, tenant_id=tenant["id"])
     except Exception as e:
-        raise HTTPException(500, detail="Failed to retrieve entity memories.")
+        raise_service_unavailable("Failed to retrieve entity memories.")
 
 
 @app.get("/graph/path")
@@ -2547,7 +2548,7 @@ async def graph_path_endpoint(
         path = find_path(agent_id, source, target, max_depth=max_depth, tenant_id=tenant["id"])
         return {"source": source, "target": target, "path": path, "hops": len(path) - 1 if path else 0}
     except Exception as e:
-        raise HTTPException(500, detail="Path query failed.")
+        raise_service_unavailable("Path query failed")
 
 
 # === MEMORY VERSIONING ENDPOINTS ===
@@ -2561,7 +2562,7 @@ async def memory_history_endpoint(
     try:
         return get_history(memory_id, tenant["id"])
     except Exception as e:
-        raise HTTPException(500, detail="Failed to retrieve memory history.")
+        raise_service_unavailable("Failed to retrieve memory history.")
 
 
 def _fetch_memory_row(memory_id: str, tenant_id: str) -> Optional[dict]:
@@ -2633,13 +2634,13 @@ async def get_memory_source(memory_id: str, tenant: dict = Depends(require_api_k
     try:
         uuid.UUID(memory_id)
     except ValueError:
-        raise HTTPException(422, detail="memory_id must be a valid UUID")
+        raise_validation_error("memory_id must be a valid UUID")
 
     tenant_id = tenant["id"]
     row = _fetch_memory_row(memory_id, tenant_id)
     if not row:
         logger.warning(f"Memory source not found: {memory_id} tenant={tenant_id}")
-        raise HTTPException(404, detail="Memory not found")
+        raise_not_found("Memory")
 
     if row["memory_type"] == "raw_turn":
         logger.info(f"Memory source fetched (verbatim): {memory_id} tenant={tenant_id}")
@@ -2713,7 +2714,7 @@ async def update_memory_endpoint(
                 params.append(body[field])
         
         if not updates:
-            raise HTTPException(400, detail="No valid fields to update")
+            raise_validation_error("No valid fields to update")
         
         params.extend([memory_id, tenant["id"]])
         query = f"""
@@ -2725,7 +2726,7 @@ async def update_memory_endpoint(
         rows = _db_execute_rows(query, tuple(params), tenant_id=tenant["id"])
         
         if not rows:
-            raise HTTPException(404, detail="Memory not found")
+            raise_not_found("Memory")
         
         # Trigger webhook
         trigger_event(tenant["id"], "memory.updated", {
@@ -2737,7 +2738,7 @@ async def update_memory_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, detail="Memory update failed.")
+        raise_service_unavailable("Memory update failed")
 
 
 # === WEBHOOK ENDPOINTS ===
@@ -2758,7 +2759,7 @@ async def create_criteria_endpoint(req: CriteriaRequest, tenant: dict = Depends(
         return _create_criteria(tenant["id"], req.agent_id, req.name, req.weight,
                                req.description, req.scoring_prompt)
     except Exception as e:
-        raise HTTPException(500, detail="Criteria creation failed.")
+        raise_service_unavailable("Criteria creation failed")
 
 
 @app.get("/criteria")
@@ -2775,7 +2776,7 @@ async def delete_criteria_endpoint(criteria_id: str, tenant: dict = Depends(requ
     """Delete a criteria."""
     if _delete_criteria(tenant["id"], criteria_id):
         return {"deleted": criteria_id}
-    raise HTTPException(404, detail="Criteria not found")
+    raise_not_found("Criteria not found")
 
 
 # === SCHEMA ENDPOINTS ===
@@ -2794,7 +2795,7 @@ async def create_schema_endpoint(req: SchemaRequest, tenant: dict = Depends(requ
     try:
         return _create_schema(tenant["id"], req.name, req.schema_definition, req.extraction_prompt)
     except Exception as e:
-        raise HTTPException(500, detail="Schema creation failed.")
+        raise_service_unavailable("Schema creation failed")
 
 
 @app.get("/schemas")
@@ -2808,7 +2809,7 @@ async def delete_schema_endpoint(schema_id: str, tenant: dict = Depends(require_
     """Delete a schema."""
     if _delete_schema(tenant["id"], schema_id):
         return {"deleted": schema_id}
-    raise HTTPException(404, detail="Schema not found")
+    raise_not_found("Schema not found")
 
 
 # === BATCH OPERATION ENDPOINTS ===
@@ -2858,7 +2859,7 @@ async def redact_memory(
         
         # Validate reason is non-empty string
         if not reason or not isinstance(reason, str):
-            raise HTTPException(422, detail="Field 'reason' is required and must be a non-empty string")
+            raise_validation_error("Field 'reason' is required and must be a non-empty string")
         
         # Validate memory exists in this tenant's namespace
         from src.storage_multitenant import _get_connection_pool
@@ -2875,7 +2876,7 @@ async def redact_memory(
                 (memory_id, tenant["id"])
             )
             if not cur.fetchone():
-                raise HTTPException(404, detail=f"Memory {memory_id} not found")
+                raise_not_found("Memory")
             
             # Call transition_source_state - it handles cascade
             result = transition_source_state(
@@ -2913,7 +2914,7 @@ async def redact_memory(
         raise
     except Exception as e:
         logger.error(f"Redaction failed for {memory_id}: {e}")
-        raise HTTPException(500, detail=f"Redaction failed: {str(e)}")
+        raise_service_unavailable(f"Redaction failed: {str(e)}")
 
 
 @app.get("/audit/events")
@@ -2937,13 +2938,7 @@ async def get_audit_events(
     # Tier gate: Enterprise only
     tenant_tier = tenant.get("plan", "free")
     if tenant_tier not in ["enterprise"]:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "audit_read_requires_enterprise",
-                "tenant_tier": tenant_tier
-            }
-        )
+        raise_forbidden("audit_read_requires_enterprise")
     
     # Clamp limit to hard max of 500
     effective_limit = min(limit, 500)
@@ -2957,7 +2952,7 @@ async def get_audit_events(
             cursor_occurred_at = cursor_data.get('occurred_at')
             cursor_id = cursor_data.get('id')
         except Exception:
-            raise HTTPException(status_code=400, detail={"error": "invalid_cursor"})
+            raise_validation_error("invalid_cursor")
     
     # Build query
     conditions = ["tenant_id = %s"]
@@ -2987,7 +2982,7 @@ async def get_audit_events(
             conditions.append("occurred_at >= %s::timestamptz")
             params.append(since)
         except ValueError:
-            raise HTTPException(status_code=400, detail={"error": "invalid_since_format", "expected": "ISO 8601"})
+            raise_validation_error("invalid_since_format")
     
     # Filter by until (occurred_at <= until)
     if until:
@@ -2996,7 +2991,7 @@ async def get_audit_events(
             conditions.append("occurred_at <= %s::timestamptz")
             params.append(until)
         except ValueError:
-            raise HTTPException(status_code=400, detail={"error": "invalid_until_format", "expected": "ISO 8601"})
+            raise_validation_error("invalid_until_format")
     
     # Cursor pagination: continue from last row
     if cursor_occurred_at and cursor_id:
@@ -3019,7 +3014,7 @@ async def get_audit_events(
         rows = _db_execute_rows(query, tuple(params), tenant_id=tenant["id"])
     except Exception as e:
         logger.error(f"Audit events query failed: {e}")
-        raise HTTPException(status_code=500, detail={"error": "query_failed"})
+        raise_service_unavailable("error: query_failed")
     
     # Process results
     events = []
@@ -3132,7 +3127,7 @@ async def store_org_memory_endpoint(req: OrgMemoryRequest, tenant: dict = Depend
     """Store an organization-level shared memory."""
     org_id = get_tenant_org(tenant["id"])
     if not org_id:
-        raise HTTPException(403, detail="Tenant not part of an organization. Contact admin to set up org.")
+        raise_forbidden("Tenant not part of an organization. Contact admin to set up org.")
     
     try:
         mem_id = store_org_memory(
@@ -3148,7 +3143,7 @@ async def store_org_memory_endpoint(req: OrgMemoryRequest, tenant: dict = Depend
         )
         return {"id": mem_id, "org_id": org_id}
     except Exception as e:
-        raise HTTPException(500, detail="Failed to store org memory.")
+        raise_service_unavailable("Failed to store org memory.")
 
 
 @app.get("/org/memories")
@@ -3160,7 +3155,7 @@ async def list_org_memories_endpoint(
     """List org-level memories."""
     org_id = get_tenant_org(tenant["id"])
     if not org_id:
-        raise HTTPException(403, detail="Tenant not part of an organization")
+        raise_forbidden("Tenant not part of an organization")
     return list_org_memories(org_id, limit=limit, offset=offset)
 
 
@@ -3173,7 +3168,7 @@ async def recall_org_memories_endpoint(
     """Recall relevant org-level memories by semantic search."""
     org_id = get_tenant_org(tenant["id"])
     if not org_id:
-        raise HTTPException(403, detail="Tenant not part of an organization")
+        raise_forbidden("Tenant not part of an organization")
     return recall_org_memories(org_id, query=q, limit=limit)
 
 
@@ -3184,9 +3179,9 @@ async def promote_to_org_endpoint(memory_id: str, tenant: dict = Depends(require
         org_mem_id = promote_to_org(tenant["id"], memory_id)
         return {"promoted": memory_id, "org_memory_id": org_mem_id}
     except ValueError as e:
-        raise HTTPException(400, detail=str(e))
+        raise_validation_error(str(e))
     except Exception as e:
-        raise HTTPException(500, detail="Memory promotion failed.")
+        raise_service_unavailable("Memory promotion failed")
 
 
 @app.delete("/org/memories/{memory_id}")
@@ -3194,10 +3189,10 @@ async def delete_org_memory_endpoint(memory_id: str, tenant: dict = Depends(requ
     """Delete an org memory."""
     org_id = get_tenant_org(tenant["id"])
     if not org_id:
-        raise HTTPException(403, detail="Tenant not part of an organization")
+        raise_forbidden("Tenant not part of an organization")
     if delete_org_memory(org_id, memory_id):
         return {"deleted": memory_id}
-    raise HTTPException(404, detail="Org memory not found")
+    raise_not_found("Org memory not found")
 
 
 # === EXISTING ENDPOINTS ===
@@ -3295,7 +3290,7 @@ async def rotate_tenant_key(tenant: dict = Depends(require_api_key)):
         )
     except Exception as e:
         logger.error(f"Key rotation failed for tenant={tenant_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Key rotation failed. Try again or contact support.")
+        raise_service_unavailable("Key rotation failed. Try again or contact support.")
 
 
 
@@ -3330,7 +3325,7 @@ async def list_agents(tenant: dict = Depends(require_api_key)):
         return agents
     except Exception as e:
         track_api_usage(tenant["id"], "/agents", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
-        raise HTTPException(500, detail="Failed to list agents. Please try again.")
+        raise_service_unavailable("Failed to list agents. Please try again.")
 
 @app.get("/usage")
 async def get_usage(
@@ -3398,7 +3393,7 @@ async def create_api_key(req: CreateTenantRequest, admin: bool = Depends(require
         )
         return CreateTenantResponse(**tenant)
     except Exception as e:
-        raise HTTPException(500, detail="Failed to create tenant.")
+        raise_service_unavailable("Failed to create tenant.")
 
 
 class RotateKeyResponse(BaseModel):
@@ -3425,7 +3420,7 @@ async def rotate_api_key(tenant_id: str, admin: bool = Depends(require_admin_key
         """, (new_hash, new_key, tenant_id), tenant_id="00000000-0000-0000-0000-000000000000")
         
         if not rows:
-            raise HTTPException(404, detail="Tenant not found or inactive")
+            raise_not_found("Tenant")
         
         _invalidate_tenant_cache(tenant_id)
         logger.info(f"API key rotated for tenant {tenant_id}")
@@ -3437,7 +3432,7 @@ async def rotate_api_key(tenant_id: str, admin: bool = Depends(require_admin_key
     except HTTPException:
         raise
     except Exception:
-        raise HTTPException(500, detail="Failed to rotate key.")
+        raise_service_unavailable("Failed to rotate key.")
 
 
 @app.post("/admin/revoke-key/{tenant_id}")
@@ -3453,7 +3448,7 @@ async def revoke_api_key(tenant_id: str, admin: bool = Depends(require_admin_key
         """, (tenant_id,), tenant_id="00000000-0000-0000-0000-000000000000")
         
         if not rows:
-            raise HTTPException(404, detail="Tenant not found")
+            raise_not_found("Tenant")
         
         _invalidate_tenant_cache(tenant_id)
         logger.info(f"API key revoked (tenant deactivated) for {tenant_id}")
@@ -3461,7 +3456,7 @@ async def revoke_api_key(tenant_id: str, admin: bool = Depends(require_admin_key
     except HTTPException:
         raise
     except Exception:
-        raise HTTPException(500, detail="Failed to revoke key.")
+        raise_service_unavailable("Failed to revoke key.")
 
 
 @app.post("/admin/reactivate/{tenant_id}")
@@ -3477,7 +3472,7 @@ async def reactivate_tenant(tenant_id: str, admin: bool = Depends(require_admin_
         """, (tenant_id,), tenant_id="00000000-0000-0000-0000-000000000000")
         
         if not rows:
-            raise HTTPException(404, detail="Tenant not found")
+            raise_not_found("Tenant")
         
         _invalidate_tenant_cache(tenant_id)
         logger.info(f"Tenant reactivated: {tenant_id}")
@@ -3485,7 +3480,7 @@ async def reactivate_tenant(tenant_id: str, admin: bool = Depends(require_admin_
     except HTTPException:
         raise
     except Exception:
-        raise HTTPException(500, detail="Failed to reactivate tenant.")
+        raise_service_unavailable("Failed to reactivate tenant.")
 
 
 @app.get("/admin/tenants")
@@ -3512,7 +3507,7 @@ async def list_tenants(admin: bool = Depends(require_admin_key)):
             })
         return {"tenants": tenants}
     except Exception as e:
-        raise HTTPException(500, detail="Failed to list tenants.")
+        raise_service_unavailable("Failed to list tenants.")
 
 # Temporary admin endpoint to delete a user
 @app.delete("/admin/delete-user/{email}")
@@ -3531,7 +3526,7 @@ async def admin_delete_user(email: str):
         deleted = len(result)
         return {"deleted": deleted, "email": email}
     except Exception as e:
-        raise HTTPException(500, detail=str(e))
+        raise_service_unavailable(str(e))
 
 # Fix GitHub tenant API key
 # ──────────────────────────────────────────────────────────────────────────────
@@ -3571,13 +3566,7 @@ async def create_decision(
     try:
         if not is_feature_enabled(tenant["id"], "decision_journals", conn):
             tenant_tier = tenant.get("plan", "free")
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    "error": "decision_journals_enterprise_only",
-                    "tenant_tier": tenant_tier
-                }
-            )
+            raise_forbidden("decision_journals_enterprise_only")
         
         # Parse request body
         body = await request.json()
@@ -3586,10 +3575,7 @@ async def create_decision(
         required_fields = ["agent_id", "decision_text", "rationale", "headline", "context"]
         missing = [f for f in required_fields if not body.get(f)]
         if missing:
-            raise HTTPException(
-                status_code=422,
-                detail={"error": "missing_required_fields", "missing": missing}
-            )
+            raise_validation_error(f"Missing required fields: {missing}")
         
         # Extract fields
         agent_id = body["agent_id"]
@@ -3605,11 +3591,11 @@ async def create_decision(
         
         # Validate types
         if not isinstance(alternatives_considered, list):
-            raise HTTPException(422, detail="alternatives_considered must be an array")
+            raise_validation_error("alternatives_considered must be an array")
         if not isinstance(importance, (int, float)) or not (0.0 <= importance <= 1.0):
-            raise HTTPException(422, detail="importance must be a number between 0.0 and 1.0")
+            raise_validation_error("importance must be a number between 0.0 and 1.0")
         if not isinstance(metadata, dict):
-            raise HTTPException(422, detail="metadata must be an object")
+            raise_validation_error("metadata must be an object")
         
         # Insert decision memory
         import uuid
@@ -3642,7 +3628,7 @@ async def create_decision(
         )
         result = cur.fetchone()
         if not result:
-            raise HTTPException(500, detail="Failed to create decision memory")
+            raise_service_unavailable("Failed to create decision memory")
         
         created_memory_id = str(result[0])
         
@@ -3685,7 +3671,7 @@ async def create_decision(
     except Exception as e:
         conn.rollback()
         logger.error(f"Decision creation failed: {e}")
-        raise HTTPException(500, detail=str(e))
+        raise_service_unavailable(str(e))
     finally:
         pool.putconn(conn)
 
@@ -3714,20 +3700,14 @@ async def update_decision_outcome(
     try:
         if not is_feature_enabled(tenant["id"], "decision_journals", conn):
             tenant_tier = tenant.get("plan", "free")
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    "error": "decision_journals_enterprise_only",
-                    "tenant_tier": tenant_tier
-                }
-            )
+            raise_forbidden("decision_journals_enterprise_only")
         
         # Parse request body
         body = await request.json()
         actual_outcome = body.get("actual_outcome")
         
         if not actual_outcome or not isinstance(actual_outcome, str):
-            raise HTTPException(422, detail="Field 'actual_outcome' is required and must be a non-empty string")
+            raise_validation_error("Field 'actual_outcome' is required and must be a non-empty string")
         
         # Fetch memory and validate
         cur = conn.cursor()
@@ -3742,12 +3722,12 @@ async def update_decision_outcome(
         row = cur.fetchone()
         
         if not row:
-            raise HTTPException(404, detail=f"Memory {memory_id} not found")
+            raise_not_found("Memory")
         
         memory_type, old_outcome, agent_id = row[1], row[2], row[3]
         
         if memory_type != 'decision':
-            raise HTTPException(400, detail="Memory is not a decision (memory_type must be 'decision')")
+            raise_validation_error("Memory is not a decision (memory_type must be 'decision')")
         
         # Update actual_outcome
         cur.execute(
@@ -3761,7 +3741,7 @@ async def update_decision_outcome(
         )
         updated_row = cur.fetchone()
         if not updated_row:
-            raise HTTPException(500, detail="Failed to update actual_outcome")
+            raise_service_unavailable("Failed to update actual_outcome")
         
         updated_at = updated_row[0]
         
@@ -3804,7 +3784,7 @@ async def update_decision_outcome(
     except Exception as e:
         conn.rollback()
         logger.error(f"Decision outcome update failed: {e}")
-        raise HTTPException(500, detail=str(e))
+        raise_service_unavailable(str(e))
     finally:
         pool.putconn(conn)
 
@@ -3843,9 +3823,9 @@ def synthesis_run(req: SynthesisRunRequest, tenant=Depends(require_api_key)):
                 pool.putconn(conn2)
             
             if tier == "free":
-                raise HTTPException(status_code=403, detail=reason)
+                raise_forbidden(reason)
             else:
-                raise HTTPException(status_code=429, detail=reason)
+                raise_memory_limit(tenant.get("memory_limit", 10000))
         # Run synthesis via orchestrator
         max_clusters = min(req.max_clusters or 5, 10)  # Cap at 10
         result = run_synthesis_for_tenant(
@@ -3866,7 +3846,7 @@ def synthesis_run(req: SynthesisRunRequest, tenant=Depends(require_api_key)):
         raise
     except Exception as e:
         logger.error(f"Synthesis run failed: {e}")
-        raise HTTPException(status_code=500, detail="Synthesis failed")
+        raise_service_unavailable("Synthesis failed")
 
 
 @app.post("/admin/fix-github-tenant")
@@ -3910,7 +3890,7 @@ async def run_resynthesis(
         
     except Exception as e:
         logger.error(f"Resynthesis worker failed for tenant {tenant['id']}: {e}")
-        raise HTTPException(500, detail=f"Resynthesis worker failed: {str(e)}")
+        raise_service_unavailable(f"Resynthesis worker failed: {str(e)}")
 
 
 
@@ -3934,10 +3914,7 @@ def patterns_run(tenant=Depends(require_api_key)):
             tier_matrix = tier_gates.TIER_MATRIX.get(tier, {})
             
             if not tier_matrix.get("pattern_extraction_enabled", False):
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"{tier.capitalize()} tier does not have access to pattern extraction"
-                )
+                raise_forbidden(f"{tier.capitalize()} tier does not have access to pattern extraction")
             
             # Check rate limit (pattern extraction shares synthesis quota)
             allowed, reason = tier_gates.check_synthesis_quota(
@@ -3955,10 +3932,7 @@ def patterns_run(tenant=Depends(require_api_key)):
                 used = row[0] if row else 0
                 limit = tier_matrix["manual_runs_per_month"]
                 
-                raise HTTPException(
-                    status_code=429,
-                    detail={"error": "rate_limit_exceeded", "tier": tier, "limit": limit, "used": used}
-                )
+                raise_memory_limit(limit, current=used)
         finally:
             pool.putconn(conn)
         
@@ -4003,7 +3977,7 @@ def patterns_run(tenant=Depends(require_api_key)):
         raise
     except Exception as e:
         logger.error(f"Pattern extraction failed: {e}")
-        raise HTTPException(status_code=500, detail="Pattern extraction failed")
+        raise_service_unavailable("Pattern extraction failed")
 
 
 
@@ -4083,7 +4057,7 @@ async def oauth_device_code(request: Request):
         )
     except Exception as e:
         logger.error(f"oauth_device_code failed: {e}")
-        raise HTTPException(500, detail="Failed to generate device code")
+        raise_service_unavailable("Failed to generate device code")
 
 @app.post("/oauth/device/token")
 async def oauth_device_token(body: DeviceTokenRequest):
@@ -4111,19 +4085,19 @@ async def oauth_device_token(body: DeviceTokenRequest):
         
         if not rows:
             logger.warning(f"oauth_device_token invalid_grant device_code={body.device_code[:8]}...")
-            raise HTTPException(400, detail={"error": "invalid_grant"})
+            raise_validation_error("Invalid grant")
         
         user_code, tenant_id, approved_at, expires_at = rows[0]
         
         # Check expiration
         if datetime.now(timezone.utc) > expires_at:
             logger.warning(f"oauth_device_token expired user_code={user_code}")
-            raise HTTPException(400, detail={"error": "expired_token"})
+            raise_validation_error("Token expired")
         
         # Check if approved
         if not approved_at:
             # Still pending approval
-            raise HTTPException(400, detail={"error": "authorization_pending"})
+            raise_validation_error("Authorization pending")
         
         # Approved! Fetch the tenant's API key
         tenant_rows = _db_execute_rows(
@@ -4138,7 +4112,7 @@ async def oauth_device_token(body: DeviceTokenRequest):
         
         if not tenant_rows:
             logger.error(f"oauth_device_token approved but tenant not found tenant_id={tenant_id}")
-            raise HTTPException(500, detail="Internal error: tenant not found")
+            raise_service_unavailable("Internal error: tenant not found")
         
         api_key_live = tenant_rows[0][0]
         
@@ -4153,7 +4127,7 @@ async def oauth_device_token(body: DeviceTokenRequest):
         raise
     except Exception as e:
         logger.error(f"oauth_device_token failed: {e}")
-        raise HTTPException(500, detail="Failed to process token request")
+        raise_service_unavailable("Failed to process token request")
 
 class DeviceApproveRequest(BaseModel):
     user_code: str
@@ -4181,19 +4155,19 @@ async def oauth_device_approve(body: DeviceApproveRequest, request: Request, ten
         
         if not rows:
             logger.warning(f"oauth_device_approve invalid_code user_code={user_code}")
-            raise HTTPException(400, detail={"error": "invalid_code"})
+            raise_validation_error("Invalid code")
         
         device_code, expires_at, approved_at = rows[0]
         
         # Check expiration
         if datetime.now(timezone.utc) > expires_at:
             logger.warning(f"oauth_device_approve expired user_code={user_code}")
-            raise HTTPException(400, detail={"error": "invalid_code"})
+            raise_validation_error("Invalid code")
         
         # Check if already approved
         if approved_at:
             logger.warning(f"oauth_device_approve already_approved user_code={user_code}")
-            raise HTTPException(400, detail={"error": "already_approved"})
+            raise_validation_error("Already approved")
         
         # Approve it: set approved_at and tenant_id
         _db_execute_rows(
@@ -4215,17 +4189,14 @@ async def oauth_device_approve(body: DeviceApproveRequest, request: Request, ten
         raise
     except Exception as e:
         logger.error(f"oauth_device_approve failed: {e}")
-        raise HTTPException(500, detail="Failed to approve device")
+        raise_service_unavailable("Failed to approve device")
 
 
 # CP10 P1 / CP9.1.2: Bearer token auth for OAuth device-code flow
 async def require_bearer_token(authorization: str = Header(None)):
     """Dependency that validates Bearer token from OAuth device-code flow."""
     if not authorization or not authorization.startswith('Bearer '):
-        raise HTTPException(
-            status_code=401,
-            detail="Missing or invalid Authorization header. Expected 'Bearer <token>'."
-        )
+        raise_invalid_api_key("missing")
     
     token = authorization[7:]  # Remove 'Bearer ' prefix
     
@@ -4237,10 +4208,7 @@ async def require_bearer_token(authorization: str = Header(None)):
     """, (token,), tenant_id="00000000-0000-0000-0000-000000000000")
     
     if not rows:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired bearer token"
-        )
+        raise_invalid_api_key("invalid")
     
     tenant = {
         "id": rows[0][0],
@@ -4356,4 +4324,4 @@ async def write_atom(
     
     except Exception as e:
         print(f"Error writing atom: {e}", file=sys.stderr)
-        raise HTTPException(status_code=400, detail="Database operation failed. Please try again.")
+        raise_validation_error("Database operation failed. Please try again.")

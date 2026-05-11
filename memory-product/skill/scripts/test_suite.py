@@ -54,7 +54,7 @@ def test_schema_exists():
 def test_extraction():
     os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
     from extraction import extract_memories
-    memories = extract_memories(
+    memories, raw_turn_id = extract_memories(
         human_message="My name is Alex and I work at Acme Corp. My dog's name is Biscuit.",
         agent_message="Nice to meet you, Alex! Acme Corp sounds interesting. And Biscuit is a great name for a dog.",
         agent_id="test_agent",
@@ -75,7 +75,7 @@ def test_storage_and_dedup():
     # Clean up any previous test data
     _db_execute("DELETE FROM memory_service.memories WHERE agent_id = 'test_agent'")
     
-    memories = extract_memories(
+    memories, raw_turn_id = extract_memories(
         human_message="I prefer dark mode in all my applications.",
         agent_message="I'll remember that — dark mode everywhere.",
         agent_id="test_agent",
@@ -173,7 +173,7 @@ def test_contradiction():
 def test_list_preservation():
     from extraction import extract_memories
     
-    memories = extract_memories(
+    memories, raw_turn_id = extract_memories(
         human_message="""Here's our launch checklist:
 1. Test the installer
 2. Write documentation

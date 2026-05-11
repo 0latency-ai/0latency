@@ -44,7 +44,7 @@ class GeminiWithMemory:
     def _get_headers(self) -> Dict[str, str]:
         """Get headers for 0Latency API calls"""
         return {
-            "X-API-Key": self.zl_api_key,
+            "Authorization": f"Bearer {self.zl_api_key}",
             "Content-Type": "application/json",
         }
     

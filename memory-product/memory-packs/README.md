@@ -36,7 +36,7 @@ PACK=$(cat memory-packs/saas-founder.json)
 AGENT_ID="my-agent"
 
 curl -X POST https://api.0latency.ai/memories/seed \
-  -H "X-API-Key: $ZERO_LATENCY_API_KEY" \
+  -H "Authorization: Bearer $ZERO_LATENCY_API_KEY" \
   -H "Content-Type: application/json" \
   -d "{\"agent_id\": \"$AGENT_ID\", \"facts\": $(echo $PACK | jq '.facts')}"
 ```
