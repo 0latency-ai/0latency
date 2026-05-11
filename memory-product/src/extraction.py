@@ -140,6 +140,8 @@ def _call_anthropic(prompt: str) -> str:
     resp.raise_for_status()
     
     result = resp.json()
+    if not result.get("content"):
+        return "[]"
     return result["content"][0]["text"]
 
 

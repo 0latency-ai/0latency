@@ -222,7 +222,7 @@ class LongMemEvalRunner:
         """Generate answer from recalled context."""
         if not context:
             return "I don't have enough information to answer that."
-        return context[:500]
+        return context
     
     def estimate_cost(self, questions_processed: int, total_questions: int):
         """Estimate total cost for full run based on smoke test."""
