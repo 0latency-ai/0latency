@@ -44,15 +44,15 @@ check_error_envelope() {
     local test_name="$3"
 
     # Check for error object
-    if ! echo "$response" | jq -e '.error' > /dev/null 2>&1; then
+    if ! echo "$response" | jq -e '.detail.error' > /dev/null 2>&1; then
         fail "$test_name: Missing 'error' object in response"
     fi
 
     # Check for required fields
-    local code=$(echo "$response" | jq -r '.error.code')
-    local message=$(echo "$response" | jq -r '.error.message')
-    local hint=$(echo "$response" | jq -r '.error.hint')
-    local docs_url=$(echo "$response" | jq -r '.error.docs_url')
+    local code=$(echo "$response" | jq -r '.detail.error.code')
+    local message=$(echo "$response" | jq -r '.detail.error.message')
+    local hint=$(echo "$response" | jq -r '.detail.error.hint')
+    local docs_url=$(echo "$response" | jq -r '.detail.error.docs_url')
 
     if [ "$code" = "null" ] || [ -z "$code" ]; then
         fail "$test_name: Missing error.code"
@@ -151,7 +151,7 @@ if [ -n "$VALID_API_KEY" ]; then
     fi
 
     # Check if response has error envelope (may be FastAPI validation format)
-    if echo "$body" | jq -e '.error' > /dev/null 2>&1; then
+    if echo "$body" | jq -e '.detail.error' > /dev/null 2>&1; then
         check_error_envelope "$body" "" "Test 4"
     else
         info "Test 4: Response uses FastAPI validation format (not custom envelope)"

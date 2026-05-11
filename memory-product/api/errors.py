@@ -33,7 +33,7 @@ class APIError:
             "docs_url": self.docs_url
         }
         error_data.update(extra)
-        return {"error": error_data}
+        return error_data
 
 
 # ============================================================================
@@ -137,7 +137,7 @@ def raise_api_error(
     if request_id:
         extra_fields["request_id"] = request_id
     
-    detail = error.to_dict(**extra_fields)
+    detail = {"error": error.to_dict(**extra_fields)}
     if headers:
         raise HTTPException(status_code=status_code, detail=detail, headers=headers)
     else:
