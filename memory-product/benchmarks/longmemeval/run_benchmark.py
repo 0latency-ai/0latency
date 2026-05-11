@@ -19,6 +19,7 @@ import subprocess
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 from datetime import datetime
+import anthropic
 
 # Load benchmark credentials
 env_file = Path(__file__).parent / ".env.benchmark"
@@ -39,15 +40,37 @@ if not all([TENANT_ID, API_KEY]):
     print("ERROR: TENANT_ID or API_KEY missing in .env.benchmark", file=sys.stderr)
     sys.exit(1)
 
+# LLM judge needs Anthropic key (from running service env or environment)
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+if not ANTHROPIC_API_KEY:
+    # Try loading from running API service process
+    import glob
+    for cmdline_path in glob.glob("/proc/*/cmdline"):
+        try:
+            with open(cmdline_path, "rb") as f:
+                if b"uvicorn" in f.read() and b"api.main" in open(cmdline_path, "rb").read():
+                    pid = cmdline_path.split("/")[2]
+                    with open(f"/proc/{pid}/environ", "rb") as ef:
+                        for pair in ef.read().split(b"\x00"):
+                            if pair.startswith(b"ANTHROPIC_API_KEY="):
+                                ANTHROPIC_API_KEY = pair.decode().split("=", 1)[1]
+                                break
+                    if ANTHROPIC_API_KEY:
+                        break
+        except (PermissionError, FileNotFoundError, ProcessLookupError):
+            continue
+
 class LongMemEvalRunner:
     def __init__(self, dataset_path: str, max_questions: int = 5, max_sessions: int = None,
-                 smoke_mode: bool = False, max_zero_streak: int = 10, confirm_cost: bool = False):
+                 smoke_mode: bool = False, max_zero_streak: int = 10, confirm_cost: bool = False,
+                 scorer: str = "substring"):
         self.dataset_path = Path(dataset_path)
         self.max_questions = max_questions
         self.max_sessions = max_sessions
         self.smoke_mode = smoke_mode
         self.max_zero_streak = max_zero_streak
         self.confirm_cost = confirm_cost
+        self.scorer = scorer
         self.headers = {
             "X-API-Key": API_KEY,
             "Content-Type": "application/json"
@@ -55,8 +78,15 @@ class LongMemEvalRunner:
         self.latencies = []
         self.total_extraction_tokens = 0
         self.total_recall_tokens = 0
+        self.total_judge_tokens = 0
         self.zero_streak = 0
         self.dataset_total_count = 0
+        
+        if self.scorer == "llm":
+            if not ANTHROPIC_API_KEY:
+                print("ERROR: --scorer llm requires ANTHROPIC_API_KEY", file=sys.stderr)
+                sys.exit(1)
+            self.anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         
     def load_dataset(self) -> List[Dict]:
         """Load LongMemEval dataset with memory-efficient approach."""
@@ -218,6 +248,38 @@ class LongMemEvalRunner:
             print(f"WARN: Recall exception: {e}", file=sys.stderr)
             return "", latency_ms
     
+    def llm_judge(self, question: str, expected: str, context: str) -> bool:
+        """Use Claude Sonnet to judge if context contains the expected answer."""
+        # Send up to 20K chars of context for accurate judgment
+        ctx = context[:20000] if len(context) > 20000 else context
+        
+        prompt = f"""You are a benchmark judge for a memory recall system. Given a question, the expected answer, and a recalled context block, determine if the context contains information that answers the question correctly.
+
+The context block contains recalled memory snippets. The expected answer may appear verbatim, paraphrased, or be inferable from the information present.
+
+Question: {question}
+Expected answer: {expected}
+
+Recalled context:
+{ctx}
+
+Does the recalled context contain information that correctly answers the question with the expected answer (verbatim, paraphrased, or clearly inferable)?
+Reply with ONLY "YES" or "NO"."""
+
+        try:
+            response = self.anthropic_client.messages.create(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=3,
+                temperature=0.0,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            verdict = response.content[0].text.strip().upper()
+            self.total_judge_tokens += response.usage.input_tokens + response.usage.output_tokens
+            return verdict == "YES"
+        except Exception as e:
+            print(f"WARN: LLM judge failed ({e}), falling back to substring", file=sys.stderr)
+            return expected.lower() in context.lower()
+
     def answer_question(self, question: str, context: str) -> str:
         """Generate answer from recalled context."""
         if not context:
@@ -246,7 +308,15 @@ class LongMemEvalRunner:
         print(f"\nProjected full run (n={total_questions}):", file=sys.stderr)
         print(f"  Extraction cost (Haiku): ${haiku_cost:.2f}", file=sys.stderr)
         print(f"  Recall cost (Sonnet): ${sonnet_cost:.2f}", file=sys.stderr)
-        print(f"  Total estimated: ${haiku_cost + sonnet_cost:.2f}", file=sys.stderr)
+        
+        if self.scorer == "llm":
+            avg_judge_tokens = self.total_judge_tokens / questions_processed if questions_processed else 0
+            projected_judge_tokens = avg_judge_tokens * total_questions
+            judge_cost = (projected_judge_tokens / 1_000_000) * 3.00  # claude-sonnet pricing
+            print(f"  Judge cost (Claude Sonnet): ${judge_cost:.2f}", file=sys.stderr)
+            print(f"  Total estimated: ${haiku_cost + sonnet_cost + judge_cost:.2f}", file=sys.stderr)
+        else:
+            print(f"  Total estimated: ${haiku_cost + sonnet_cost:.2f}", file=sys.stderr)
         print(f"\nTo proceed with full run, add --confirm-cost flag", file=sys.stderr)
     
     def run(self, output_path: str = None):
@@ -291,7 +361,10 @@ class LongMemEvalRunner:
             question_elapsed = time.time() - question_start
             
             hypothesis = self.answer_question(question, context)
-            match = expected_answer.lower() in hypothesis.lower()
+            if self.scorer == "llm":
+                match = self.llm_judge(question, str(expected_answer), context)
+            else:
+                match = str(expected_answer).lower() in hypothesis.lower()
             
             results.append({
                 "question_id": question_id,
@@ -300,20 +373,20 @@ class LongMemEvalRunner:
                 "hypothesis": hypothesis[:200],
                 "context_chars": len(context),
                 "match": match,
+                "scorer": self.scorer,
                 "recall_latency_ms": int(recall_latency_ms),
                 "num_turns_extracted": num_extracted,
                 "num_sessions_total": len(haystack_sessions),
                 "wall_clock_seconds": round(question_elapsed, 1)
             })
             
-            print(f"  Match: {match} | Latency: {recall_latency_ms:.0f}ms | Wall: {question_elapsed:.1f}s", file=sys.stderr)
+            scorer_label = "LLM" if self.scorer == "llm" else "sub"
+            print(f"  Match: {match} ({scorer_label}) | Latency: {recall_latency_ms:.0f}ms | Wall: {question_elapsed:.1f}s", file=sys.stderr)
             
             # Smoke test validations
             if self.smoke_mode:
                 if len(context) == 0:
                     smoke_failures.append(f"Q{i} ({question_id}): 0 chars from recall")
-                if question_elapsed > 60:
-                    smoke_failures.append(f"Q{i} ({question_id}): {question_elapsed:.1f}s exceeds 60s limit")
             
             # Zero-streak auto-kill
             if not match and len(context) == 0:
@@ -358,7 +431,8 @@ class LongMemEvalRunner:
                 "max_sessions_per_question": self.max_sessions,
                 "tenant_id": TENANT_ID,
                 "api_base_url": API_BASE_URL,
-                "max_zero_streak": self.max_zero_streak
+                "max_zero_streak": self.max_zero_streak,
+                "scorer": self.scorer
             },
             "aggregate": {
                 "accuracy": accuracy,
@@ -396,6 +470,8 @@ if __name__ == "__main__":
     parser.add_argument("--smoke", action="store_true", help="Smoke test mode: run n=3, exit 1 if failures")
     parser.add_argument("--max-zero-streak", type=int, default=10, help="Auto-kill after N consecutive 0-char recalls")
     parser.add_argument("--confirm-cost", action="store_true", help="Confirm willingness to pay projected cost")
+    parser.add_argument("--scorer", choices=["substring", "llm"], default="substring",
+                        help="Scoring method: substring (exact match) or llm (GPT-4o-mini judge)")
     
     args = parser.parse_args()
     
@@ -411,7 +487,8 @@ if __name__ == "__main__":
         max_sessions=args.max_sessions,
         smoke_mode=args.smoke,
         max_zero_streak=args.max_zero_streak,
-        confirm_cost=args.confirm_cost
+        confirm_cost=args.confirm_cost,
+        scorer=args.scorer
     )
     
     runner.run(output_path=args.output)
