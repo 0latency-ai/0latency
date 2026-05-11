@@ -1,0 +1,22 @@
+[Unit]
+Description=Zero Latency Memory API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/.openclaw/workspace/memory-product
+Environment=PATH=/usr/bin:/bin
+Environment=PYTHONPATH=/root/.openclaw/workspace/memory-product/src
+EnvironmentFile=/root/.openclaw/workspace/memory-product/.env
+ExecStartPre=/root/.openclaw/workspace/memory-product/.venv/bin/pip install -r /root/.openclaw/workspace/memory-product/requirements.txt --quiet --disable-pip-version-check
+ExecStart=/root/.openclaw/workspace/memory-product/.venv/bin/python3 -m uvicorn api.main:app --host 127.0.0.1 --port 8420 --workers 4 --access-log
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=control-group
+Restart=always
+RestartSec=10
+StartLimitBurst=3
+StartLimitIntervalSec=120
+
+[Install]
+WantedBy=multi-user.target
