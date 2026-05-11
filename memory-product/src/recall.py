@@ -649,10 +649,10 @@ def recall_fixed(
     _config_t1 = _time.time()
     _config_ms = (_config_t1 - _config_t0) * 1000
     
-    semantic_weight = config.get("semantic_weight", 0.4)
-    recency_weight = config.get("recency_weight", 0.35)
-    importance_weight = config.get("importance_weight", 0.15)
-    access_weight = config.get("access_weight", 0.1)
+    semantic_weight = config.get("semantic_weight", 0.55)
+    recency_weight = config.get("recency_weight", 0.15)
+    importance_weight = config.get("importance_weight", 0.20)
+    access_weight = config.get("access_weight", 0.10)
     half_life_days = config.get("recency_half_life_days", 3)
     
     # Step 2: Always-include block
@@ -715,10 +715,12 @@ def recall_fixed(
             
             days_since = (now - c["created_at"]).total_seconds() / 86400
             recency = math.exp(-0.693 * days_since / max(half_life_days, 0.01))
-            
-            # Boost for very recent memories (< 24 hours) — makes new memories dominate
-            if days_since < 1:
-                recency *= 2.5  # Strongly favor last 24 hours
+            # No cliff boost — exponential decay is sufficient.
+            # The half_life_days parameter (default 3) already strongly
+            # favors recent memories: 1-day-old scores 0.79, 7-day-old
+            # scores 0.19. A hard cliff at 24h created a discontinuity
+            # that also made all same-day memories score identically,
+            # drowning semantic signal in batch-ingestion scenarios.
             
             importance = c["importance"] * (1 + 0.1 * min(c["reinforcement_count"], 5))
             importance = min(importance, 1.0)
@@ -732,16 +734,19 @@ def recall_fixed(
                 access_weight * access_freq
             )
             
-            # Type bonuses (Phase 3 enhancement: atomic facts over raw dumps)
-            # Identity/preference/event get higher boosts since they're user-specific and stable
+            # Type bonuses — tie-breakers, not overrides.
+            # Scaled down from Phase 3 values to prevent type from
+            # outranking semantic relevance. A 1.3x bonus on identity
+            # was allowing imp=0.8/sim=0.3 identities to outrank
+            # imp=0.6/sim=0.66 facts — the opposite of useful recall.
             if c["memory_type"] == "identity":
-                composite *= 1.3  # Strong boost for identity facts (names, roles, permanent attributes)
+                composite *= 1.15  # Identity facts (names, roles, permanent attributes)
             elif c["memory_type"] == "correction":
-                composite *= 1.25  # Corrections are important — recent overrides matter
+                composite *= 1.10  # Corrections — recent overrides
             elif c["memory_type"] == "preference":
-                composite *= 1.25  # Preferences are critical for agent behavior alignment
+                composite *= 1.15  # Preferences — agent behavior alignment
             elif c["memory_type"] == "event":
-                composite *= 1.2   # Events are specific, factual, temporally grounded
+                composite *= 1.10  # Events — specific, temporally grounded
             elif c["memory_type"] == "decision" and days_since < 7:
                 composite *= 1.2   # Recent decisions are highly relevant
             elif c["memory_type"] == "synthesis":
@@ -786,10 +791,10 @@ def recall_fixed(
         if remaining_budget - tokens_used <= 0:
             break
         
-        if candidate["composite"] > 0.7:
+        if candidate["composite"] > 0.45:
             text = candidate["context"]
             tier = "L1"
-        elif candidate["composite"] > 0.4:
+        elif candidate["composite"] > 0.25:
             text = candidate["headline"]
             tier = "L0"
         else:
@@ -1086,10 +1091,10 @@ def recall_cross_agent(
     # Step 1: Load primary agent config (use their scoring weights)
     config = _load_agent_config(primary_agent_id, tenant_id=_tid)
     
-    semantic_weight = config.get("semantic_weight", 0.4)
-    recency_weight = config.get("recency_weight", 0.35)
-    importance_weight = config.get("importance_weight", 0.15)
-    access_weight = config.get("access_weight", 0.1)
+    semantic_weight = config.get("semantic_weight", 0.55)
+    recency_weight = config.get("recency_weight", 0.15)
+    importance_weight = config.get("importance_weight", 0.20)
+    access_weight = config.get("access_weight", 0.10)
     half_life_days = config.get("recency_half_life_days", 3)
     
     # Step 2: Always-include block (primary agent's identity/profile)
