@@ -1,13 +1,15 @@
 #!/bin/bash
 # RUN 1: Production Tier (Haiku extraction + Sonnet recall)
-# No EXTRACTION_MODEL override = uses default Haiku
 
 set -a
 source .env.benchmark
 set +a
 
+# Explicitly set Haiku extraction (do not rely on .env inheritance)
+export EXTRACTION_MODEL=claude-haiku-4-5-20251001
+
 echo "=== LONGMEMEVAL RUN 1: PRODUCTION TIER ==="
-echo "Extraction: Haiku (claude-haiku-4-5-20251001)"
+echo "Extraction: Haiku ($EXTRACTION_MODEL)"
 echo "Recall: Sonnet (default)"
 echo "Dataset: n=500"
 echo "Timeout: 90s extraction, 30s recall"
