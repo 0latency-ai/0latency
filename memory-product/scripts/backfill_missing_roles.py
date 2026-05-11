@@ -36,14 +36,16 @@ def find_tenants_without_roles(conn, schema: str = "memory_service") -> List[Tup
     """Find all tenants that don't have any roles."""
     cur = conn.cursor()
     
+    # Fixed: Use NOT EXISTS instead of NOT IN (NULL-safe)
+    # Removed active=true filter to match ground-truth query
     query = f"""
         SELECT t.id, t.name
         FROM {schema}.tenants t
-        WHERE t.id NOT IN (
-            SELECT DISTINCT tenant_id 
-            FROM {schema}.tenant_roles
+        WHERE NOT EXISTS (
+            SELECT 1 
+            FROM {schema}.tenant_roles tr 
+            WHERE tr.tenant_id = t.id
         )
-        AND t.active = true
         ORDER BY t.created_at;
     """
     
@@ -115,7 +117,7 @@ def main():
             print(f"  - {tenant_id} ({tenant_name})")
         
         if args.dry_run:
-            print("\n[DRY RUN] Would backfill roles for these tenants")
+            print("\n[DRY RUN] Would backfill 5 default roles for each tenant")
             return 0
         
         # Confirm for production
@@ -140,6 +142,14 @@ def main():
                 raise
         
         print(f"\n✓ Backfilled {len(tenants)} tenant(s) with {total_roles_added} total roles")
+        
+        # Post-run assertion: verify all tenants now have roles
+        print("\nVerifying backfill...")
+        remaining = find_tenants_without_roles(conn, args.schema)
+        if remaining:
+            raise AssertionError(f"Backfill failed! {len(remaining)} tenants still missing roles: {[t[0] for t in remaining]}")
+        
+        print("✓ Verification passed: all tenants have roles")
         
         conn.close()
         return 0
