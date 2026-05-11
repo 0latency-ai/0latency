@@ -8,12 +8,14 @@ Features:
 - Smoke test mode for pre-flight validation
 - Cost estimation before full runs
 - Auto-kill on consecutive recall failures
+- Memory-efficient loading for large datasets
 """
 import os
 import sys
 import json
 import time
 import requests
+import subprocess
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 from datetime import datetime
@@ -54,19 +56,56 @@ class LongMemEvalRunner:
         self.total_extraction_tokens = 0
         self.total_recall_tokens = 0
         self.zero_streak = 0
+        self.dataset_total_count = 0
         
     def load_dataset(self) -> List[Dict]:
-        """Load LongMemEval dataset."""
+        """Load LongMemEval dataset with memory-efficient approach."""
         if not self.dataset_path.exists():
             raise FileNotFoundError(f"Dataset not found: {self.dataset_path}")
-        
-        with open(self.dataset_path) as f:
-            data = json.load(f)
         
         # Smoke mode overrides max_questions
         if self.smoke_mode:
             self.max_questions = 3
             print(f"[SMOKE MODE] Running {self.max_questions} questions", file=sys.stderr)
+        
+        # For smoke mode, use jq to extract only first N questions to avoid OOM
+        # on large datasets (longmemeval_s_cleaned.json is 265MB)
+        if self.smoke_mode or self.max_questions < 20:
+            print(f"Loading first {self.max_questions} questions with jq (memory-efficient)...", file=sys.stderr, end=" ")
+            sys.stderr.flush()
+            
+            try:
+                # Use jq to extract first N questions without loading full file
+                result = subprocess.run(
+                    ["jq", f".[:{ self.max_questions}]", str(self.dataset_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=True
+                )
+                data = json.loads(result.stdout)
+                
+                # Count total using grep (fast, no memory overhead)
+                count_result = subprocess.run(
+                    ["grep", "-o", '"question_id"', str(self.dataset_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    check=True
+                )
+                self.dataset_total_count = count_result.stdout.count('"question_id"')
+                
+                print(f"OK", file=sys.stderr)
+                print(f"Loaded {len(data)}/{self.dataset_total_count} questions from {self.dataset_path.name}", file=sys.stderr)
+                return data
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+                print(f"WARN: jq failed ({e}), falling back to standard load", file=sys.stderr)
+                # Fall through to standard load
+        
+        # Standard load for full runs
+        with open(self.dataset_path) as f:
+            data = json.load(f)
+        self.dataset_total_count = len(data)
         
         print(f"Loaded {len(data)} questions from {self.dataset_path.name}", file=sys.stderr)
         return data[:self.max_questions]
@@ -213,7 +252,7 @@ class LongMemEvalRunner:
     def run(self, output_path: str = None):
         """Run benchmark and save results."""
         questions = self.load_dataset()
-        total_in_dataset = len(json.load(open(self.dataset_path)))
+        total_in_dataset = self.dataset_total_count
         
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         if output_path is None:
