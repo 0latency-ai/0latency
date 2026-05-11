@@ -45,27 +45,29 @@ For each extracted memory, provide:
 3. **full_content**: Complete memory with all nuance, caveats, source info (200-500 tokens).
 4. **memory_type**: MUST be one of these exact values. Choose carefully:
    - "preference": How the user wants things done. Communication style, behavior rules, tool usage norms, likes/dislikes. If the user says "don't do X" or "always do Y" or "I prefer Z" — this is a preference.
-   - "decision": A choice that was made. ONLY use when someone explicitly chose A over B, approved a plan, committed to a direction, or gave a definitive answer. For decisions, you MUST capture in full_content: (a) what was decided, (b) why/rationale, (c) who made it, (d) what alternatives were rejected or what it supersedes. "Agreed" or "yes" in response to a proposal = decision. Vague discussion ≠ decision.
+   - "decision": A choice that was made. ONLY use when someone explicitly chose A over B, approved a plan, committed to a direction, or gave a definitive answer. For decisions, you MUST provide TOP-LEVEL FIELDS decision_text (what was decided, 1-2 sentences) and rationale (why/alternatives, 2-4 sentences) in addition to full_content. "Agreed" or "yes" in response to a proposal = decision. Vague discussion ≠ decision.
    - "fact": Objective information. Dates, numbers, states of affairs, technical details, business facts. THIS IS THE DEFAULT — if something doesn't clearly fit another type, it's a fact.
    - "task": Something that needs to be done. Action items, todos, follow-ups, deadlines.
    - "correction": ONLY when a previously held belief/fact is EXPLICITLY stated to be wrong and replaced with a new fact. Both the old and new fact must be clearly present in the conversation. Someone adding new information is NOT a correction — it's a fact. An agent status update is NOT a correction. Only use correction when the conversation explicitly says "X was wrong, it's actually Y" or "not X, it's Y."
    - "relationship": A connection between people, organizations, or concepts.
    - "identity": Core identity information — names (people, pets, places), roles, permanent attributes. These NEVER decay.
-5. **importance**: 0.0-1.0. How important is this for future interactions?
+5. **decision_text**: (REQUIRED if memory_type=decision) Concise statement of what was decided (1-2 sentences)
+6. **rationale**: (REQUIRED if memory_type=decision) Why this decision was made, what alternatives were considered (2-4 sentences)
+7. **importance**: 0.0-1.0. How important is this for future interactions?
    - 0.9-1.0: Critical (identity facts like names/roles, non-negotiable rules, key business decisions, user preferences about agent behavior)
    - 0.7-0.8: Important (business decisions, project milestones, key contacts)
    - 0.4-0.6: Moderate (contextual facts, minor details)
    - 0.1-0.3: Low (passing mentions, temporary context)
-6. **confidence**: 0.0-1.0. How confident are you this is a real fact vs hypothetical/joke/uncertain?
+8. **confidencee**: 0.0-1.0. How confident are you this is a real fact vs hypothetical/joke/uncertain?
    - 0.9-1.0: Stated directly and clearly as fact
    - 0.6-0.8: Likely true but inferred or implied
    - 0.3-0.5: Uncertain — might be hypothetical, sarcastic, or conditional
    - 0.0-0.2: Probably not a real fact — clearly hypothetical or joking
-7. **entities**: List of people, projects, organizations, or concepts mentioned
-8. **project**: Which project/area this relates to (if any)
-9. **categories**: 1-3 auto-inferred tags
-10. **scope**: Hierarchical path like /project/subarea (e.g., /pfl-academy/oklahoma, /personal/preferences)
-11. **temporal_type**: How does this fact relate to time?
+9. **entities**: List of people, projects, organizations, or concepts mentioned
+10. **project*: Which project/area this relates to (if any)
+11. **categories*: 1-3 auto-inferred tags
+12. **scope**: Hierarchical path like /project/subarea (e.g., /pfl-academy/oklahoma, /personal/preferences)
+13. **temporal_type**: How does this fact relate to time?
     - "permanent": Always true (names, identities, preferences) — should never decay
     - "current": True now but could change (current projects, current status)
     - "event": Something that happened at a specific time (dinner tonight, meeting yesterday)
@@ -362,6 +364,17 @@ def extract_memories(
         if memory_type not in valid_types:
             memory_type = "fact"
         
+        # Validate decision fields — downgrade to fact if missing required fields
+        if memory_type == "decision":
+            decision_text_val = mem.get("decision_text", "").strip()
+            rationale_val = mem.get("rationale", "").strip()
+            if not decision_text_val or not rationale_val:
+                logger.warning(
+                    f"Decision memory missing required fields (decision_text={bool(decision_text_val)}, "
+                    f"rationale={bool(rationale_val)}), downgrading to fact: {headline[:50]}"
+                )
+                memory_type = "fact"
+        
         # Get confidence — skip low-confidence extractions (hypotheticals, jokes)
         confidence = max(0.0, min(1.0, float(mem.get("confidence", 0.8))))
         if confidence < 0.3:
@@ -411,6 +424,8 @@ def extract_memories(
             "valid_from": now,
             "metadata": atom_metadata,
             "ttl_hours": ttl_hours,
+            "decision_text": mem.get("decision_text") if memory_type == "decision" else None,
+            "rationale": mem.get("rationale") if memory_type == "decision" else None,
         }
         
         validated.append(memory_obj)
