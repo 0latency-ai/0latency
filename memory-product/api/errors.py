@@ -68,6 +68,35 @@ RECALL_FAILED = APIError(
     docs_url="https://0latency.ai/docs/troubleshooting#recall-failed"
 )
 
+
+NOT_FOUND = APIError(
+    code="NOT_FOUND",
+    message="Resource not found",
+    hint="The requested resource does not exist. Check your request parameters.",
+    docs_url="https://0latency.ai/docs/troubleshooting#not-found"
+)
+
+VALIDATION_ERROR = APIError(
+    code="VALIDATION_ERROR",
+    message="Invalid request data",
+    hint="Check your request format and required fields.",
+    docs_url="https://0latency.ai/docs/troubleshooting#validation-error"
+)
+
+FORBIDDEN = APIError(
+    code="FORBIDDEN",
+    message="Access forbidden",
+    hint="You do not have permission to access this resource.",
+    docs_url="https://0latency.ai/docs/troubleshooting#forbidden"
+)
+
+SERVICE_UNAVAILABLE = APIError(
+    code="SERVICE_UNAVAILABLE",
+    message="Service temporarily unavailable",
+    hint="This is usually temporary. Please try again in a few moments.",
+    docs_url="https://0latency.ai/docs/troubleshooting#service-unavailable"
+)
+
 # Client-side error (for documentation - not raised by server)
 NETWORK_CONNECTIVITY = APIError(
     code="NETWORK_CONNECTIVITY",
@@ -85,6 +114,7 @@ def raise_api_error(
     error: APIError, 
     status_code: int = 400, 
     request_id: Optional[str] = None,
+    headers: Optional[Dict[str, str]] = None,
     **extra
 ) -> None:
     """Raise HTTPException with standardized error envelope.
@@ -108,7 +138,10 @@ def raise_api_error(
         extra_fields["request_id"] = request_id
     
     detail = error.to_dict(**extra_fields)
-    raise HTTPException(status_code=status_code, detail=detail)
+    if headers:
+        raise HTTPException(status_code=status_code, detail=detail, headers=headers)
+    else:
+        raise HTTPException(status_code=status_code, detail=detail)
 
 
 def raise_invalid_api_key(reason: str = "invalid") -> None:
@@ -121,7 +154,7 @@ def raise_invalid_api_key(reason: str = "invalid") -> None:
     raise_api_error(INVALID_API_KEY, 401, **extra)
 
 
-def raise_memory_limit(limit: int, current: int = None) -> None:
+def raise_memory_limit(limit: int, current: int = None, retry_after: int = None) -> None:
     """Raise standardized memory limit error (429).
     
     Args:
@@ -131,7 +164,11 @@ def raise_memory_limit(limit: int, current: int = None) -> None:
     extra = {"limit": limit}
     if current is not None:
         extra["current"] = current
-    raise_api_error(MEMORY_LIMIT_REACHED, 429, **extra)
+    headers = None
+    if retry_after is not None:
+        extra["retry_after"] = retry_after
+        headers = {"Retry-After": str(retry_after)}
+    raise_api_error(MEMORY_LIMIT_REACHED, 429, headers=headers, **extra)
 
 
 def raise_extraction_failed(request_id: Optional[str] = None, details: Optional[str] = None) -> None:
@@ -158,3 +195,49 @@ def raise_recall_failed(request_id: Optional[str] = None, details: Optional[str]
     if details:
         extra["details"] = details
     raise_api_error(RECALL_FAILED, 500, request_id=request_id, **extra)
+
+def raise_not_found(resource: str = "Resource") -> None:
+    """Raise standardized not found error (404).
+    
+    Args:
+        resource: Name of the resource that was not found
+    """
+    extra = {"resource": resource}
+    raise_api_error(NOT_FOUND, 404, **extra)
+
+
+def raise_validation_error(details: str = None) -> None:
+    """Raise standardized validation error (400).
+    
+    Args:
+        details: Specific validation error details
+    """
+    extra = {}
+    if details:
+        extra["details"] = details
+    raise_api_error(VALIDATION_ERROR, 400, **extra)
+
+
+def raise_forbidden(reason: str = None) -> None:
+    """Raise standardized forbidden error (403).
+    
+    Args:
+        reason: Reason for denial
+    """
+    extra = {}
+    if reason:
+        extra["reason"] = reason
+    raise_api_error(FORBIDDEN, 403, **extra)
+
+
+def raise_service_unavailable(details: str = None) -> None:
+    """Raise standardized service unavailable error (503).
+    
+    Args:
+        details: Details about the unavailability
+    """
+    extra = {}
+    if details:
+        extra["details"] = details
+    raise_api_error(SERVICE_UNAVAILABLE, 503, **extra)
+
