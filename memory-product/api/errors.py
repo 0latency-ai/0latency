@@ -43,7 +43,7 @@ class APIError:
 INVALID_API_KEY = APIError(
     code="INVALID_API_KEY",
     message="API key is missing or invalid",
-    hint="Check that your X-API-Key header contains a valid 'zl_live_*' key from your dashboard at https://0latency.ai/dashboard",
+    hint="Provide your API key via either 'Authorization: Bearer zl_live_...' or 'X-API-Key: zl_live_...' header. Get your key at https://0latency.ai/dashboard",
     docs_url="https://0latency.ai/docs/troubleshooting#invalid-api-key"
 )
 

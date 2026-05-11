@@ -254,8 +254,16 @@ _rate_limits_fallback: dict[str, list[float]] = {}
 _tenant_cache: dict[str, tuple[dict, float]] = {}
 _TENANT_CACHE_TTL = 30  # 30 seconds
 
-async def require_api_key(x_api_key: str = Header(None, alias="X-API-Key")):
-    """Multi-tenant auth via API key header with cached validation."""
+async def require_api_key(
+    authorization: str = Header(None),
+    x_api_key: str = Header(None, alias="X-API-Key")
+):
+    """Multi-tenant auth via API key header with cached validation.
+    
+    Accepts authentication via either:
+    - Authorization: Bearer zl_live_... (industry standard, recommended)
+    - X-API-Key: zl_live_... (legacy support)
+    """
     from api.auth_messages import (
         MISSING_HEADER,
         INVALID_FORMAT,
@@ -264,15 +272,28 @@ async def require_api_key(x_api_key: str = Header(None, alias="X-API-Key")):
         ACCOUNT_SUSPENDED,
     )
     
-    # Missing header (Header(None) catches absence; Header(...) would 422 instead)
-    if not x_api_key:
+    # Extract API key from Authorization header (Bearer token) or X-API-Key header
+    api_key = None
+    
+    # Try Authorization header first (Bearer token)
+    if authorization:
+        # Strip "Bearer " prefix case-insensitively
+        if authorization.lower().startswith("bearer "):
+            api_key = authorization[7:].strip()
+    
+    # Fall back to X-API-Key header
+    if not api_key and x_api_key:
+        api_key = x_api_key
+    
+    # Missing both headers
+    if not api_key:
         raise_invalid_api_key("missing")
 
     # Format validation
-    if not x_api_key.startswith("zl_live_") or len(x_api_key) != 40:
+    if not api_key.startswith("zl_live_") or len(api_key) != 40:
         raise_invalid_api_key("invalid_format")
 
-    api_key_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
+    api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
     now = time.time()
 
     _check_cache_bust()

@@ -18,7 +18,7 @@ This package contains everything needed to publish the 0Latency Memory GPT:
 2. **`actions-schema.json`** - OpenAPI 3.1 spec for GPT Actions
    - Key endpoints: `/memories/extract`, `/recall`, `/memories/search`, `/health`
    - Full request/response schemas
-   - Authentication configuration (X-API-Key header)
+   - Authentication configuration (Authorization: Bearer header (or X-API-Key for legacy))
    - Ready to import into GPT Builder
 
 3. **`conversation-starters.txt`** - 4 engaging prompts
@@ -103,7 +103,7 @@ Before you click "Publish":
 - [ ] Reviewed `gpt-instructions.md` for accuracy
 - [ ] Tested all conversation starters
 - [ ] Verified Actions schema imports successfully
-- [ ] Configured X-API-Key authentication
+- [ ] Configured Authorization: Bearer authentication (or X-API-Key)
 - [ ] Tested extract, recall, search, and health endpoints
 - [ ] Logo uploaded and looks good at small size
 - [ ] Description is clear and compelling

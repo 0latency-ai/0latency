@@ -128,7 +128,7 @@ def _call_anthropic(prompt: str) -> str:
     }
     
     body = {
-        "model": "claude-haiku-4-5-20251001",
+        "model": EXTRACTION_MODEL,
         "max_tokens": 4096,
         "temperature": 0.1,
         "messages": [{"role": "user", "content": prompt}]
@@ -203,6 +203,18 @@ def extract_memories(
     source: str = "api",
     metadata: Optional[dict] = None,
 ) -> tuple[list[dict], Optional[str]]:
+    """Extract structured memories from a conversation turn.
+    
+    Returns:
+        tuple[list[dict], Optional[str]]: A tuple containing:
+            - memories: List of extracted memory dictionaries
+            - raw_turn_id: String identifier for the turn (required for caller)
+    
+    IMPORTANT: Both elements of the tuple are required for all callers.
+    Tuple signature restored 2026-05-10 after ed6343d regression.
+    Do not change this return signature without updating all 18+ call sites.
+    
+    Original docstring continues below:
     """
     Extract structured memories from a single conversation exchange,
     with multi-turn context for inference across messages.

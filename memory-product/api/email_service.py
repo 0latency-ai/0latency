@@ -79,7 +79,7 @@ class EmailService:
                     <h2>First Steps</h2>
                     <pre style="background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto;">
 curl -X POST https://api.0latency.ai/extract \\
-  -H "X-API-Key: {api_key}" \\
+  -H "Authorization: Bearer {api_key}" \\
   -H "Content-Type: application/json" \\
   -d '{{
     "agent_id": "my_agent",

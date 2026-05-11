@@ -8,8 +8,9 @@ Message contracts are pinned by tests/test_auth_messages.py.
 """
 
 MISSING_HEADER = (
-    "Missing X-API-Key header. "
-    "See https://docs.0latency.ai/auth/api-keys for setup."
+    "Missing authentication header. "
+    "Provide your API key via either 'Authorization: Bearer zl_live_...' or 'X-API-Key: zl_live_...' header. "
+    "Get your key at https://0latency.ai/dashboard"
 )
 
 INVALID_FORMAT = (

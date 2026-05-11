@@ -167,7 +167,7 @@ export class Memory {
           method,
           headers: {
             'Content-Type': 'application/json',
-            'X-API-Key': this.apiKey,
+            'Authorization': ,
             'User-Agent': 'zerolatency-ts/0.1.0',
           },
           body: body ? JSON.stringify(body) : undefined,
