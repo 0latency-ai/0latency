@@ -360,7 +360,13 @@ async function api<T = unknown>(opts: ApiOptions): Promise<T> {
   const text = await res.text();
 
   if (!res.ok) {
-    throw new Error(`0Latency API ${res.status}: ${text}`);
+    let errorData: any;
+    try {
+      errorData = JSON.parse(text);
+    } catch {
+      errorData = text;
+    }
+    throw new Error(`0Latency API ${res.status}: ${formatAPIError(errorData)}`);
   }
 
   try {

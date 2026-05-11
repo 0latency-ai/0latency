@@ -513,8 +513,8 @@ def _check_contradiction(agent_id: str, headline: str, embedding: list[float], t
         
         # Check for contradictions in similar range
         if 0.78 < similarity < 0.88:
-            existing_entities = row[3].strip("{}").split(",") if row[3] and row[3] != "{}" else []
-            existing_entities = [e.strip().strip('"') for e in existing_entities if e.strip().strip('"')]
+            # Handle entities - psycopg2 returns text[] as Python list
+            existing_entities = row[3] if isinstance(row[3], list) else []
             
             new_headline_lower = headline.lower()
             

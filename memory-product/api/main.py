@@ -744,7 +744,7 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
         for i, fact in enumerate(req.facts):
             validate_session_checkpoint_metadata(
                 fact.metadata or {},
-                fact.memory_type or fact.category or "fact"
+                fact.memory_type or "fact"
             )
         
         # Resolve agent_id default: use tenant_id if not provided
@@ -771,7 +771,7 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
                 "headline": fact.text,
                 "context": fact.text,
                 "full_content": fact.text,
-                "memory_type": fact.memory_type or fact.category or "fact",
+                "memory_type": fact.memory_type or "fact",
                 "importance": fact.importance,
                 "confidence": 0.9,
                 "entities": [],
@@ -779,6 +779,7 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
                 "scope": "/",
                 "source_session": "seed",
                 "source_turn": None,
+                "source_type": "api_seed",
                 "metadata": {**(fact.metadata or {}), "source": (fact.metadata or {}).get("source", "seed_api")},
             })
 
