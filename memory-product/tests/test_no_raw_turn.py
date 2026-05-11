@@ -13,7 +13,7 @@ def test_no_raw_turn_in_extraction():
     human = "My name is Alice and I work as a software engineer at Acme Corp."
     agent = "Got it! I'll remember that you're Alice, a software engineer at Acme Corp."
     
-    memories = extract_memories(
+    memories, raw_turn_id = extract_memories(
         human_message=human,
         agent_message=agent,
         agent_id="test-agent",

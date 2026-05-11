@@ -22,6 +22,8 @@ from typing import Optional, List
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query, BackgroundTasks
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from api.analytics import track_posthog_event, is_first_api_call, is_first_memory_stored, is_first_memory_recalled, check_activation_milestone
+from api.errors import raise_invalid_api_key, raise_memory_limit, raise_extraction_failed, raise_recall_failed
+from api.onboarding_helpers import should_show_recall_prompt, create_next_action_response, extract_keywords_from_headline
 from api.email_service import email_service
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -282,11 +284,11 @@ async def require_api_key(x_api_key: str = Header(None, alias="X-API-Key")):
     
     # Missing header (Header(None) catches absence; Header(...) would 422 instead)
     if not x_api_key:
-        raise HTTPException(401, detail=MISSING_HEADER)
+        raise_invalid_api_key("missing")
 
     # Format validation
     if not x_api_key.startswith("zl_live_") or len(x_api_key) != 40:
-        raise HTTPException(401, detail=INVALID_FORMAT)
+        raise_invalid_api_key("invalid_format")
 
     api_key_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
     now = time.time()
@@ -298,7 +300,7 @@ async def require_api_key(x_api_key: str = Header(None, alias="X-API-Key")):
         cached_tenant, cached_at = _tenant_cache[api_key_hash]
         if now - cached_at < _TENANT_CACHE_TTL:
             if not cached_tenant["active"]:
-                raise HTTPException(401, detail=ACCOUNT_SUSPENDED)
+                raise_invalid_api_key("suspended")
             _check_rate_limit(cached_tenant["id"], cached_tenant["rate_limit_rpm"])
             set_tenant_context(cached_tenant["id"])
             return cached_tenant
@@ -320,11 +322,11 @@ async def require_api_key(x_api_key: str = Header(None, alias="X-API-Key")):
             tenant_id="00000000-0000-0000-0000-000000000000",
         )
         if revoked_rows:
-            raise HTTPException(401, detail=REVOKED)
-        raise HTTPException(401, detail=NOT_FOUND)
+            raise_invalid_api_key("revoked")
+        raise_invalid_api_key("not_found")
 
     if not tenant["active"]:
-        raise HTTPException(401, detail=ACCOUNT_SUSPENDED)
+        raise_invalid_api_key("suspended")
 
     _tenant_cache[api_key_hash] = (tenant, now)
     _check_rate_limit(tenant["id"], tenant["rate_limit_rpm"])
@@ -581,7 +583,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
         except Exception as e:
             logger.warning(f"Failed to load existing context for dedup: {e}")
         
-        memories = extract_memories(
+        memories, raw_turn_id = extract_memories(
             human_message=req.human_message,
             agent_message=req.agent_message,
             agent_id=agent_id,
@@ -798,7 +800,7 @@ async def async_extract_endpoint(
     def _process_extraction():
         try:
             # Split content into human/agent turns or treat as raw content
-            memories = extract_memories(
+            memories, raw_turn_id = extract_memories(
                 human_message=req.content,
                 agent_message="",
                 agent_id=agent_id,
@@ -1992,7 +1994,7 @@ async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require
             except Exception as ctx_err:
                 logger.warning(f"[BATCH DEBUG] Turn {i}: failed to load dedup context: {ctx_err}")
 
-            memories = extract_memories(
+            memories, raw_turn_id = extract_memories(
                 human_message=turn.human_message,
                 agent_message=turn.agent_message,
                 agent_id=agent_id,
@@ -2127,7 +2129,7 @@ async def bulk_import_endpoint(req: BulkImportRequest, tenant: dict = Depends(re
             break
         
         try:
-            memories = extract_memories(
+            memories, raw_turn_id = extract_memories(
                 human_message=chunk,
                 agent_message="",
                 agent_id=req.agent_id,
@@ -2233,7 +2235,7 @@ async def thread_import_endpoint(req: ThreadImportRequest, tenant: dict = Depend
             break
         
         try:
-            memories = extract_memories(
+            memories, raw_turn_id = extract_memories(
                 human_message=human_msg,
                 agent_message=assistant_msg,
                 agent_id=req.agent_id,
@@ -2358,7 +2360,7 @@ async def demo_extract_endpoint(req: DemoExtractRequest, request: Request):
     
     start_time = time.time()
     try:
-        memories = extract_memories(
+        memories, raw_turn_id = extract_memories(
             human_message=req.content,
             agent_message="",
             agent_id="demo",

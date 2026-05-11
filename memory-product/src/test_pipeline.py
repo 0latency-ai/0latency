@@ -50,7 +50,7 @@ def test_full_pipeline():
         print(f"  Human: {turn['human'][:80]}...")
         
         # Extract
-        memories = extract_memories(
+        memories, raw_turn_id = extract_memories(
             human_message=turn['human'],
             agent_message=turn['agent'],
             agent_id=AGENT_ID,
