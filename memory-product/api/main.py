@@ -581,7 +581,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
         except Exception as e:
             logger.warning(f"Failed to load existing context for dedup: {e}")
         
-        memories = extract_memories(
+        memories, raw_turn_id = extract_memories(
             human_message=req.human_message,
             agent_message=req.agent_message,
             agent_id=agent_id,
@@ -798,7 +798,7 @@ async def async_extract_endpoint(
     def _process_extraction():
         try:
             # Split content into human/agent turns or treat as raw content
-            memories = extract_memories(
+            memories, raw_turn_id = extract_memories(
                 human_message=req.content,
                 agent_message="",
                 agent_id=agent_id,
@@ -1992,7 +1992,7 @@ async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require
             except Exception as ctx_err:
                 logger.warning(f"[BATCH DEBUG] Turn {i}: failed to load dedup context: {ctx_err}")
 
-            memories = extract_memories(
+            memories, raw_turn_id = extract_memories(
                 human_message=turn.human_message,
                 agent_message=turn.agent_message,
                 agent_id=agent_id,
@@ -2127,7 +2127,7 @@ async def bulk_import_endpoint(req: BulkImportRequest, tenant: dict = Depends(re
             break
         
         try:
-            memories = extract_memories(
+            memories, raw_turn_id = extract_memories(
                 human_message=chunk,
                 agent_message="",
                 agent_id=req.agent_id,
@@ -2233,7 +2233,7 @@ async def thread_import_endpoint(req: ThreadImportRequest, tenant: dict = Depend
             break
         
         try:
-            memories = extract_memories(
+            memories, raw_turn_id = extract_memories(
                 human_message=human_msg,
                 agent_message=assistant_msg,
                 agent_id=req.agent_id,
@@ -2358,7 +2358,7 @@ async def demo_extract_endpoint(req: DemoExtractRequest, request: Request):
     
     start_time = time.time()
     try:
-        memories = extract_memories(
+        memories, raw_turn_id = extract_memories(
             human_message=req.content,
             agent_message="",
             agent_id="demo",

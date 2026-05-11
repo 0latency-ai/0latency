@@ -58,7 +58,7 @@ def process_extraction_job(job_id: str, content: str, agent_id: str,
         })
         
         # Extract memories from content
-        memories = extract_memories(
+        memories, raw_turn_id = extract_memories(
             human_message=content,
             agent_message="",
             agent_id=agent_id,
