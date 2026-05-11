@@ -765,7 +765,11 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
 _extract_jobs: dict[str, dict] = {}
 
 @app.post("/memories/extract", status_code=202)
-async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depends(require_api_key)):
+async def async_extract_endpoint(
+    req: AsyncExtractRequest, 
+    tenant: dict = Depends(require_api_key),
+    x_install_path: Optional[str] = Header(None, alias="X-Install-Path")
+):
     """Async memory extraction. Accepts instantly (202), processes in background.
     
     This is the preferred extraction path. Recall is always sync and fast.
@@ -805,6 +809,32 @@ async def async_extract_endpoint(req: AsyncExtractRequest, tenant: dict = Depend
             if memories:
                 result = store_memories(memories, tenant["id"])
                 ids = result["ids"]
+                
+                # Emit first-memory onboarding event (one-shot per tenant)
+                try:
+                    install_path = x_install_path or "unknown"
+                    _db_execute_rows("""
+                        INSERT INTO memory_service.onboarding_events (
+                            tenant_id, agent_id, event_type, install_path, elapsed_seconds, metadata
+                        )
+                        SELECT 
+                            %s::UUID, %s, 'first_memory_add', %s, 
+                            EXTRACT(EPOCH FROM (NOW() - t.created_at)),
+                            %s::jsonb
+                        FROM memory_service.tenants t
+                        WHERE t.id = %s::UUID
+                          AND NOT EXISTS (
+                              SELECT 1 FROM memory_service.onboarding_events 
+                              WHERE tenant_id = %s::UUID AND event_type = 'first_memory_add'
+                          )
+                    """, (
+                        tenant["id"], agent_id, install_path, 
+                        json.dumps({"endpoint": "/memories/extract", "memory_count": len(ids)}),
+                        tenant["id"], tenant["id"]
+                    ), tenant_id=tenant["id"])
+                except Exception as e:
+                    logger.warning(f"Onboarding event emission failed (non-blocking): {e}")
+                
                 _extract_jobs[job_id].update({
                     "status": "complete",
                     "memories_stored": len(ids),
@@ -4224,7 +4254,11 @@ async def require_bearer_token(authorization: str = Header(None)):
 # CP10 P1 / CP9.1.2: Verbatim atom write endpoint for CLI wrapper
 @app.post("/atoms", status_code=201)
 @track_critical_errors
-async def write_atom(req: dict, tenant: dict = Depends(require_bearer_token)):
+async def write_atom(
+    req: dict, 
+    tenant: dict = Depends(require_bearer_token),
+    x_install_path: Optional[str] = Header(None, alias="X-Install-Path")
+):
     """
     Write a verbatim atom from CLI wrapper.
     
@@ -4289,6 +4323,31 @@ async def write_atom(req: dict, tenant: dict = Depends(require_bearer_token)):
             'raw_turn',  # memory_type - use raw_turn for verbatim CLI atoms
             json.dumps(atom_metadata)
         ), tenant_id=tenant['id'])
+        
+        # Emit first-memory onboarding event (one-shot per tenant)
+        try:
+            install_path = x_install_path or "unknown"
+            _db_execute_rows("""
+                INSERT INTO memory_service.onboarding_events (
+                    tenant_id, agent_id, event_type, install_path, elapsed_seconds, metadata
+                )
+                SELECT 
+                    %s::UUID, %s, 'first_memory_add', %s, 
+                    EXTRACT(EPOCH FROM (NOW() - t.created_at)),
+                    %s::jsonb
+                FROM memory_service.tenants t
+                WHERE t.id = %s::UUID
+                  AND NOT EXISTS (
+                      SELECT 1 FROM memory_service.onboarding_events 
+                      WHERE tenant_id = %s::UUID AND event_type = 'first_memory_add'
+                  )
+            """, (
+                tenant["id"], agent_id, install_path, 
+                json.dumps({"endpoint": "/atoms", "atom_id": atom_id}),
+                tenant["id"], tenant["id"]
+            ), tenant_id=tenant["id"])
+        except Exception as e:
+            logger.warning(f"Onboarding event emission failed (non-blocking): {e}")
         
         return {
             'id': atom_id,
