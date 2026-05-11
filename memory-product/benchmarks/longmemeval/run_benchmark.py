@@ -95,7 +95,7 @@ class LongMemEvalRunner:
                         f"{API_BASE_URL}/extract",
                         headers=self.headers,
                         json=payload,
-                        timeout=30
+                        timeout=90
                     )
                     
                     if response.status_code not in (200, 202):
@@ -132,7 +132,7 @@ class LongMemEvalRunner:
                 f"{API_BASE_URL}/recall",
                 headers=self.headers,
                 json=payload,
-                timeout=10
+                timeout=30
             )
             latency_ms = (time.time() - start) * 1000
             
