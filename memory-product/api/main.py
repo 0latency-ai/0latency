@@ -515,6 +515,7 @@ class MemoryItem(BaseModel):
     memory_type: str
     importance: float
     created_at: str
+    source_type: Optional[str] = None
 
 class CreateTenantRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=256)
@@ -1858,7 +1859,7 @@ async def list_memories(
         params.extend([limit, offset])
         
         rows = _db_execute_rows(f"""
-            SELECT id, headline, memory_type, importance, created_at
+            SELECT id, headline, memory_type, importance, created_at, source_type
             FROM memory_service.memories
             WHERE {where_clause}
             ORDER BY created_at DESC
@@ -1873,6 +1874,7 @@ async def list_memories(
                 memory_type=str(row[2]),
                 importance=float(row[3]) if row[3] is not None else 0.5,
                 created_at=str(row[4]),
+                source_type=str(row[5]) if row[5] else None,
             ))
         
         # Track usage
