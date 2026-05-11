@@ -57,12 +57,14 @@ def process_extraction_job(job_id: str, content: str, agent_id: str,
             "started_at": datetime.now(timezone.utc).isoformat(),
         })
         
-        # Extract memories from content
+        # Extract memories from content (set source=api_extract for proper source_type tracking)
         memories, raw_turn_id = extract_memories(
             human_message=content,
             agent_message="",
             agent_id=agent_id,
             session_key=session_key,
+            tenant_id=tenant_id,
+            source="api_extract",  # Track as API extraction, not conversation
         )
         
         # Store memories if any were extracted

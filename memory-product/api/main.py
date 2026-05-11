@@ -23,6 +23,8 @@ import hashlib
 import uuid
 import logging
 from datetime import datetime, timezone, timedelta
+import redis
+from rq import Queue
 from typing import Optional, List
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query, BackgroundTasks
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
@@ -133,6 +135,17 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"error": "Internal server error", "detail": str(exc)}
     )
+
+
+# Redis connection for RQ job queue
+try:
+    _redis_conn = redis.Redis(host='localhost', port=6379, db=0, decode_responses=False)
+    _extract_queue = Queue('extraction', connection=_redis_conn)
+    logger.info("RQ extraction queue initialized")
+except Exception as e:
+    logger.error(f"Failed to initialize RQ queue: {e}")
+    _redis_conn = None
+    _extract_queue = None
 
 # --- Auth Module ---
 
@@ -707,6 +720,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
     except HTTPException:
         raise  # Re-raise HTTP exceptions (429, 401, etc.) as-is
     except Exception as e:
+        logger.error(f"Extraction failed: {type(e).__name__}: {e}", exc_info=True)
         track_api_usage(tenant["id"], "/extract", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
         raise_extraction_failed()
 
@@ -827,74 +841,35 @@ async def async_extract_endpoint(
         "memory_ids": [],
     }
     
-    def _process_extraction():
+    # Enqueue job to RQ worker instead of in-process threading
+    if _extract_queue is not None:
+        from api.extraction_worker import process_extraction_job
         try:
-            # Split content into human/agent turns or treat as raw content
-            memories, raw_turn_id = extract_memories(
-                human_message=req.content,
-                agent_message="",
-                agent_id=agent_id,
-                tenant_id=tenant["id"],
-                source="api",
-                session_key=req.session_key,
+            rq_job = _extract_queue.enqueue(
+                process_extraction_job,
+                job_id,  # positional arg 1
+                req.content,  # positional arg 2
+                agent_id,  # positional arg 3
+                req.session_key or f"session-{job_id[:8]}",  # positional arg 4
+                tenant["id"],  # positional arg 5
+                job_timeout=300,  # RQ param: 5 minute timeout
+                result_ttl=3600,  # RQ param: Keep results for 1 hour
             )
-            if memories:
-                result = store_memories(memories, tenant["id"])
-                ids = result["ids"]
-                
-                # Emit first-memory onboarding event (one-shot per tenant)
-                try:
-                    install_path = x_install_path or "unknown"
-                    _db_execute_rows("""
-                        INSERT INTO memory_service.onboarding_events (
-                            tenant_id, agent_id, event_type, install_path, elapsed_seconds, metadata
-                        )
-                        SELECT 
-                            %s::UUID, %s, 'first_memory_add', %s, 
-                            EXTRACT(EPOCH FROM (NOW() - t.created_at)),
-                            %s::jsonb
-                        FROM memory_service.tenants t
-                        WHERE t.id = %s::UUID
-                          AND NOT EXISTS (
-                              SELECT 1 FROM memory_service.onboarding_events 
-                              WHERE tenant_id = %s::UUID AND event_type = 'first_memory_add'
-                          )
-                    """, (
-                        tenant["id"], agent_id, install_path, 
-                        json.dumps({"endpoint": "/memories/extract", "memory_count": len(ids)}),
-                        tenant["id"], tenant["id"]
-                    ), tenant_id=tenant["id"])
-                except Exception as e:
-                    logger.warning(f"Onboarding event emission failed (non-blocking): {e}")
-                
-                _extract_jobs[job_id].update({
-                    "status": "complete",
-                    "memories_stored": len(ids),
-                    "memory_ids": ids,
-                    "raw_turn_id": None,
-                    "completed_at": datetime.now(timezone.utc).isoformat(),
-                })
-            else:
-                _extract_jobs[job_id].update({
-                    "status": "complete",
-                    "memories_stored": 0,
-                    "memory_ids": [],
-                    "raw_turn_id": None,
-                    "completed_at": datetime.now(timezone.utc).isoformat(),
-                })
-            
-            track_api_usage(tenant["id"], "/memories/extract", 
-                           tokens_used=len(req.content), response_time_ms=0)
+            logger.info(f"Enqueued extraction job {job_id} to RQ (rq_job_id={rq_job.id})")
         except Exception as e:
-            logger.error(f"Async extraction failed for job {job_id}: {e}")
+            logger.error(f"Failed to enqueue job {job_id}: {e}")
             _extract_jobs[job_id].update({
                 "status": "failed",
-                "error": "extraction_failed",
+                "error": "enqueue_failed",
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             })
-    
-    thread = threading.Thread(target=_process_extraction, daemon=True)
-    thread.start()
+    else:
+        logger.error(f"RQ queue not available, cannot process job {job_id}")
+        _extract_jobs[job_id].update({
+            "status": "failed",
+            "error": "queue_unavailable",
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        })
     
     return {"job_id": job_id, "status": "accepted"}
 

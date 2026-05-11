@@ -261,6 +261,7 @@ def extract_memories(
             "scope": "/",
             "source_session": session_key,
             "source_turn": turn_id,
+            "source_type": source,
             "metadata": {
                 "source": source,
                 "thread_id": metadata.get("thread_id"),
@@ -405,6 +406,7 @@ def extract_memories(
             "scope": mem.get("scope", "/"),
             "source_session": session_key,
             "source_turn": turn_id,
+            "source_type": source,  # Pass through source parameter to DB column
             "extracted_at": now,
             "valid_from": now,
             "metadata": atom_metadata,
@@ -443,6 +445,7 @@ def extract_memories(
             "scope": "/",
             "source_session": session_key,
             "source_turn": turn_id,
+            "source_type": source,
             "metadata": {
                 "source": source,
                 "thread_id": metadata.get("thread_id"),
