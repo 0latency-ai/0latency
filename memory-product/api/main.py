@@ -1832,6 +1832,7 @@ async def list_memories(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     memory_type: Optional[str] = Query(None, max_length=32),
+    exclude_raw_turns: bool = Query(False, description="Exclude raw_turn fallback memories from results"),
     tenant: dict = Depends(require_api_key),
 ):
     """List memories for an agent with pagination."""
@@ -1842,22 +1843,27 @@ async def list_memories(
         # Auto-resolve agent_id if not provided
         agent_id = auto_resolve_agent_id(tenant_id, agent_id)
 
+        # Build WHERE clause conditions
+        where_conditions = ["agent_id = %s", "tenant_id = %s", "superseded_at IS NULL"]
+        params = [agent_id, tenant_id]
+        
         if memory_type:
-            rows = _db_execute_rows("""
-                SELECT id, headline, memory_type, importance, created_at
-                FROM memory_service.memories
-                WHERE agent_id = %s AND tenant_id = %s AND superseded_at IS NULL AND memory_type = %s
-                ORDER BY created_at DESC
-                LIMIT %s OFFSET %s
-            """, (agent_id, tenant_id, memory_type, limit, offset), tenant_id=tenant_id)
-        else:
-            rows = _db_execute_rows("""
-                SELECT id, headline, memory_type, importance, created_at
-                FROM memory_service.memories
-                WHERE agent_id = %s AND tenant_id = %s AND superseded_at IS NULL
-                ORDER BY created_at DESC
-                LIMIT %s OFFSET %s
-            """, (agent_id, tenant_id, limit, offset), tenant_id=tenant_id)
+            where_conditions.append("memory_type = %s")
+            params.append(memory_type)
+        
+        if exclude_raw_turns:
+            where_conditions.append("memory_type != 'raw_turn'")
+        
+        where_clause = " AND ".join(where_conditions)
+        params.extend([limit, offset])
+        
+        rows = _db_execute_rows(f"""
+            SELECT id, headline, memory_type, importance, created_at
+            FROM memory_service.memories
+            WHERE {where_clause}
+            ORDER BY created_at DESC
+            LIMIT %s OFFSET %s
+        """, tuple(params), tenant_id=tenant_id)
         
         items = []
         for row in (rows or []):
