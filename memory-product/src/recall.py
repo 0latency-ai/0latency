@@ -732,13 +732,16 @@ def recall_fixed(
                 access_weight * access_freq
             )
             
-            # Type bonuses (tuned: identity was drowning out topically relevant results)
+            # Type bonuses (Phase 3 enhancement: atomic facts over raw dumps)
+            # Identity/preference/event get higher boosts since they're user-specific and stable
             if c["memory_type"] == "identity":
-                composite *= 1.15  # Was 1.5 — too aggressive, caused identity to always win
+                composite *= 1.3  # Strong boost for identity facts (names, roles, permanent attributes)
             elif c["memory_type"] == "correction":
                 composite *= 1.25  # Corrections are important — recent overrides matter
             elif c["memory_type"] == "preference":
-                composite *= 1.15  # Preferences matter but shouldn't dominate
+                composite *= 1.25  # Preferences are critical for agent behavior alignment
+            elif c["memory_type"] == "event":
+                composite *= 1.2   # Events are specific, factual, temporally grounded
             elif c["memory_type"] == "decision" and days_since < 7:
                 composite *= 1.2   # Recent decisions are highly relevant
             elif c["memory_type"] == "synthesis":

@@ -108,7 +108,7 @@ def main():
         recent = load_recent_turns(agent_id)
         recent_tuples = [tuple(t) for t in recent] if recent else None
         
-        memories, raw_turn_id = extract_memories(
+        memories = extract_memories(
             human_message=human_msg,
             agent_message=agent_msg,
             agent_id=agent_id,

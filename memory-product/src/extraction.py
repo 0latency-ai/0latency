@@ -29,69 +29,83 @@ def _openai_key():
     return key.strip('"'"'"'"') if key else ""
 
 # Extraction prompt — the core of Phase 1
-EXTRACTION_PROMPT = """You are a memory extraction system. Your job is to analyze a conversation exchange between a human and an AI agent, and extract structured memories worth preserving.
+EXTRACTION_PROMPT = """You are a memory extraction system. Your job is to analyze a conversation exchange between a human and an AI agent, and extract ALL structured memories worth preserving.
 
-Extract ONLY information that would be useful in future conversations. Skip:
-- Routine pleasantries and filler
-- Information that's only relevant to the immediate exchange
-- Duplicates of things already in the existing memory context (provided below)
-- Hypothetical statements ("what if...", "imagine if...", "could we...") — unless the user explicitly decides to pursue them
+CRITICAL: EXHAUSTIVE EXTRACTION REQUIRED
+- Extract EVERY distinct fact, preference, decision, or piece of information
+- When a conversation covers multiple topics, extract each one separately
+- Typical target: 3-5+ memories per substantive turn (more for information-rich exchanges)
+- When in doubt, extract — information loss is worse than over-extraction
+- Do NOT let a dominant topic cause you to miss secondary information
+
+Extract memories that would be useful in future conversations. Skip ONLY:
+- Routine pleasantries and pure filler ("thanks", "sure", "okay")
+- Information that's only relevant to the immediate exchange with no future value
+- Exact duplicates of things already in the existing memory context (provided below)
+- Hypothetical statements ("what if...", "imagine if...", "could we...") — UNLESS the user explicitly decides to pursue them
 - Sarcastic or joking statements — do NOT store jokes as facts
-- Speculative future plans that haven't been committed to
+- Vague speculative plans that haven't been committed to
 
-For each extracted memory, provide:
+For EACH extracted memory, provide:
 1. **headline**: One-line summary (10-20 tokens). Must be self-contained and meaningful.
-2. **context**: The fact with enough context to be useful (50-100 tokens). Include WHY it matters.
-3. **full_content**: Complete memory with all nuance, caveats, source info (200-500 tokens).
+2. **context**: The fact with enough context to be useful (50-100 tokens). Include WHY it matters when relevant.
+3. **full_content**: Complete memory with all nuance, caveats, source info (100-300 tokens).
 4. **memory_type**: MUST be one of these exact values. Choose carefully:
-   - "preference": How the user wants things done. Communication style, behavior rules, tool usage norms, likes/dislikes. If the user says "don't do X" or "always do Y" or "I prefer Z" — this is a preference.
-   - "decision": A choice that was made. ONLY use when someone explicitly chose A over B, approved a plan, committed to a direction, or gave a definitive answer. For decisions, you MUST capture in full_content: (a) what was decided, (b) why/rationale, (c) who made it, (d) what alternatives were rejected or what it supersedes. "Agreed" or "yes" in response to a proposal = decision. Vague discussion ≠ decision.
-   - "fact": Objective information. Dates, numbers, states of affairs, technical details, business facts. THIS IS THE DEFAULT — if something doesn't clearly fit another type, it's a fact.
-   - "task": Something that needs to be done. Action items, todos, follow-ups, deadlines.
-   - "correction": ONLY when a previously held belief/fact is EXPLICITLY stated to be wrong and replaced with a new fact. Both the old and new fact must be clearly present in the conversation. Someone adding new information is NOT a correction — it's a fact. An agent status update is NOT a correction. Only use correction when the conversation explicitly says "X was wrong, it's actually Y" or "not X, it's Y."
-   - "relationship": A connection between people, organizations, or concepts.
    - "identity": Core identity information — names (people, pets, places), roles, permanent attributes. These NEVER decay.
-5. **importance**: 0.0-1.0. How important is this for future interactions?
-   - 0.9-1.0: Critical (identity facts like names/roles, non-negotiable rules, key business decisions, user preferences about agent behavior)
-   - 0.7-0.8: Important (business decisions, project milestones, key contacts)
-   - 0.4-0.6: Moderate (contextual facts, minor details)
-   - 0.1-0.3: Low (passing mentions, temporary context)
-6. **confidence**: 0.0-1.0. How confident are you this is a real fact vs hypothetical/joke/uncertain?
+   - "preference": How the user wants things done. Communication style, behavior rules, tool usage norms, likes/dislikes. If the user says "don't do X" or "always do Y" or "I prefer Z" — this is a preference.
+   - "decision": A choice that was made. ONLY use when someone explicitly chose A over B, approved a plan, committed to a direction, or gave a definitive answer. For decisions, you MUST capture in full_content: (a) what was decided, (b) why/rationale, (c) who made it, (d) what alternatives were rejected. "Agreed" or "yes" in response to a proposal = decision.
+   - "fact": Objective information. Dates, numbers, states of affairs, technical details, business facts. THIS IS THE DEFAULT — if something doesn't clearly fit another type, it's a fact.
+   - "event": Something that happened or will happen at a specific time. Has a clear temporal marker (past or future).
+   - "task": Something that needs to be done. Action items, todos, follow-ups, deadlines.
+   - "relationship": A connection between people, organizations, or concepts.
+   - "correction": ONLY when a previously held belief/fact is EXPLICITLY stated to be wrong and replaced. Both old and new must be present. "X was wrong, it's actually Y" or "not X, it's Y."
+5. **importance**: 0.6-1.0 for all extracted memories (anything below 0.6 shouldn't be extracted). How important is this for future interactions?
+   - 0.9-1.0: Critical (identity facts like names/roles, non-negotiable rules, key business decisions, core preferences about agent behavior)
+   - 0.7-0.8: Important (business facts, project milestones, key relationships, explicit preferences)
+   - 0.6-0.7: Moderate (contextual facts, specific details that add useful context)
+6. **confidence**: 0.5-1.0. How confident are you this is a real fact vs hypothetical/joke/uncertain?
    - 0.9-1.0: Stated directly and clearly as fact
-   - 0.6-0.8: Likely true but inferred or implied
-   - 0.3-0.5: Uncertain — might be hypothetical, sarcastic, or conditional
-   - 0.0-0.2: Probably not a real fact — clearly hypothetical or joking
-7. **entities**: List of people, projects, organizations, or concepts mentioned
+   - 0.7-0.8: Clearly implied or strongly inferred from context
+   - 0.5-0.6: Likely true but somewhat uncertain or conditional
+   - Below 0.5: Do NOT extract — too uncertain, hypothetical, or sarcastic
+7. **entities**: List of people, projects, organizations, or concepts mentioned (3-5 key entities max)
 8. **project**: Which project/area this relates to (if any)
-9. **categories**: 1-3 auto-inferred tags
-10. **scope**: Hierarchical path like /project/subarea (e.g., /pfl-academy/oklahoma, /personal/preferences)
+9. **categories**: 1-3 auto-inferred tags for organization
+10. **scope**: Hierarchical path like /project/subarea (e.g., /acme-corp/engineering, /personal/preferences)
 11. **temporal_type**: How does this fact relate to time?
-    - "permanent": Always true (names, identities, preferences) — should never decay
-    - "current": True now but could change (current projects, current status)
-    - "event": Something that happened at a specific time (dinner tonight, meeting yesterday)
-    - "ephemeral": Only relevant for a few hours (current location, what they're doing right now). Set ttl_hours.
-    - "goal": A future aspiration or target ($1M ARR goal)
+    - "permanent": Always true (names, identities, core preferences) — never decays
+    - "current": True now but could change (current projects, current role, current status)
+    - "event": Something that happened or will happen at a specific time
+    - "goal": A future aspiration or target ($1M ARR, promotion goal)
+    - "ephemeral": Only relevant for hours/days (current location, what they're doing today). Set ttl_hours.
 12. **ttl_hours**: (optional, only for ephemeral) Number of hours this memory stays relevant. Default 12.
 
-STRUCTURED LIST PRESERVATION: When the conversation contains a numbered list, checklist, ordered plan, or set of items that form a coherent group, extract them as ONE memory with the full list preserved. Do NOT shatter a 9-item checklist into 9 separate memories. The headline should reference the list ("9-item pre-launch checklist" or "Phase A→B→C cost comparison"), and full_content should contain all items with their ordering and any dependencies. Individual items from the list should ONLY get their own separate memory if they contain significant standalone information beyond their role in the list.
+EXHAUSTIVE EXTRACTION CHECKLIST (verify before responding):
+☐ Did I extract from EVERY distinct topic or subject mentioned?
+☐ Did I capture ALL specific factual details (names, dates, numbers, tools, places)?
+☐ Did I extract BOTH explicit statements AND clear implications?
+☐ If multiple facts appear in one sentence, did I create separate memories for each?
+☐ Did I check the ENTIRE human message, not just the first few sentences?
+☐ Did I extract relevant facts from the agent message (recommendations, plans, agreements)?
+☐ For decisions: Did I capture WHAT was decided, WHY, and any alternatives rejected?
+☐ For preferences: Did I capture the specific behavior requested and context?
 
-DECISION SPECIFICITY: When the human responds to a list of items (e.g., "3: Agreed. 4: Yes, let's do that. 5: Sounds good"), extract ONE decision memory that captures ALL their responses together, not individual memories per item. The headline should be "Responses to [list name]" and full_content should map each item to the human's specific response and rationale.
+STRUCTURED LIST PRESERVATION: When the conversation contains a numbered list, checklist, ordered plan, or set of items that form a coherent group, extract them as ONE memory with the full list preserved. Do NOT shatter a 9-item checklist into 9 separate memories. The headline should reference the list ("9-item pre-launch checklist"), and full_content should contain all items with ordering. Individual items should ONLY get separate memories if they contain significant standalone information beyond their role in the list.
 
 MULTI-TURN INFERENCE: You are given the CURRENT exchange plus RECENT CONTEXT (previous turns). Use the recent context to:
 - Catch information IMPLIED across messages but never stated explicitly in one turn
-- Understand evolving discussions (e.g., frustration building over multiple messages, decisions being refined)
+- Understand evolving discussions (e.g., decisions being refined, frustration building)
 - Connect references ("that thing we discussed" → match to specific prior turn)
 - Extract memories that only become clear when multiple turns are considered together
-Do NOT re-extract memories from the recent context turns — only extract NEW memories from the current exchange, informed by the context.
+Do NOT re-extract memories from recent context turns — only extract NEW memories from the current exchange, informed by context.
 
-CONTRADICTION CHECK: Before extracting, compare against the existing memory context below. If a new statement CONTRADICTS an existing memory:
+CONTRADICTION CHECK: Before extracting, compare against existing memory context. If a new statement CONTRADICTS an existing memory:
 - Mark the new memory as type "correction"
 - Include BOTH the old fact and new fact in full_content
 - Set the field "contradicts" to the headline of the contradicted memory
 
-If nothing worth extracting, return an empty array [].
-
-Respond with a JSON array of memory objects.
+If absolutely nothing worth extracting (pure small talk), return an empty array [].
+Otherwise, respond with a JSON array of memory objects.
 
 EXISTING MEMORY CONTEXT (to avoid duplicates):
 <existing_context>
@@ -202,7 +216,7 @@ def extract_memories(
     tenant_id: Optional[str] = None,
     source: str = "api",
     metadata: Optional[dict] = None,
-) -> tuple[list[dict], Optional[str]]:
+) -> list[dict]:
     """
     Extract structured memories from a single conversation exchange,
     with multi-turn context for inference across messages.
@@ -216,59 +230,15 @@ def extract_memories(
         existing_context: Recent memories to avoid duplicates (L0 headlines)
         recent_turns: List of (human_msg, agent_msg) tuples for the previous 3-4 turns
     
-        tenant_id: Tenant UUID for raw_turn write (optional)
+        tenant_id: Tenant UUID (unused, kept for backward compatibility)
         source: Source of extraction (api|mcp|extension)
-        metadata: Optional metadata dict (may contain raw_turn_id for idempotency)
+        metadata: Optional metadata dict
     Returns:
-        Tuple of (memories list, raw_turn_id)
+        List of extracted memory dictionaries (atomic facts only)
     """
     # Skip extraction for very short exchanges (greetings, acks)
     if len(human_message) < 20 and len(agent_message) < 50:
-        return ([], None)
-    
-
-    # ========================================================================
-    # Task 8b: Write raw_turn memory FIRST (verbatim preservation)
-    # ========================================================================
-    metadata = metadata or {}
-    raw_turn_id = metadata.get("raw_turn_id")
-    
-    if not raw_turn_id and tenant_id:
-        from storage_multitenant import store_memory
-        full_content = f"Human: {human_message}\\n\\nAgent: {agent_message}"
-        context_text = full_content[:500] + ("..." if len(full_content) > 500 else "")
-        timestamp_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-        headline_text = f"Raw turn — {timestamp_str}"
-        
-        raw_turn_memory = {
-            "agent_id": agent_id,
-            "headline": headline_text,
-            "context": context_text,
-            "full_content": full_content,
-            "memory_type": "raw_turn",
-            "importance": 0.3,
-            "confidence": 1.0,
-            "entities": [],
-            "categories": ["raw_turn"],
-            "scope": "/",
-            "source_session": session_key,
-            "source_turn": turn_id,
-            "metadata": {
-                "source": source,
-                "thread_id": metadata.get("thread_id"),
-                "project_id": metadata.get("project_id"),
-                "turn_number": metadata.get("turn_number"),
-            },
-        }
-        
-        try:
-            result = store_memory(raw_turn_memory, tenant_id=tenant_id)
-            raw_turn_id = result["id"]
-            print(f"  Stored raw_turn: {raw_turn_id}")
-            metadata["raw_turn_id"] = raw_turn_id
-        except Exception as e:
-            print(f"  Warning: Failed to store raw_turn (non-fatal): {e}")
-            raw_turn_id = None
+        return []
 
     # Build recent context string from sliding window
     recent_context = "(no prior turns)"
@@ -319,7 +289,7 @@ def extract_memories(
     except json.JSONDecodeError as e:
         print(f"Failed to parse extraction response: {e}")
         print(f"Raw response: {raw_response[:500]}")
-        return ([], raw_turn_id)
+        return []
     
     # Validate and enrich each memory
     now = datetime.now(timezone.utc).isoformat()
@@ -345,7 +315,7 @@ def extract_memories(
         
         # Get confidence — skip low-confidence extractions (hypotheticals, jokes)
         confidence = max(0.0, min(1.0, float(mem.get("confidence", 0.8))))
-        if confidence < 0.3:
+        if confidence < 0.5:
             continue  # Don't store things we're not sure about
         
         # Get temporal type
@@ -364,7 +334,7 @@ def extract_memories(
         
         # Build metadata with new fields
         atom_metadata = {
-            "parent_memory_ids": [str(raw_turn_id)] if raw_turn_id else [],
+            "parent_memory_ids": [],
             "temporal_type": temporal_type,
             "contradicts": mem.get("contradicts"),
         }
@@ -393,7 +363,7 @@ def extract_memories(
         
         validated.append(memory_obj)
     
-    return (validated, raw_turn_id)
+    return validated
 
 
 def extract_session_handoff(
@@ -466,7 +436,7 @@ def test_extraction():
     print(f"Agent message: {agent[:100]}...")
     print()
     
-    memories, raw_turn_id = extract_memories(
+    memories = extract_memories(
         human_message=human,
         agent_message=agent,
         agent_id="thomas",

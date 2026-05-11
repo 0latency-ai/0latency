@@ -399,7 +399,7 @@ Agent: ${agent_message}`;
     
     const result = await api({
       method: "POST",
-      path: "/memories",
+      path: "/extract",
       body: {
         agent_id,
         content,
