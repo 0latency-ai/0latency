@@ -6,7 +6,7 @@ source .env.benchmark
 set +a
 
 # Explicitly set Sonnet 4.5 extraction
-export EXTRACTION_MODEL=claude-sonnet-4-5-20250929
+export EXTRACTION_MODEL=claude-sonnet-4-6
 
 echo "=== LONGMEMEVAL RUN 2: ENTERPRISE TIER ==="
 echo "Extraction: Sonnet ($EXTRACTION_MODEL)"
@@ -20,7 +20,7 @@ echo ""
 echo "Configuring API to use Sonnet extraction..."
 cd ../../
 cp .env .env.backup-before-run2
-sed -i.bak "s/^EXTRACTION_MODEL=.*/EXTRACTION_MODEL=claude-sonnet-4-5-20250929/" .env
+sed -i.bak "s/^EXTRACTION_MODEL=.*/EXTRACTION_MODEL=claude-sonnet-4-6/" .env
 
 # Restart API
 sudo systemctl restart memory-api
