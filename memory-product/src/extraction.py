@@ -221,10 +221,12 @@ def extract_memories(
         metadata: Optional metadata dict (may contain raw_turn_id for idempotency)
     Returns:
         tuple[list[dict], Optional[str]]: A tuple containing:
-            - memories: List of extracted memory dictionaries  
-            - raw_turn_id: String identifier for the turn (required for caller)
+            - memories: List of extracted memory dictionaries
+            - raw_turn_id: String identifier (None if extraction succeeded, UUID if fallback stored)
         
         IMPORTANT: Both elements of tuple are required for all callers.
+        raw_turn is stored ONLY when len(memories) == 0 (fallback/audit preservation).
+        When extraction succeeds (≥1 memory), raw_turn is skipped to avoid namespace bloat.
         Tuple signature restored 2026-05-10 after ed6343d regression.
         Do not change this return signature without updating all 18+ call sites.
     """
@@ -415,6 +417,48 @@ def extract_memories(
     logger.info(f"Kept {len(validated)} memories, filtered {filtered_count}")
     if filtered_reasons:
         logger.debug(f"Filtered: {filtered_reasons[:5]}")  # Show first 5
+    
+    # ========================================================================
+    # Task 8b (revised): Write raw_turn ONLY when extraction returns zero memories
+    # Rationale: When extraction succeeds, extracted facts already preserve signal.
+    # Raw turn is fallback/audit storage, not user-facing memory.
+    # ========================================================================
+    if len(validated) == 0 and not raw_turn_id and tenant_id:
+        from storage_multitenant import store_memory
+        full_content = f"Human: {human_message}\n\nAgent: {agent_message}"
+        context_text = full_content[:500] + ("..." if len(full_content) > 500 else "")
+        timestamp_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        headline_text = f"Raw turn — {timestamp_str}"
+        
+        raw_turn_memory = {
+            "agent_id": agent_id,
+            "headline": headline_text,
+            "context": context_text,
+            "full_content": full_content,
+            "memory_type": "raw_turn",
+            "importance": 0.3,
+            "confidence": 1.0,
+            "entities": [],
+            "categories": ["raw_turn"],
+            "scope": "/",
+            "source_session": session_key,
+            "source_turn": turn_id,
+            "metadata": {
+                "source": source,
+                "thread_id": metadata.get("thread_id"),
+                "project_id": metadata.get("project_id"),
+                "turn_number": metadata.get("turn_number"),
+            },
+        }
+        
+        try:
+            result = store_memory(raw_turn_memory, tenant_id=tenant_id)
+            raw_turn_id = result["id"]
+            print(f"  Stored raw_turn (fallback): {raw_turn_id}")
+            metadata["raw_turn_id"] = raw_turn_id
+        except Exception as e:
+            print(f"  Warning: Failed to store raw_turn (non-fatal): {e}")
+            raw_turn_id = None
     
     return (validated, raw_turn_id)
 
