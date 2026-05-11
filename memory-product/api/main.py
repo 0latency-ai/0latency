@@ -8,11 +8,16 @@ import time
 import base64
 import json
 
-# Load .env file for environment variables (Stripe keys, etc.)
+# CRITICAL: Load .env BEFORE any imports that read environment
+from pathlib import Path
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    _env_path = Path(__file__).resolve().parents[1] / ".env"
+    if _env_path.exists():
+        load_dotenv(_env_path, override=False)
 except ImportError:
+    pass  # dotenv not installed, rely on systemd EnvironmentFile
+
     pass
 import hashlib
 import uuid
@@ -137,19 +142,40 @@ from storage_multitenant import warm_embedding_cache, _get_local_model
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup."""
+    # CRITICAL: Validate LLM API keys are available
+    from extraction import _anthropic_key, _openai_key
+    try:
+        anthropic_key = _anthropic_key()
+        openai_key = _openai_key()
+        if not anthropic_key and not openai_key:
+            logger.critical(
+                "EXTRACTION DISABLED — No LLM API keys found in environment. "
+                "Set ANTHROPIC_API_KEY or OPENAI_API_KEY. /extract and /seed will return 500."
+            )
+            # Fail fast: refuse to start if extraction is broken
+            sys.exit(1)
+        else:
+            key_status = []
+            if anthropic_key:
+                key_status.append("Anthropic")
+            if openai_key:
+                key_status.append("OpenAI")
+            logger.info(f"[STARTUP] LLM API keys loaded: {', '.join(key_status)}")
+    except Exception as e:
+        logger.critical(f"[STARTUP] Failed to validate API keys: {e}")
+        sys.exit(1)
+    
     warm_embedding_cache()
     
     # Preload SentenceTransformer model
     try:
         import time as _time
-        logger = logging.getLogger(__name__)
         _start = _time.time()
         logger.info("[STARTUP] Preloading SentenceTransformer model...")
         model = _get_local_model()
         _load_time = _time.time() - _start
         logger.info(f"[STARTUP] SentenceTransformer preloaded in {_load_time:.2f}s")
     except Exception as e:
-        logger = logging.getLogger(__name__)
         logger.warning(f"[STARTUP] Failed to preload SentenceTransformer: {e}")
 from api.auth import router as auth_router
 app.include_router(auth_router)
