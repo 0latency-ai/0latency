@@ -9,6 +9,7 @@ Uses Anthropic Haiku 4.5 by default, with OpenAI GPT-4o-mini as fallback.
 import json
 import os
 import hashlib
+import time
 from datetime import datetime, timezone
 from typing import Optional
 import requests
@@ -21,12 +22,10 @@ EXTRACTION_MODEL = os.environ.get("EXTRACTION_MODEL", "claude-haiku-4-5-20251001
 # Lazy env reads — resolved at call time, not import time.
 # This is critical for systemd/uvicorn workers where env may be set after module import.
 def _anthropic_key():
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    return key.strip('"'"'"'"') if key else ""
+    return os.environ.get("ANTHROPIC_API_KEY", "").strip()
 
 def _openai_key():
-    key = os.environ.get("OPENAI_API_KEY")
-    return key.strip('"'"'"'"') if key else ""
+    return os.environ.get("OPENAI_API_KEY", "").strip()
 
 # Extraction prompt — the core of Phase 1
 EXTRACTION_PROMPT = """You are a memory extraction system. Your job is to analyze a conversation exchange between a human and an AI agent, and extract structured memories worth preserving.
@@ -171,23 +170,53 @@ def _call_openai(prompt: str) -> str:
     return result["choices"][0]["message"]["content"]
 
 
-def _call_model(prompt: str) -> str:
-    """Call the configured extraction model with fallback chain (Anthropic primary, OpenAI fallback)."""
-    if _anthropic_key():
-        try:
-            return _call_anthropic(prompt)
-        except Exception as e:
-            import logging; logging.getLogger("extraction").error(f"Anthropic failed: {e}, trying fallback...")
-    
-    if _openai_key():
-        try:
-            return _call_openai(prompt)
-        except Exception as e:
-            import logging; logging.getLogger("extraction").error(f"OpenAI failed: {e}")
-    
-    import logging; logger = logging.getLogger("extraction"); logger.error(f"DEBUG: anthropic={bool(_anthropic_key())}, openai={bool(_openai_key())}")
-    raise RuntimeError("No extraction model available. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.")
 
+def _call_with_retry(provider_name: str, call_fn, max_attempts: int = 3):
+    """Retry a provider call with exponential backoff."""
+    last_exc = None
+    for attempt in range(max_attempts):
+        try:
+            return call_fn(), None
+        except Exception as e:
+            last_exc = e
+            if attempt < max_attempts - 1:
+                # Exponential backoff: 0.5s, 1.5s
+                time.sleep(0.5 * (3 ** attempt))
+    return None, last_exc
+
+
+def _call_model(prompt: str) -> str:
+    """Call the configured extraction model with fallback chain and retry logic."""
+    import logging
+    logger = logging.getLogger("extraction")
+    
+    errors = []
+    has_anthropic = bool(_anthropic_key())
+    has_openai = bool(_openai_key())
+    
+    # Try Anthropic if key is present
+    if has_anthropic:
+        result, exc = _call_with_retry("Anthropic", lambda: _call_anthropic(prompt))
+        if result is not None:
+            return result
+        errors.append(("Anthropic", str(exc)))
+        logger.error(f"Anthropic failed after retry: {exc}")
+    
+    # Try OpenAI fallback if key is present
+    if has_openai:
+        result, exc = _call_with_retry("OpenAI", lambda: _call_openai(prompt))
+        if result is not None:
+            return result
+        errors.append(("OpenAI", str(exc)))
+        logger.error(f"OpenAI failed after retry: {exc}")
+    
+    # Build precise error message
+    if not has_anthropic and not has_openai:
+        raise RuntimeError("No extraction provider configured: ANTHROPIC_API_KEY and OPENAI_API_KEY both missing")
+    
+    # Keys present but all providers failed
+    error_details = "; ".join([f"{name}: {err[:200]}" for name, err in errors])
+    raise RuntimeError(f"All extraction providers failed after retry. {error_details}")
 
 def _generate_id(content: str, timestamp: str) -> str:
     """Generate a deterministic ID for deduplication."""

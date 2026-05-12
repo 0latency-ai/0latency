@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Custom rq worker entry that preloads the embedder before entering the job loop.
 
-Forked job children inherit the loaded model via Linux copy-on-write,
-eliminating the ~7-8s cold load and ~450MB per-fork overhead.
+Uses SimpleWorker (in-process job execution) to avoid fork-after-psycopg2-connected
+hang. The parent process opens DB connections, and forking would inherit them,
+causing PostgreSQL to reject queries from child PIDs on parent sockets.
+
+SimpleWorker runs jobs in the main process without forking, eliminating the
+connection inheritance bug. Embedder preload still provides warm model access.
 
 Usage:
     python3 bin/zerolatency_rq_worker.py
@@ -21,7 +25,7 @@ sys.path.insert(0, os.path.join(project_root, "src"))
 
 from src.embedder import preload_embedder
 from redis import Redis
-from rq import Worker
+from rq import SimpleWorker
 
 if __name__ == "__main__":
     print("[WORKER STARTUP] Preloading SentenceTransformer...", flush=True)
@@ -36,5 +40,5 @@ if __name__ == "__main__":
     redis_conn = Redis.from_url(redis_url)
     print("[WORKER STARTUP] Starting worker for queue: extraction", flush=True)
 
-    worker = Worker(["extraction"], connection=redis_conn)
+    worker = SimpleWorker(["extraction"], connection=redis_conn)
     worker.work()
