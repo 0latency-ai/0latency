@@ -28,18 +28,13 @@ except ImportError:
 import time
 
 # Local embedding model for fast CPU inference
-_local_embedding_model = None
+# NOTE: Delegated to shared src.embedder module (CP-WORKER-PRELOAD 2026-05-12)
 _local_model_lock = threading.Lock()
 
 def _get_local_model():
-    """Lazy-load local embedding model (all-MiniLM-L6-v2, 384 dims, ~10-20ms CPU inference)."""
-    global _local_embedding_model
-    if _local_embedding_model is None:
-        from sentence_transformers import SentenceTransformer
-        _local_embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-        # Warmup inference to avoid deferred init cost on first real call
-        _local_embedding_model.encode(["warmup"], show_progress_bar=False)
-    return _local_embedding_model
+    """Get local embedding model via shared preload module."""
+    from src.embedder import get_embedder
+    return get_embedder()
 
 
 # --- Configuration ---
