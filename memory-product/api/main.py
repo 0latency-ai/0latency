@@ -29,7 +29,7 @@ from typing import Optional, List
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query, BackgroundTasks
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from api.analytics import track_posthog_event, is_first_api_call, is_first_memory_stored, is_first_memory_recalled, check_activation_milestone
-from api.errors import (raise_invalid_api_key, raise_memory_limit, raise_extraction_failed, raise_recall_failed, raise_not_found, raise_validation_error, raise_forbidden, raise_service_unavailable)
+from api.errors import (raise_invalid_api_key, raise_memory_limit, raise_rate_limit, raise_extraction_failed, raise_recall_failed, raise_not_found, raise_validation_error, raise_forbidden, raise_service_unavailable)
 from api.onboarding_helpers import should_show_recall_prompt, create_next_action_response, extract_keywords_from_headline
 from api.email_service import email_service
 from fastapi.middleware.cors import CORSMiddleware
@@ -271,7 +271,7 @@ def _check_rate_limit(tenant_id: str, rate_limit_rpm: int):
             if count > rate_limit_rpm:
                 ttl = max(r.ttl(key), 1)
                 logger.warning(f"rate_limit_hit tenant={tenant_id} plan_rpm={rate_limit_rpm} count={count} retry_after={ttl}")
-                raise_memory_limit(rate_limit_rpm, retry_after=ttl)
+                raise_rate_limit(rate_limit_rpm, retry_after=ttl)
             return
         except HTTPException:
             raise
@@ -284,7 +284,7 @@ def _check_rate_limit(tenant_id: str, rate_limit_rpm: int):
     _rate_limits_fallback[tenant_id] = [t for t in window if now - t < 60]
     if len(_rate_limits_fallback[tenant_id]) >= rate_limit_rpm:
         logger.warning(f"rate_limit_hit tenant={tenant_id} plan_rpm={rate_limit_rpm} (in-memory fallback)")
-        raise_memory_limit(rate_limit_rpm, retry_after=60)
+        raise_rate_limit(rate_limit_rpm, retry_after=60)
     _rate_limits_fallback[tenant_id].append(now)
 
 _rate_limits_fallback: dict[str, list[float]] = {}

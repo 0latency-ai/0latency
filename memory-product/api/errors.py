@@ -54,6 +54,13 @@ MEMORY_LIMIT_REACHED = APIError(
     docs_url="https://0latency.ai/docs/troubleshooting#memory-limit"
 )
 
+RATE_LIMIT_EXCEEDED = APIError(
+    code="RATE_LIMIT_EXCEEDED",
+    message="Too many requests",
+    hint="You've exceeded your plan's rate limit. Please wait and try again, or upgrade your plan at https://0latency.ai/dashboard/billing",
+    docs_url="https://0latency.ai/docs/troubleshooting#rate-limit"
+)
+
 EXTRACTION_FAILED = APIError(
     code="EXTRACTION_FAILED",
     message="Memory extraction failed",
@@ -169,6 +176,23 @@ def raise_memory_limit(limit: int, current: int = None, retry_after: int = None)
         extra["retry_after"] = retry_after
         headers = {"Retry-After": str(retry_after)}
     raise_api_error(MEMORY_LIMIT_REACHED, 429, headers=headers, **extra)
+
+def raise_rate_limit(limit: int, current: int = None, retry_after: int = None) -> None:
+    """Raise standardized rate limit error (429).
+    
+    Args:
+        limit: The rate limit (RPM) for this tenant's plan
+        current: Current request count in window (optional)
+        retry_after: Seconds until limit resets (optional)
+    """
+    extra = {"limit": limit}
+    if current is not None:
+        extra["current"] = current
+    headers = None
+    if retry_after is not None:
+        extra["retry_after"] = retry_after
+        headers = {"Retry-After": str(retry_after)}
+    raise_api_error(RATE_LIMIT_EXCEEDED, 429, headers=headers, **extra)
 
 
 def raise_extraction_failed(request_id: Optional[str] = None, details: Optional[str] = None) -> None:
