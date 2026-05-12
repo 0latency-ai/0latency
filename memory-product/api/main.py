@@ -150,7 +150,7 @@ except Exception as e:
 # --- Auth Module ---
 
 # Warm embedding cache on startup
-from storage_multitenant import warm_embedding_cache, _get_local_model
+from storage_multitenant import warm_embedding_cache
 
 @app.on_event("startup")
 async def startup_event():
@@ -180,12 +180,13 @@ async def startup_event():
     
     warm_embedding_cache()
     
-    # Preload SentenceTransformer model
+    # Preload SentenceTransformer model (via shared embedder module)
     try:
         import time as _time
+        from src.embedder import preload_embedder
         _start = _time.time()
         logger.info("[STARTUP] Preloading SentenceTransformer model...")
-        model = _get_local_model()
+        preload_embedder()
         _load_time = _time.time() - _start
         logger.info(f"[STARTUP] SentenceTransformer preloaded in {_load_time:.2f}s")
     except Exception as e:

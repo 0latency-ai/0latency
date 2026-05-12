@@ -1,0 +1,17 @@
+[Unit]
+Description=Zero Latency RQ Worker %i for Memory Extraction
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/.openclaw/workspace/memory-product
+EnvironmentFile=/root/.openclaw/workspace/memory-product/.env
+ExecStartPre=/root/.openclaw/workspace/memory-product/.venv/bin/pip install -r /root/.openclaw/workspace/memory-product/requirements.txt --quiet --disable-pip-version-check
+ExecStart=/root/.openclaw/workspace/memory-product/.venv/bin/python3 /root/.openclaw/workspace/memory-product/bin/zerolatency_rq_worker.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
