@@ -2,10 +2,10 @@
 """
 Q3 Single-Question Async Benchmark Runner
 
+Submit-all-then-poll architecture eliminates thread starvation.
+
 Runs against local API (localhost:8420) to bypass edge rate limiting.
 For production smoke tests, override API_BASE_URL env var.
-
-Thin client: Workers + API handle retry. Benchmark just submits and polls.
 """
 import os
 import sys
@@ -15,6 +15,7 @@ import requests
 from pathlib import Path
 from typing import Dict, List, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 
 # Configuration
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8420")
@@ -31,12 +32,9 @@ HEADERS = {
 }
 
 class BenchmarkRunner:
-    def __init__(self, dataset_path: str, max_workers: int = 8):
+    def __init__(self, dataset_path: str, max_workers: int = 16):
         self.dataset_path = Path(dataset_path)
         self.max_workers = max_workers
-        self.total_turns = 0
-        self.total_failed = 0
-        self.job_times = []
         
     def load_dataset(self) -> List[Dict]:
         """Load Q3 dataset."""
@@ -45,8 +43,40 @@ class BenchmarkRunner:
         print(f"Loaded {len(data)} questions from {self.dataset_path.name}")
         return data
     
-    def submit_extraction_job(self, payload: Dict) -> Tuple[str, str, int]:
-        """Submit extraction job. Returns (job_id, error, status_code). No retry."""
+    def extract_turns(self, sessions: List[List[Dict]], question_id: str) -> List[Dict]:
+        """Extract all turns from all sessions into flat list."""
+        turns = []
+        
+        for session_idx, session in enumerate(sessions):
+            i = 0
+            turn_idx = 0
+            while i < len(session) - 1:
+                user_turn = session[i]
+                assistant_turn = session[i + 1]
+                
+                if user_turn["role"] != "user" or assistant_turn["role"] != "assistant":
+                    i += 1
+                    continue
+                
+                turns.append({
+                    "session_idx": session_idx,
+                    "turn_idx": turn_idx,
+                    "content": f"Human: {user_turn['content']}\\n\\nAssistant: {assistant_turn['content']}",
+                    "session_key": f"longmemeval_{question_id}_session_{session_idx}"
+                })
+                
+                turn_idx += 1
+                i += 2
+        
+        return turns
+    
+    def submit_job(self, turn: Dict) -> Tuple[str, Dict]:
+        """Submit one extraction job. Returns (job_id or None, turn_metadata)."""
+        payload = {
+            "content": turn["content"],
+            "session_key": turn["session_key"]
+        }
+        
         try:
             response = requests.post(
                 f"{API_BASE_URL}/memories/extract",
@@ -57,14 +87,14 @@ class BenchmarkRunner:
             
             if response.status_code == 202:
                 data = response.json()
-                return data["job_id"], None, 202
+                return data["job_id"], turn
             else:
-                return None, f"status_{response.status_code}", response.status_code
+                return None, {**turn, "error": f"status_{response.status_code}"}
         except Exception as e:
-            return None, str(e), 0
+            return None, {**turn, "error": str(e)}
     
-    def poll_job_completion(self, job_id: str, max_wait: int = 180) -> Tuple[bool, str, float]:
-        """Poll job until complete or timeout. Returns (success, error, elapsed_seconds)."""
+    def poll_job(self, job_id: str, turn: Dict, max_wait: int = 180) -> Dict:
+        """Poll job until complete or timeout. Returns result dict."""
         start = time.time()
         
         while time.time() - start < max_wait:
@@ -75,70 +105,66 @@ class BenchmarkRunner:
                     timeout=5
                 )
                 
-                if response.status_code != 200:
+                if response.status_code == 429:
+                    # Rate limited - wait and retry
+                    data = response.json()
+                    retry_after = data.get("detail", {}).get("error", {}).get("retry_after", 5)
+                    time.sleep(retry_after)
+                    continue
+                elif response.status_code != 200:
                     elapsed = time.time() - start
-                    return False, f"poll_status_{response.status_code}", elapsed
+                    return {
+                        **turn,
+                        "job_id": job_id,
+                        "status": "failed",
+                        "error": f"poll_status_{response.status_code}",
+                        "elapsed": elapsed
+                    }
                 
                 data = response.json()
                 status = data.get("status")
                 
                 if status == "complete":
                     elapsed = time.time() - start
-                    return True, None, elapsed
+                    return {
+                        **turn,
+                        "job_id": job_id,
+                        "status": "complete",
+                        "memories_stored": data.get("memories_stored", 0),
+                        "elapsed": elapsed
+                    }
                 elif status == "failed":
                     elapsed = time.time() - start
-                    return False, f"job_failed: {data.get('error', 'unknown')}", elapsed
+                    return {
+                        **turn,
+                        "job_id": job_id,
+                        "status": "failed",
+                        "error": data.get("error", "unknown"),
+                        "elapsed": elapsed
+                    }
                 
-                time.sleep(1)
+                time.sleep(0.5)
             except Exception as e:
                 elapsed = time.time() - start
-                return False, str(e), elapsed
+                return {
+                    **turn,
+                    "job_id": job_id,
+                    "status": "failed",
+                    "error": str(e),
+                    "elapsed": elapsed
+                }
         
         elapsed = time.time() - start
-        return False, "timeout", elapsed
+        return {
+            **turn,
+            "job_id": job_id,
+            "status": "failed",
+            "error": "timeout",
+            "elapsed": elapsed
+        }
     
-    def extract_session(self, session: List[Dict], session_idx: int, question_id: str) -> Tuple[int, int]:
-        """Extract memories from one session. Returns (turn_count, failed_count)."""
-        turn_count = 0
-        failed_count = 0
-        i = 0
-        
-        while i < len(session) - 1:
-            user_turn = session[i]
-            assistant_turn = session[i + 1]
-            
-            if user_turn["role"] != "user" or assistant_turn["role"] != "assistant":
-                i += 1
-                continue
-            
-            payload = {
-                "content": f"Human: {user_turn['content']}\n\nAssistant: {assistant_turn['content']}",
-                "session_key": f"longmemeval_{question_id}_session_{session_idx}"
-            }
-            
-            # Submit job (no retry)
-            job_id, error, status_code = self.submit_extraction_job(payload)
-            
-            if not job_id:
-                failed_count += 1
-                i += 2
-                continue
-            
-            # Poll for completion (180s timeout)
-            success, poll_error, elapsed = self.poll_job_completion(job_id)
-            
-            if success:
-                turn_count += 1
-                self.job_times.append(elapsed)
-            else:
-                failed_count += 1
-            
-            i += 2
-        
-        return turn_count, failed_count
-    
-    def run(self):
-        """Run Q3 benchmark."""
+    def run(self, output_path: str = None):
+        """Run Q3 benchmark with submit-all-then-poll pattern."""
         print(f"\\nRunning Q3 Async Benchmark...")
         print(f"API: {API_BASE_URL}")
         print(f"Concurrency: {self.max_workers} workers")
@@ -154,56 +180,134 @@ class BenchmarkRunner:
             
             print(f"[Q3] {question_id}")
             print(f"  Q: {question_text}")
-            print(f"  Extracting {len(haystack_sessions)} haystack sessions...")
+            print(f"  Sessions: {len(haystack_sessions)}")
             
-            start = time.time()
+            # Extract all turns
+            all_turns = self.extract_turns(haystack_sessions, question_id)
+            print(f"  Total turns: {len(all_turns)}")
+            
+            # PHASE 1: Submit all jobs
+            print(f"\\n  Phase 1: Submitting {len(all_turns)} jobs...")
+            submit_start = time.time()
+            
+            job_map = {}  # {job_id: turn_metadata}
+            failed_submissions = []
             
             with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                futures = {}
-                for session_idx, session in enumerate(haystack_sessions):
-                    future = executor.submit(self.extract_session, session, session_idx, question_id)
-                    futures[future] = session_idx
+                futures = {executor.submit(self.submit_job, turn): turn for turn in all_turns}
                 
                 for future in as_completed(futures):
-                    session_idx = futures[future]
-                    try:
-                        turn_count, failed_count = future.result()
-                        self.total_turns += turn_count
-                        self.total_failed += failed_count
-                    except Exception as e:
-                        print(f"  ERROR session {session_idx}: {e}", file=sys.stderr)
-                        self.total_failed += 1
+                    job_id, turn_meta = future.result()
+                    if job_id:
+                        job_map[job_id] = turn_meta
+                    else:
+                        failed_submissions.append(turn_meta)
             
-            elapsed = time.time() - start
+            submit_elapsed = time.time() - submit_start
+            print(f"  Submitted: {len(job_map)} jobs in {submit_elapsed:.1f}s")
+            if failed_submissions:
+                print(f"  Failed to submit: {len(failed_submissions)}")
+            
+            # PHASE 2: Poll all jobs
+            print(f"\\n  Phase 2: Polling {len(job_map)} jobs...")
+            poll_start = time.time()
+            
+            results = []
+            
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = {executor.submit(self.poll_job, job_id, turn_meta): job_id 
+                          for job_id, turn_meta in job_map.items()}
+                
+                for future in as_completed(futures):
+                    result = future.result()
+                    results.append(result)
+            
+            # Add failed submissions to results
+            for turn_meta in failed_submissions:
+                results.append({
+                    **turn_meta,
+                    "status": "failed",
+                    "elapsed": 0
+                })
+            
+            poll_elapsed = time.time() - poll_start
+            total_elapsed = time.time() - submit_start
+            
+            # PHASE 3: Aggregate and output
+            succeeded = [r for r in results if r.get("status") == "complete"]
+            failed = [r for r in results if r.get("status") != "complete"]
             
             # Calculate percentiles
-            if self.job_times:
-                sorted_times = sorted(self.job_times)
-                p50 = sorted_times[len(sorted_times) // 2]
-                p95 = sorted_times[int(len(sorted_times) * 0.95)]
+            if succeeded:
+                elapsed_times = sorted([r["elapsed"] for r in succeeded])
+                p50 = elapsed_times[len(elapsed_times) // 2]
+                p95 = elapsed_times[int(len(elapsed_times) * 0.95)]
             else:
                 p50 = p95 = 0
             
-            print(f"\\n  Extracted {len(haystack_sessions)} sessions in {elapsed:.1f}s")
-            print(f"  Total turns: {self.total_turns}, Failed: {self.total_failed}")
-            print(f"  Job latency: p50={p50:.1f}s, p95={p95:.1f}s")
+            # Group by session
+            sessions_results = {}
+            for r in results:
+                session_idx = r["session_idx"]
+                if session_idx not in sessions_results:
+                    sessions_results[session_idx] = []
+                sessions_results[session_idx].append(r)
             
-            if self.total_failed > len(haystack_sessions) * 0.1:
-                print(f"\\n✗ FAILED: Too many extraction failures ({self.total_failed})")
+            print(f"\\n  Phase 3: Results")
+            print(f"  Polling completed in {poll_elapsed:.1f}s")
+            print(f"  Total wall-clock: {total_elapsed:.1f}s")
+            print(f"  Succeeded: {len(succeeded)}/{len(results)}")
+            print(f"  Failed: {len(failed)}")
+            print(f"  Turn latency: p50={p50:.1f}s, p95={p95:.1f}s")
+            
+            # Write output
+            if output_path:
+                output_data = {
+                    "question_id": question_id,
+                    "question": question_text,
+                    "total_sessions": len(haystack_sessions),
+                    "total_turns": len(results),
+                    "succeeded": len(succeeded),
+                    "failed": len(failed),
+                    "wall_clock_seconds": total_elapsed,
+                    "submit_phase_seconds": submit_elapsed,
+                    "poll_phase_seconds": poll_elapsed,
+                    "turn_latency_p50": p50,
+                    "turn_latency_p95": p95,
+                    "sessions": sessions_results,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                
+                output_file = Path(output_path)
+                output_file.parent.mkdir(parents=True, exist_ok=True)
+                
+                with open(output_file, "w") as f:
+                    json.dump(output_data, f, indent=2)
+                
+                print(f"\\n  Results written to: {output_file}")
+            
+            # Check for failure threshold
+            failure_rate = len(failed) / len(results) if results else 1.0
+            if failure_rate > 0.1:
+                print(f"\\n✗ FAILED: High failure rate ({failure_rate*100:.1f}%)")
                 sys.exit(1)
         
         print(f"\\n✓ Q3 benchmark completed successfully")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <dataset.json>")
+        print(f"Usage: {sys.argv[0]} <dataset.json> [-o OUTPUT]")
         sys.exit(1)
     
     dataset_path = sys.argv[1]
+    output_path = None
+    
+    if len(sys.argv) > 3 and sys.argv[2] == "-o":
+        output_path = sys.argv[3]
     
     if not Path(dataset_path).exists():
         print(f"ERROR: Dataset not found: {dataset_path}", file=sys.stderr)
         sys.exit(1)
     
-    runner = BenchmarkRunner(dataset_path, max_workers=8)
-    runner.run()
+    runner = BenchmarkRunner(dataset_path, max_workers=16)
+    runner.run(output_path=output_path)
