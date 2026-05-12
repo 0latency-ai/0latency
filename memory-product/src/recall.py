@@ -225,7 +225,7 @@ def recall_hybrid(
                 context_block = ""
                 tokens_used = 0
                 for mem in bm25_results:
-                    line = f"- {mem.get('content', mem.get('text', str(mem)))}\n"
+                    line = f"- {mem.get('context', mem.get('headline', ''))}\n"
                     tokens_used += len(line.split())
                     if tokens_used > budget_tokens:
                         break

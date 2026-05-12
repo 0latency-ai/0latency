@@ -58,7 +58,7 @@ For each extracted memory, provide:
    - 0.7-0.8: Important (business decisions, project milestones, key contacts)
    - 0.4-0.6: Moderate (contextual facts, minor details)
    - 0.1-0.3: Low (passing mentions, temporary context)
-8. **confidencee**: 0.0-1.0. How confident are you this is a real fact vs hypothetical/joke/uncertain?
+8. **confidence**: 0.0-1.0. How confident are you this is a real fact vs hypothetical/joke/uncertain?
    - 0.9-1.0: Stated directly and clearly as fact
    - 0.6-0.8: Likely true but inferred or implied
    - 0.3-0.5: Uncertain — might be hypothetical, sarcastic, or conditional

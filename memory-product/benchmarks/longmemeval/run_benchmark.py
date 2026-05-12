@@ -471,7 +471,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-zero-streak", type=int, default=10, help="Auto-kill after N consecutive 0-char recalls")
     parser.add_argument("--confirm-cost", action="store_true", help="Confirm willingness to pay projected cost")
     parser.add_argument("--scorer", choices=["substring", "llm"], default="substring",
-                        help="Scoring method: substring (exact match) or llm (GPT-4o-mini judge)")
+                        help="Scoring method: substring (exact match) or llm (Claude Sonnet judge)")
     
     args = parser.parse_args()
     
