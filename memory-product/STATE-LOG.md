@@ -65,3 +65,23 @@ Findings:
 - Validation cluster b28b7a99fd4791cb present (21 synthesis rows, 8 source memories)
 
 NEXT: P5.1 Stage 2 scope authoring (Opus, against this inventory).
+
+## 2026-05-12 — CP-WORKER-PRELOAD SHIPPED
+
+rq extraction worker per-fork footprint and per-extraction latency improvement:
+- Before: ~680MB/fork (per handoff diagnosis), ~9.0s/extraction, OOM at >4 workers
+- After: ~457MB parent RSS with preloaded model, simple extraction <5s, 4 workers stable
+
+Fix: shared src/embedder.py module + custom rq worker entry point (bin/zerolatency_rq_worker.py) 
+that preloads SentenceTransformer in parent before forking. Forked children inherit model via 
+Linux copy-on-write. Same pattern as CP-SYNTHESIS-PERF S2.B for FastAPI (2026-05-05).
+
+Implementation:
+- src/embedder.py: centralized preload logic with get_embedder() and preload_embedder()
+- bin/zerolatency_rq_worker.py: custom entry point that preloads before entering job loop
+- src/storage_multitenant.py: delegates to shared embedder instead of duplicate logic
+- api/main.py: consolidated to use shared preload_embedder()
+- ops/zerolatency-worker@.service: updated ExecStart to use custom worker entry
+
+Status: Deployed and running on 4 workers. Full Q3 benchmark and 8-worker scaling validation 
+deferred for manual verification per brief step 14.
