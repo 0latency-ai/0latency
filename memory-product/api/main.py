@@ -141,6 +141,8 @@ async def global_exception_handler(request: Request, exc: Exception):
 try:
     _redis_conn = redis.Redis(host='localhost', port=6379, db=0, decode_responses=False)
     _extract_queue = Queue('extraction', connection=_redis_conn)
+    # Redis connection for job status (decoded for easier use)
+    _redis_jobs = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
     logger.info("RQ extraction queue initialized")
 except Exception as e:
     logger.error(f"Failed to initialize RQ queue: {e}")
@@ -419,7 +421,7 @@ def auto_resolve_agent_id(tenant_id: str, provided_agent_id: Optional[str] = Non
     """, (tenant_id, tenant_id), tenant_id=tenant_id)
 
     if not rows:
-        raise_not_found("Agents")
+        return "default"
 
     return rows[0][0]
 
@@ -601,7 +603,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
     check_for_secrets(req.agent_message, "agent_message")
     
     # Resolve agent_id default: use tenant_id if not provided
-    agent_id = req.agent_id or tenant["id"]
+    agent_id = req.agent_id or "default"
     
     start_time = time.time()
     try:
@@ -749,7 +751,7 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
             )
         
         # Resolve agent_id default: use tenant_id if not provided
-        agent_id = req.agent_id or tenant["id"]
+        agent_id = req.agent_id or "default"
 
         # Enforce memory limit
         count_rows = _db_execute_rows("""
@@ -810,7 +812,7 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
 
 
 # --- Async Extraction Job Store (in-memory for now, Redis-backed in production) ---
-_extract_jobs: dict[str, dict] = {}
+# Job status now stored in Redis (key: extract_job:{job_id})
 
 @app.post("/memories/extract", status_code=202)
 async def async_extract_endpoint(
@@ -828,20 +830,22 @@ async def async_extract_endpoint(
     check_for_secrets(req.content, "content")
     
     # Resolve agent_id default: use tenant_id if not provided
-    agent_id = req.agent_id or tenant["id"]
+    agent_id = req.agent_id or "default"
     
     import threading
     
     job_id = str(uuid.uuid4())
-    _extract_jobs[job_id] = {
+    # Store job metadata in Redis (single source of truth)
+    _redis_jobs.hset(f"extract_job:{job_id}", mapping={
         "job_type": "extract",
         "status": "accepted",
         "tenant_id": tenant["id"],
         "agent_id": agent_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "memories_stored": 0,
-        "memory_ids": [],
-    }
+        "memories_stored": "0",
+        "memory_ids": "",
+    })
+    _redis_jobs.expire(f"extract_job:{job_id}", 86400)  # 24h TTL
     
     # Enqueue job to RQ worker instead of in-process threading
     if _extract_queue is not None:
@@ -860,14 +864,14 @@ async def async_extract_endpoint(
             logger.info(f"Enqueued extraction job {job_id} to RQ (rq_job_id={rq_job.id})")
         except Exception as e:
             logger.error(f"Failed to enqueue job {job_id}: {e}")
-            _extract_jobs[job_id].update({
+            _redis_jobs.hset(f"extract_job:{job_id}", mapping={
                 "status": "failed",
                 "error": "enqueue_failed",
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             })
     else:
         logger.error(f"RQ queue not available, cannot process job {job_id}")
-        _extract_jobs[job_id].update({
+        _redis_jobs.hset(f"extract_job:{job_id}", mapping={
             "status": "failed",
             "error": "queue_unavailable",
             "completed_at": datetime.now(timezone.utc).isoformat(),
@@ -879,11 +883,21 @@ async def async_extract_endpoint(
 @app.get("/memories/extract/{job_id}")
 async def get_extract_job(job_id: str, tenant: dict = Depends(require_api_key)):
     """Check status of an async job (extract or resume). Job type indicated by job_type field."""
-    job = _extract_jobs.get(job_id)
-    if not job:
+    # Read job status from Redis (single source of truth)
+    job_data = _redis_jobs.hgetall(f"extract_job:{job_id}")
+    if not job_data:
         raise_not_found("Job")
-    if job["tenant_id"] != tenant["id"]:
+    
+    # Check tenant ownership
+    if job_data.get("tenant_id") != tenant["id"]:
         raise_not_found("Job")
+    
+    # Convert memory_ids from comma-separated string to array if present
+    job = dict(job_data)
+    if "memory_ids" in job and job["memory_ids"]:
+        job["memory_ids"] = job["memory_ids"].split(",")
+    else:
+        job["memory_ids"] = []
     return {k: v for k, v in job.items() if k != "tenant_id"}
 
 
@@ -1890,6 +1904,43 @@ async def list_memories(
         raise_service_unavailable("Failed to list memories. Please try again.")
 
 
+@app.get("/memories/{memory_id}")
+async def get_memory(memory_id: str, tenant: dict = Depends(require_api_key)):
+    """Get full details for a specific memory including lineage data."""
+    try:
+        uuid.UUID(memory_id)
+    except ValueError:
+        raise_validation_error("memory_id must be a valid UUID")
+    
+    rows = _db_execute_rows("""
+        SELECT id, headline, full_content, context, memory_type, importance, 
+               source_type, source_memory_ids, created_at, project_id, thread_id, 
+               thread_title, metadata
+        FROM memory_service.memories
+        WHERE id = %s::UUID AND tenant_id = %s::UUID AND superseded_at IS NULL
+    """, (memory_id, tenant["id"]), tenant_id=tenant["id"])
+    
+    if not rows:
+        raise_not_found("Memory")
+    
+    row = rows[0]
+    return {
+        "id": str(row[0]),
+        "headline": str(row[1]),
+        "full_content": str(row[2]),
+        "context": str(row[3]) if row[3] else "",
+        "memory_type": str(row[4]),
+        "importance": float(row[5]) if row[5] is not None else 0.5,
+        "source_type": str(row[6]) if row[6] else None,
+        "source_memory_ids": row[7][1:-1].split(",") if row[7] and row[7] != "{}" else [],
+        "created_at": str(row[8]),
+        "project_id": str(row[9]) if row[9] else None,
+        "thread_id": str(row[10]) if row[10] else None,
+        "thread_title": str(row[11]) if row[11] else None,
+        "metadata": row[12] if row[12] else {},
+    }
+
+
 @app.delete("/memories/{memory_id}")
 async def delete_memory(memory_id: str, tenant: dict = Depends(require_api_key)):
     """Delete a specific memory. Tenant-isolated."""
@@ -1992,7 +2043,7 @@ async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require
         logger.info(f"[BATCH DEBUG] Turn {i}: agent_id={turn.agent_id!r}, human_len={len(turn.human_message)}, agent_len={len(turn.agent_message)}, session_key={turn.session_key!r}")
         
         # Resolve agent_id default for this turn
-        agent_id = turn.agent_id or tenant["id"]
+        agent_id = turn.agent_id or "default"
         try:
             # Fetch existing headlines for dedup (matches /extract behavior)
             existing_context = ""

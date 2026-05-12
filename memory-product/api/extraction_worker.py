@@ -69,7 +69,8 @@ def process_extraction_job(job_id: str, content: str, agent_id: str,
         
         # Store memories if any were extracted
         if memories:
-            memory_ids = store_memories(memories, tenant_id)
+            result = store_memories(memories, tenant_id)
+            memory_ids = result["ids"]
             redis_conn.hset(f"extract_job:{job_id}", mapping={
                 "status": "complete",
                 "memories_stored": len(memory_ids),
