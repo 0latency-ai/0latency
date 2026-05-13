@@ -234,7 +234,7 @@ def run_synthesis_for_tenant(
                 "synthesis_ids": [],
                 "rate_limited": False,
                 "tokens_used_total": 0,
-                "duration_ms": int((time.perf_counter() - start_time_wall) * 1000),
+                "duration_ms": int((time.time() - start_time_wall) * 1000),
             }
 
             complete_job(job_id, result)
@@ -291,8 +291,15 @@ def run_synthesis_for_tenant(
                     break
                 # Other failures (validation_failed, llm_error) are logged but don't stop the run
 
+            except (AttributeError, TypeError) as e:
+                # Data model bugs must be re-raised (per redaction.py convention)
+                import logging
+                logging.getLogger("synthesis.orchestrator").error(
+                    f"Cluster synthesis data model error: {e}", exc_info=True
+                )
+                raise
             except Exception as e:
-                # Log error but continue to next cluster
+                # Log LLM/network errors but continue to next cluster
                 import logging
                 logging.getLogger("synthesis.orchestrator").error(
                     f"Cluster synthesis failed: {e}", exc_info=True
@@ -319,7 +326,7 @@ def run_synthesis_for_tenant(
             "synthesis_ids": [str(id) for id in synthesis_ids],
             "rate_limited": rate_limited,
             "tokens_used_total": tokens_used_total,
-            "duration_ms": int((time.perf_counter() - start_time_wall) * 1000),
+            "duration_ms": int((time.time() - start_time_wall) * 1000),
         }
 
         complete_job(job_id, result)
@@ -352,7 +359,7 @@ def run_synthesis_for_tenant(
             "synthesis_ids": [],
             "rate_limited": False,
             "tokens_used_total": 0,
-            "duration_ms": int((time.perf_counter() - start_time_wall) * 1000),
+            "duration_ms": int((time.time() - start_time_wall) * 1000),
             "error": str(e)[:4000],  # Truncate to job error column limit
         }
 

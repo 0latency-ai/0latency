@@ -48,10 +48,25 @@ class Cluster:
         memory_ids: List of memory UUIDs in this cluster
         centroid_embedding: Mean of member embeddings (normalized), for downstream use
         cluster_signature: Human-readable summary (top 3 headlines, most recent first)
+        cluster_id: Deterministic hash of sorted memory_ids (stable across reruns)
     """
     memory_ids: list[uuid.UUID]
     centroid_embedding: list[float]
     cluster_signature: str
+    
+    @property
+    def cluster_id(self) -> str:
+        """Generate deterministic cluster ID from sorted memory_ids.
+        
+        Stable across reruns with same inputs, no DB roundtrip needed.
+        Uses SHA-256 hash of concatenated sorted UUIDs.
+        """
+        import hashlib
+        sorted_ids = sorted(str(mid) for mid in self.memory_ids)
+        id_string = "|".join(sorted_ids)
+        hash_digest = hashlib.sha256(id_string.encode()).hexdigest()
+        return f"cluster_{hash_digest[:16]}"
+
 
 
 class _UnionFind:
@@ -264,7 +279,7 @@ def find_clusters(
         # Kept in Python: candidate-set membership, symmetry dedup, similarity threshold
         knn_query = f"""
             SELECT id, embedding, created_at, memory_type, is_pinned, redaction_state,
-                   1 - (embedding <=> %s) AS similarity
+                   1 - (embedding <=> %s::vector) AS similarity
             FROM memory_service.memories
             WHERE tenant_id = %s
               AND agent_id = %s
@@ -275,7 +290,7 @@ def find_clusters(
               AND (redaction_state IS NULL OR redaction_state = 'active')
               AND created_at < NOW() - INTERVAL '{recency_window_hours_min} hours'
               AND created_at > NOW() - INTERVAL '{recency_window_hours_max} hours'
-            ORDER BY embedding <=> %s
+            ORDER BY embedding <=> %s::vector
             LIMIT 20
         """
 
