@@ -20,6 +20,9 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+# F2: Keyword-match factor in composite ranking (flag-gated)
+RECALL_KEYWORD_MATCH_ENABLED = os.getenv("RECALL_KEYWORD_MATCH_ENABLED", "false").lower() in ("true", "1", "yes")
+
 
 # --- Sprint 5: Query Classification & BM25 Fast-Path ---
 
@@ -604,7 +607,7 @@ def recall_fixed(
     """
     Recall relevant memories for agent context injection.
     Fully hardened with parameterized queries. Response-cached.
-    
+
     SECURITY: tenant_id is used to scope all queries. If not provided,
     falls back to the global tenant context set by set_tenant_context().
     """
@@ -704,15 +707,52 @@ def recall_fixed(
             "budget_remaining": remaining_budget,
             "recall_details": [],
         }
-    
+
+    # Step 4b: Keyword match lookup (F2 — flag-gated)
+    # When enabled: recency_weight reduced from 0.35→0.20, freed 0.15 goes to keyword_match.
+    # When disabled: weights unchanged from pre-F2 values.
+    keyword_match_weight = 0.0
+    keyword_matches = {}
+    if RECALL_KEYWORD_MATCH_ENABLED:
+        keyword_match_weight = 0.15
+        recency_weight = max(recency_weight - 0.15, 0.05)  # 0.35→0.20 (or floor at 0.05)
+        _kw_t0 = _time.time()
+        try:
+            # Extract keywords from query (same logic as S3 in _retrieve_candidates)
+            _kw_words = re.findall(r'\b[a-zA-Z]{3,}\b', conversation_context[:2000].lower())
+            _kw_stop = {'this', 'that', 'with', 'from', 'what', 'when', 'where', 'which', 'about',
+                        'have', 'been', 'will', 'would', 'could', 'should', 'their', 'there',
+                        'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her',
+                        'was', 'one', 'our', 'out', 'did', 'does', 'how', 'who', 'why',
+                        'after', 'before', 'into', 'than', 'then', 'also', 'just', 'very'}
+            _kw_filtered = [w for w in _kw_words if w not in _kw_stop][:8]
+            _kw_sanitized = [re.sub(r'[^a-zA-Z0-9]', '', w) for w in _kw_filtered]
+            _kw_sanitized = [w for w in _kw_sanitized if w]
+            _kw_tsquery = ' OR '.join(_kw_sanitized) if _kw_sanitized else '__no_keywords__'
+
+            candidate_ids = [c["id"] for c in candidates]
+            import storage_multitenant as _st_mod
+            kw_rows = _st_mod._db_execute_rows("""
+                SELECT id::text,
+                       (search_text @@ websearch_to_tsquery('english', %s))::int
+                FROM memory_service.memories
+                WHERE id = ANY(%s::uuid[])
+            """, (_kw_tsquery, candidate_ids), tenant_id=_tid)
+            keyword_matches = {str(row[0]): bool(row[1]) for row in (kw_rows or [])}
+        except Exception as e:
+            logger.warning(f"Keyword match lookup failed (non-fatal): {e}")
+        _kw_ms = (_time.time() - _kw_t0) * 1000
+        _kw_hits = sum(1 for v in keyword_matches.values() if v)
+        logger.info(f"🔑 Keyword match: {_kw_hits}/{len(keyword_matches)} hits, tsquery='{_kw_tsquery}', {_kw_ms:.0f}ms (recency_weight={recency_weight:.2f})")
+
     # Step 5: Score each candidate
     now = datetime.now(timezone.utc)
     scored = []
-    
+
     for c in candidates:
         try:
             semantic_sim = c["similarity"]
-            
+
             days_since = (now - c["created_at"]).total_seconds() / 86400
             recency = math.exp(-0.693 * days_since / max(half_life_days, 0.01))
             # No cliff boost — exponential decay is sufficient.
@@ -721,17 +761,21 @@ def recall_fixed(
             # scores 0.19. A hard cliff at 24h created a discontinuity
             # that also made all same-day memories score identically,
             # drowning semantic signal in batch-ingestion scenarios.
-            
+
             importance = c["importance"] * (1 + 0.1 * min(c["reinforcement_count"], 5))
             importance = min(importance, 1.0)
-            
+
             access_freq = min(c["access_count"] / 10, 1.0)
-            
+
+            # F2: keyword match score — 1.0 if tsvector matches query, 0.0 otherwise
+            kw_score = 1.0 if keyword_matches.get(c["id"], False) else 0.0
+
             composite = (
                 semantic_weight * semantic_sim +
                 recency_weight * recency +
                 importance_weight * importance +
-                access_weight * access_freq
+                access_weight * access_freq +
+                keyword_match_weight * kw_score
             )
             
             # Type bonuses — tie-breakers, not overrides.
