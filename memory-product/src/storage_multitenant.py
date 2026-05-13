@@ -45,6 +45,9 @@ EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
 
+# F1: Voyage voyage-3-large embedding (flag-gated)
+RECALL_USE_VOYAGE = os.environ.get("RECALL_USE_VOYAGE", "false").lower() in ("true", "1", "yes")
+
 def _get_db_conn():
     """Get DB connection string from env. Never hardcoded."""
     conn = os.environ.get("MEMORY_DB_CONN", "")
@@ -303,6 +306,16 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
     embed_text = f"{memory['headline']}. {memory['context']}"
     embedding = _embed_text(embed_text)
     local_embedding = _embed_text_local(embed_text)  # Local model (384d) for fast reads
+
+    # F1: Also compute Voyage embedding when flag is on (dual-write for rollback safety)
+    voyage_embedding = None
+    if RECALL_USE_VOYAGE:
+        try:
+            from src.embedder import embed_voyage_single
+            voyage_embedding = embed_voyage_single(embed_text, input_type="document")
+        except Exception as _ve:
+            import logging as _log
+            _log.getLogger(__name__).warning(f"Voyage embedding failed (non-fatal): {_ve}")
     
     # Check for duplicate/reinforcement within this tenant
     existing = _check_duplicate(memory['agent_id'], memory['headline'], embedding, 
@@ -357,23 +370,25 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
     
     # Insert new memory using parameterized query
     query = """
-        INSERT INTO memory_service.memories 
-            (tenant_id, agent_id, headline, context, full_content, memory_type, 
+        INSERT INTO memory_service.memories
+            (tenant_id, agent_id, headline, context, full_content, memory_type,
              entities, project, categories, scope,
              importance, confidence, embedding, local_embedding,
+             embedding_voyage,
              source_session, source_turn, source_type, metadata,
              thread_id, project_id, thread_title, project_name,
              decision_text, rationale)
-        VALUES 
+        VALUES
             (%s::UUID, %s, %s, %s, %s, %s,
              %s, %s, %s, %s,
              %s, %s, %s::vector, %s::vector,
+             %s::vector,
              %s, %s, %s, %s::jsonb,
              %s, %s, %s, %s,
              %s, %s)
         RETURNING id;
     """
-    
+
     params = (
         current_tenant,
         memory['agent_id'],
@@ -389,6 +404,7 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
         memory.get('confidence', 0.8),
         embedding,
         local_embedding,
+        voyage_embedding,
         memory.get('source_session'),
         memory.get('source_turn'),
         memory.get('source_type', 'conversation'),  # Default to conversation if not set

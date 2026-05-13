@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 # F2: Keyword-match factor in composite ranking (flag-gated)
 RECALL_KEYWORD_MATCH_ENABLED = os.getenv("RECALL_KEYWORD_MATCH_ENABLED", "false").lower() in ("true", "1", "yes")
 
+# F1: Voyage voyage-3-large embedding (flag-gated)
+RECALL_USE_VOYAGE = os.getenv("RECALL_USE_VOYAGE", "false").lower() in ("true", "1", "yes")
+
 
 # --- Sprint 5: Query Classification & BM25 Fast-Path ---
 
@@ -373,10 +376,12 @@ def _build_always_include(agent_id: str, tenant_id: str = None, config: dict = N
 
 
 
-def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_text: str, tenant_id: str = None, project_id: str = None, include_raw_turns: bool = False, include_synthesis: bool = True, caller_role: str = "public"):
+def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_text: str, tenant_id: str = None, project_id: str = None, include_raw_turns: bool = False, include_synthesis: bool = True, caller_role: str = "public", use_voyage: bool = False):
     """Retrieve candidate memories using multiple strategies — consolidated single query."""
     # SECURITY: Use provided tenant_id for all queries
     _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
+    # F1: Select embedding column based on flag
+    _emb_col = "embedding_voyage" if use_voyage else "local_embedding"
     
     logger.info(f"🔍 _retrieve_candidates called for agent={agent_id}, tenant={_tid}")
     logger.debug(f"📊 Embedding vector (first 5): {query_embedding[:5]}")
@@ -453,17 +458,17 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
                        created_at, superseded_at,
-                       1 - (local_embedding <=> %s::vector) as similarity,
+                       1 - ({_emb_col} <=> %s::vector) as similarity,
                        'vector' as strategy
                 FROM memory_service.memories
                 WHERE (agent_id = %s OR memory_type = 'synthesis') AND tenant_id = %s::UUID
                   AND superseded_at IS NULL
-                  AND local_embedding IS NOT NULL
+                  AND {_emb_col} IS NOT NULL
                   {_raw_turn_filter}
                   {_synthesis_filter}
                   {_project_filter}
                   {_redaction_filter}
-                ORDER BY local_embedding <=> %s::vector
+                ORDER BY {_emb_col} <=> %s::vector
                 LIMIT 200
             ),
             importance_results AS (
@@ -675,11 +680,17 @@ def recall_fixed(
         }
     
     # Step 3: Generate query embedding
+    _use_voyage = RECALL_USE_VOYAGE
     try:
         _embed_t0 = _time.time()
-        query_embedding = _embed_text_local(conversation_context[:2000])
+        if _use_voyage:
+            from src.embedder import embed_voyage_single
+            query_embedding = embed_voyage_single(conversation_context[:2000], input_type="query")
+        else:
+            query_embedding = _embed_text_local(conversation_context[:2000])
         _embed_t1 = _time.time()
         _embed_ms = (_embed_t1 - _embed_t0) * 1000
+        logger.info(f"🧭 Embedding: {'voyage-3-large' if _use_voyage else 'MiniLM-L6-v2'}, {len(query_embedding)}d, {_embed_ms:.0f}ms")
     except Exception as e:
         print(f"Embedding failed: {e}")
         return {
@@ -692,7 +703,7 @@ def recall_fixed(
     
     # Step 4: Retrieve candidates (tenant-scoped)
     _search_t0 = _time.time()
-    candidates, _vector_timing = _retrieve_candidates(agent_id, query_embedding, conversation_context, tenant_id=_tid, project_id=project_id, include_raw_turns=include_raw_turns, include_synthesis=include_synthesis, caller_role=caller_role)
+    candidates, _vector_timing = _retrieve_candidates(agent_id, query_embedding, conversation_context, tenant_id=_tid, project_id=project_id, include_raw_turns=include_raw_turns, include_synthesis=include_synthesis, caller_role=caller_role, use_voyage=_use_voyage)
     _search_t1 = _time.time()
     _search_ms = (_search_t1 - _search_t0) * 1000
     # logger.info(f"[VECTOR SUBPHASES] embed={_embed_ms:.0f}ms s1={_vector_timing["s1_ms"]}ms s2={_vector_timing["s2_ms"]}ms s3={_vector_timing["s3_ms"]}ms")  # Old logging - consolidated query now logs internally
@@ -1043,34 +1054,36 @@ def _retrieve_candidates_cross_agent(
     agent_ids: list[str],
     query_embedding: list[float],
     context_text: str,
-    tenant_id: str = None
+    tenant_id: str = None,
+    use_voyage: bool = False,
 ) -> list[dict]:
     """Retrieve candidates from MULTIPLE agent namespaces.
-    
+
     Returns candidates with source_agent field for attribution.
     Used when primary agent search has low confidence.
     """
     _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
+    _emb_col = "embedding_voyage" if use_voyage else "local_embedding"
     all_candidates = {}
-    
+
     logger.info(f"🔍 Cross-agent search across {len(agent_ids)} agents: {agent_ids}")
-    
+
     embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
-    
+
     # Query each agent's namespace
     for agent_id in agent_ids:
         try:
             # Semantic search across this agent's namespace
-            rows = _db_execute_rows("""
+            rows = _db_execute_rows(f"""
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
                        created_at, superseded_at,
-                       1 - (local_embedding <=> %s::vector) as similarity
+                       1 - ({_emb_col} <=> %s::vector) as similarity
                 FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s::UUID
                   AND superseded_at IS NULL
-                  AND local_embedding IS NOT NULL
-                ORDER BY local_embedding <=> %s::vector
+                  AND {_emb_col} IS NOT NULL
+                ORDER BY {_emb_col} <=> %s::vector
                 LIMIT 10
             """, (embedding_str, agent_id, _tid, embedding_str),
                 tenant_id=_tid)
@@ -1155,8 +1168,13 @@ def recall_cross_agent(
         }
     
     # Step 3: Generate query embedding
+    _use_voyage = RECALL_USE_VOYAGE
     try:
-        query_embedding = _embed_text_local(conversation_context[:2000])
+        if _use_voyage:
+            from src.embedder import embed_voyage_single
+            query_embedding = embed_voyage_single(conversation_context[:2000], input_type="query")
+        else:
+            query_embedding = _embed_text_local(conversation_context[:2000])
     except Exception as e:
         logger.error(f"Embedding failed: {e}")
         return {
@@ -1166,9 +1184,9 @@ def recall_cross_agent(
             "budget_remaining": remaining_budget,
             "recall_details": [],
         }
-    
+
     # Step 4: Retrieve candidates from ALL agent namespaces
-    candidates = _retrieve_candidates_cross_agent(agent_ids, query_embedding, conversation_context, tenant_id=_tid)
+    candidates = _retrieve_candidates_cross_agent(agent_ids, query_embedding, conversation_context, tenant_id=_tid, use_voyage=_use_voyage)
     
     logger.info(f"📦 Retrieved {len(candidates)} candidates from {len(agent_ids)} agents")
     

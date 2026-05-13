@@ -1,0 +1,130 @@
+{
+  "question_id": "830ce83f",
+  "question": "Where did Rachel move to after her recent relocation?",
+  "answer": "the suburbs",
+  "total_sessions": 47,
+  "total_turns": 254,
+  "recall_only": true,
+  "timestamp": "2026-05-13T11:56:13.180379",
+  "recall_verification": {
+    "recall_status": "ok",
+    "recall_elapsed": 1.2934257984161377,
+    "memories_used": 158,
+    "tokens_used": 8000,
+    "answer_bearing_memory_id": "30a41c96-2004-42ce-bda6-1535ce3fd37f",
+    "answer_bearing_memory_headline": "User has a friend named Rachel who recently moved back to the suburbs",
+    "answer_bearing_memory_type": "identity",
+    "answer_bearing_memory_composite": 0.712,
+    "answer_bearing_rank": 5,
+    "recall_precision_score": 0.9746835443037974,
+    "top_20_composite_distribution": {
+      "min": 0.647,
+      "max": 0.781,
+      "p50": 0.686,
+      "spread": 0.134,
+      "values": [
+        0.781,
+        0.732,
+        0.731,
+        0.728,
+        0.712,
+        0.705,
+        0.701,
+        0.698,
+        0.689,
+        0.686,
+        0.67,
+        0.67,
+        0.67,
+        0.669,
+        0.663,
+        0.66,
+        0.656,
+        0.651,
+        0.65,
+        0.647
+      ]
+    },
+    "top_10_recalled": [
+      {
+        "rank": 1,
+        "id": "5f94c799-04de-4c0f-a713-acd403a4b967",
+        "headline": "User agreed to purchase house for $500,000",
+        "memory_type": "decision",
+        "composite": 0.781
+      },
+      {
+        "rank": 2,
+        "id": "e4f43a23-8408-4460-a6f0-8948834362fd",
+        "headline": "User founded DesignSpark on January 15th",
+        "memory_type": "identity",
+        "composite": 0.732
+      },
+      {
+        "rank": 3,
+        "id": "0ed229e9-aa6f-470b-9d56-6d99c5b3b330",
+        "headline": "User graduated with Bachelor's in Business Administration from University of Michigan in 2012",
+        "memory_type": "identity",
+        "composite": 0.731
+      },
+      {
+        "rank": 4,
+        "id": "56760732-4ad9-447b-a105-7f44ed331623",
+        "headline": "User has a pet named Luna who uses a new pet bed",
+        "memory_type": "identity",
+        "composite": 0.728
+      },
+      {
+        "rank": 5,
+        "id": "30a41c96-2004-42ce-bda6-1535ce3fd37f",
+        "headline": "User has a friend named Rachel who recently moved back to the suburbs",
+        "memory_type": "identity",
+        "composite": 0.712
+      },
+      {
+        "rank": 6,
+        "id": "29a406ff-a5ce-4f62-864d-332b8cdd694e",
+        "headline": "User has a contact named Rachel who lives in Chicago",
+        "memory_type": "identity",
+        "composite": 0.705
+      },
+      {
+        "rank": 7,
+        "id": "6b18288d-be52-4e6d-ba36-21dc007a885b",
+        "headline": "Rachel (jewelry maker friend) is the user's best friend",
+        "memory_type": "identity",
+        "composite": 0.701
+      },
+      {
+        "rank": 8,
+        "id": "9e746dc1-0cb8-4c03-856e-de58a43f370e",
+        "headline": "User has a cat named Luna",
+        "memory_type": "correction",
+        "composite": 0.698
+      },
+      {
+        "rank": 9,
+        "id": "0cc1a4d3-0dbc-4182-9cd8-cf84aab1b240",
+        "headline": "User is a senior engineer who had a performance review with Rachel",
+        "memory_type": "identity",
+        "composite": 0.689
+      },
+      {
+        "rank": 10,
+        "id": "c16952a2-0f96-4c7f-acb6-130287039b5a",
+        "headline": "Baby blanket design: bold sans-serif font, blue and white color scheme",
+        "memory_type": "decision",
+        "composite": 0.686
+      }
+    ],
+    "match_criteria": {
+      "answer_keywords": [
+        "the suburbs"
+      ],
+      "entity_keywords": [
+        "rachel"
+      ],
+      "type_filter": "identity"
+    }
+  }
+}
