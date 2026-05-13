@@ -27,6 +27,54 @@ def tier_blocked_from_synthesis(plan: Optional[str]) -> bool:
     return (not p) or p in BLOCKED_TIERS
 
 
+def _run_single_agent_fallback(
+    tenant_id: str,
+    cluster_id: str,
+    cluster_memory_ids: List[str],
+    role_tag: str,
+    db_conn,
+    plan: str,
+) -> Dict[str, Any]:
+    """Single-agent fallback path called from consensus failure.
+    
+    Returns same shape as synthesize_cluster dispatcher result.
+    """
+    from .writer import synthesize_cluster as writer_synthesize
+    from .consensus import gather_agent_ids_from_cluster
+    from dataclasses import dataclass
+    from uuid import UUID
+
+    @dataclass
+    class Cluster:
+        memory_ids: List[UUID]
+        cluster_id: str
+
+    # Pick agent from cluster
+    agents = gather_agent_ids_from_cluster(cluster_memory_ids, db_conn)
+    chosen_agent = agents[0] if agents else "system_single_agent"
+
+    # Convert to UUID format for writer
+    memory_uuids = [UUID(mid) for mid in cluster_memory_ids]
+    cluster_obj = Cluster(memory_ids=memory_uuids, cluster_id=cluster_id)
+
+    single_result = writer_synthesize(
+        cluster=cluster_obj,
+        tenant_id=tenant_id,
+        agent_id=chosen_agent,
+        role_tag=role_tag,
+        persist=True,
+    )
+    
+    return {
+        "tier_blocked": False,
+        "path": "single_agent",
+        "synthesis_id": str(single_result.synthesis_id) if single_result.synthesis_id else None,
+        "consensus_result": None,
+        "single_agent_result": single_result,
+        "plan": plan,
+    }
+
+
 def synthesize_cluster(
     tenant_id: str,
     cluster_id: str,
@@ -38,6 +86,7 @@ def synthesize_cluster(
     """Tier-aware dispatcher.
 
     - Enterprise: run multi-agent consensus (calls run_consensus → merger → persist).
+      On consensus failure (no consensus_synthesis_id), falls back to single-agent.
     - Scale/Pro: single-agent path (calls writer.write_synthesis_for_cluster persist=True).
     - Free / unknown: block.
 
@@ -78,13 +127,156 @@ def synthesize_cluster(
     if tier_supports_consensus(plan):
         # Lazy import to avoid circular: tier_gates → consensus → writer
         from .consensus import run_consensus
-        consensus_result = run_consensus(
-            tenant_id=tenant_id,
-            cluster_id=cluster_id,
-            cluster_memory_ids=cluster_memory_ids,
-            role_tag=role_tag,
-            db_conn=db_conn,
-        )
+        from .writer import _write_audit_event
+        from storage_multitenant import _db_execute_rows
+        import json
+        import uuid as uuid_module
+        
+        consensus_failure_reason = None
+        consensus_result = None
+        
+        try:
+            consensus_result = run_consensus(
+                tenant_id=tenant_id,
+                cluster_id=cluster_id,
+                cluster_memory_ids=cluster_memory_ids,
+                role_tag=role_tag,
+                db_conn=db_conn,
+            )
+            consensus_synthesis_id = consensus_result.get("consensus_synthesis_id")
+            
+            # Check if consensus succeeded
+            if consensus_synthesis_id is None:
+                # Consensus produced no result - determine reason
+                if not consensus_result.get("consensus_eligible"):
+                    consensus_failure_reason = consensus_result.get("fallback_reason", "consensus_not_eligible")
+                elif not consensus_result.get("merge_succeeded"):
+                    merge_res = consensus_result.get("merge_result", {})
+                    consensus_failure_reason = merge_res.get("reason", "merge_failed")
+                else:
+                    consensus_failure_reason = "unknown_consensus_failure"
+                    
+        except AttributeError as e:
+            # Re-raise data model errors per project convention
+            raise
+        except TypeError as e:
+            # Re-raise data model errors per project convention
+            raise
+        except KeyError as e:
+            # Re-raise data model errors per project convention
+            raise
+        except Exception as e:
+            # Consensus raised an exception
+            consensus_failure_reason = f"exception_{type(e).__name__}"
+            logger.warning(
+                "consensus.exception cluster=%s tenant=%s error=%r",
+                cluster_id, tenant_id, e, exc_info=True
+            )
+        
+        # If consensus failed, fall back to single-agent
+        if consensus_failure_reason:
+            logger.info(
+                "consensus.fallback_to_single_agent cluster=%s reason=%s",
+                cluster_id, consensus_failure_reason
+            )
+            
+            # Emit structured log event
+            logger.warning(
+                "consensus_failure cluster=%s tenant=%s reason=%s",
+                cluster_id, tenant_id, consensus_failure_reason,
+                extra={
+                    "cluster_id": cluster_id,
+                    "tenant_id": tenant_id,
+                    "consensus_failure_reason": consensus_failure_reason,
+                }
+            )
+            
+            # Emit synthesis_audit_events row
+            try:
+                audit_id = str(uuid_module.uuid4())
+                audit_payload = {
+                    "cluster_id": cluster_id,
+                    "role_tag": role_tag,
+                    "reason": consensus_failure_reason,
+                    "consensus_result_summary": {
+                        "consensus_eligible": consensus_result.get("consensus_eligible") if consensus_result else None,
+                        "merge_succeeded": consensus_result.get("merge_succeeded") if consensus_result else None,
+                        "agents_attempted": consensus_result.get("agents_attempted") if consensus_result else [],
+                        "agents_succeeded": consensus_result.get("agents_succeeded") if consensus_result else [],
+                    }
+                }
+                
+                from storage_multitenant import set_tenant_context
+                set_tenant_context(tenant_id)
+                
+                _db_execute_rows(
+                    """
+                    INSERT INTO memory_service.synthesis_audit_events (
+                        id, tenant_id, target_memory_id, event_type, actor, event_payload
+                    ) VALUES (%s, %s, %s, %s, %s, %s::jsonb)
+                    """,
+                    (
+                        audit_id,
+                        tenant_id,
+                        None,
+                        "consensus_fallback_to_single_agent",
+                        "system",
+                        json.dumps(audit_payload),
+                    ),
+                    tenant_id=tenant_id,
+                    fetch_results=False
+                )
+            except Exception as audit_exc:
+                # Fail-soft on audit emission
+                logger.error(
+                    "consensus.audit_emission_failed cluster=%s error=%r",
+                    cluster_id, audit_exc
+                )
+            
+            # Run single-agent fallback
+            fallback_result = _run_single_agent_fallback(
+                tenant_id=tenant_id,
+                cluster_id=cluster_id,
+                cluster_memory_ids=cluster_memory_ids,
+                role_tag=role_tag,
+                db_conn=db_conn,
+                plan=plan,
+            )
+            
+            # Inject metadata into the synthesis row to mark it as a consensus fallback
+            if fallback_result.get("synthesis_id"):
+                try:
+                    from storage_multitenant import set_tenant_context
+                    set_tenant_context(tenant_id)
+                    
+                    _db_execute_rows(
+                        """
+                        UPDATE memory_service.memories
+                        SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+                        WHERE id = %s::uuid AND tenant_id = %s
+                        """,
+                        (
+                            json.dumps({
+                                "consensus_attempted": True,
+                                "consensus_failure_reason": consensus_failure_reason,
+                                "fallback_path": "single_agent",
+                            }),
+                            fallback_result["synthesis_id"],
+                            tenant_id,
+                        ),
+                        tenant_id=tenant_id,
+                        fetch_results=False
+                    )
+                except Exception as metadata_exc:
+                    # Fail-soft on metadata update
+                    logger.error(
+                        "consensus.metadata_update_failed synthesis_id=%s error=%r",
+                        fallback_result["synthesis_id"], metadata_exc
+                    )
+            
+            return fallback_result
+        
+        # Consensus succeeded
         return {
             "tier_blocked": False,
             "path": "consensus",
@@ -95,36 +287,11 @@ def synthesize_cluster(
         }
 
     # Scale / Pro → single-agent
-    from .writer import synthesize_cluster as writer_synthesize
-    from .consensus import gather_agent_ids_from_cluster
-    from dataclasses import dataclass
-    from uuid import UUID
-
-    @dataclass
-    class Cluster:
-        memory_ids: List[UUID]
-        cluster_id: str
-
-    # Pick agent from cluster (same logic as consensus orchestrator)
-    agents = gather_agent_ids_from_cluster(cluster_memory_ids, db_conn)
-    chosen_agent = agents[0] if agents else "system_single_agent"
-
-    # Convert to UUID format for writer
-    memory_uuids = [UUID(mid) for mid in cluster_memory_ids]
-    cluster_obj = Cluster(memory_ids=memory_uuids, cluster_id=cluster_id)
-
-    single_result = writer_synthesize(
-        cluster=cluster_obj,
+    return _run_single_agent_fallback(
         tenant_id=tenant_id,
-        agent_id=chosen_agent,
+        cluster_id=cluster_id,
+        cluster_memory_ids=cluster_memory_ids,
         role_tag=role_tag,
-        persist=True,   # single-agent path persists directly per Phase 2
+        db_conn=db_conn,
+        plan=plan,
     )
-    return {
-        "tier_blocked": False,
-        "path": "single_agent",
-        "synthesis_id": single_result.get("id") or single_result.get("inserted_id"),
-        "consensus_result": None,
-        "single_agent_result": single_result,
-        "plan": plan,
-    }
