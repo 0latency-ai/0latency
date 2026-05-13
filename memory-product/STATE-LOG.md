@@ -85,3 +85,47 @@ Implementation:
 
 Status: Deployed and running on 4 workers. Full Q3 benchmark and 8-worker scaling validation 
 deferred for manual verification per brief step 14.
+
+## 2026-05-12 19:32 UTC - CP-WORKER-SIMPLEWORKER Landing (PARTIAL)
+
+**Branch:** cp-worker-simpleworker  
+**Status:** Halted - environment variable blocker  
+**Commit:** Pending (not merged due to blocker)
+
+### Changes
+- bin/zerolatency_rq_worker.py: Switch from Worker to SimpleWorker
+- api/extraction_worker.py: Remove load_dotenv() call
+- systemd service: Add explicit ANTHROPIC_API_KEY environment
+
+### Root Cause Confirmed
+Fork-after-psycopg2-connected bug was causing extraction hang:
+- Parent process opens DB connections
+- Worker.fork() creates child with inherited connections
+- PostgreSQL rejects queries from different PID
+- Queries hang forever until RQ timeout (300s)
+
+### Fix Applied
+SimpleWorker runs jobs in-process without forking, eliminating connection inheritance.
+
+### Results
+- **Gate A (Memory):** PASS - 2.3GB available, 4 workers x 810MB = 3.24GB used
+- **Gate B (Single extraction):** PARTIAL
+  - Trial 1: 9.87s, COMPLETED (hang FIXED!)
+  - Trial 2: FAILED - ANTHROPIC_API_KEY missing in os.environ
+  - Trial 3: SKIPPED (halt condition)
+- **Gate C (4-way concurrent):** SKIPPED
+
+### New Blocker Discovered
+ANTHROPIC_API_KEY visible to first job per worker, missing for subsequent jobs in SAME process.
+Environment variable persistence issue in SimpleWorker model - requires investigation.
+
+### Impact
+- Original fork-after-psycopg2 hang: **RESOLVED**
+- LongMemEval benchmark: **BLOCKED** (new environment issue)
+- CP-EMBEDDER-SVC: Queued for optimization, not urgent (memory headroom acceptable)
+
+### Next Actions
+1. Debug why os.environ loses ANTHROPIC_API_KEY after first job
+2. Test 3-5 consecutive extractions in single worker
+3. Re-run gates B and C
+4. Commit and merge once environment persistence confirmed
