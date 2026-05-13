@@ -1,0 +1,130 @@
+{
+  "question_id": "830ce83f",
+  "question": "Where did Rachel move to after her recent relocation?",
+  "answer": "the suburbs",
+  "total_sessions": 47,
+  "total_turns": 254,
+  "recall_only": true,
+  "timestamp": "2026-05-13T09:38:51.701220",
+  "recall_verification": {
+    "recall_status": "ok",
+    "recall_elapsed": 0.0549013614654541,
+    "memories_used": 190,
+    "tokens_used": 8000,
+    "answer_bearing_memory_id": "30a41c96-2004-42ce-bda6-1535ce3fd37f",
+    "answer_bearing_memory_headline": "User has a friend named Rachel who recently moved back to the suburbs",
+    "answer_bearing_memory_type": "identity",
+    "answer_bearing_memory_composite": 0.713,
+    "answer_bearing_rank": 9,
+    "recall_precision_score": 0.9578947368421052,
+    "top_20_composite_distribution": {
+      "min": 0.681,
+      "max": 0.753,
+      "p50": 0.694,
+      "spread": 0.07199999999999995,
+      "values": [
+        0.753,
+        0.745,
+        0.719,
+        0.719,
+        0.717,
+        0.715,
+        0.715,
+        0.715,
+        0.713,
+        0.694,
+        0.694,
+        0.693,
+        0.69,
+        0.683,
+        0.683,
+        0.683,
+        0.682,
+        0.681,
+        0.681,
+        0.681
+      ]
+    },
+    "top_10_recalled": [
+      {
+        "rank": 1,
+        "id": "b7ef1c26-564f-4ff7-997f-e3befcb995c6",
+        "headline": "User codes primarily in Python",
+        "memory_type": "preference",
+        "composite": 0.753
+      },
+      {
+        "rank": 2,
+        "id": "5f94c799-04de-4c0f-a713-acd403a4b967",
+        "headline": "User agreed to purchase house for $500,000",
+        "memory_type": "decision",
+        "composite": 0.745
+      },
+      {
+        "rank": 3,
+        "id": "88d9e409-ac5a-46cd-b4a6-e4d4a3a53b4e",
+        "headline": "World-building terminology: ocean/sea analogues for aerial rifts and formations",
+        "memory_type": "identity",
+        "composite": 0.719
+      },
+      {
+        "rank": 4,
+        "id": "7020b5b2-cf75-453b-b00b-80fa32211d16",
+        "headline": "Story opens with sudden collapse of a moderate-sized isle",
+        "memory_type": "identity",
+        "composite": 0.719
+      },
+      {
+        "rank": 5,
+        "id": "25596e0f-6c42-4874-83f5-6375fcc7d0c0",
+        "headline": "User preference: nautical terminology should be used consistently throughout story and cultures",
+        "memory_type": "preference",
+        "composite": 0.717
+      },
+      {
+        "rank": 6,
+        "id": "c6c5d8e1-71b3-4e55-97ab-d9dafe5a5b9f",
+        "headline": "User wants to practice speaking and listening skills through conversation",
+        "memory_type": "preference",
+        "composite": 0.715
+      },
+      {
+        "rank": 7,
+        "id": "89080292-2c0d-4a29-9836-f18b6b8ef3ee",
+        "headline": "User's favorite programming language is Rust",
+        "memory_type": "preference",
+        "composite": 0.715
+      },
+      {
+        "rank": 8,
+        "id": "48170d54-a63d-4854-94f9-fa1b91506fbc",
+        "headline": "User uses vim keybindings",
+        "memory_type": "preference",
+        "composite": 0.715
+      },
+      {
+        "rank": 9,
+        "id": "30a41c96-2004-42ce-bda6-1535ce3fd37f",
+        "headline": "User has a friend named Rachel who recently moved back to the suburbs",
+        "memory_type": "identity",
+        "composite": 0.713
+      },
+      {
+        "rank": 10,
+        "id": "6cae6c33-c9c0-4128-8f20-7434b8c382c5",
+        "headline": "Maiko's last name is Thompson (recently changed)",
+        "memory_type": "identity",
+        "composite": 0.694
+      }
+    ],
+    "match_criteria": {
+      "answer_keywords": [
+        "the suburbs"
+      ],
+      "entity_keywords": [
+        "rachel"
+      ],
+      "type_filter": "identity"
+    }
+  }
+}
