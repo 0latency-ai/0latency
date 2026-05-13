@@ -1904,6 +1904,41 @@ async def list_memories(
         raise_service_unavailable("Failed to list memories. Please try again.")
 
 
+@app.get("/memories/search")
+async def search_memories(
+    agent_id: Optional[str] = Query(None, min_length=1, max_length=128),
+    q: str = Query(..., min_length=1, max_length=500),
+    limit: int = Query(20, ge=1, le=100),
+    tenant: dict = Depends(require_api_key),
+):
+    """Search memories by keyword. Tenant-isolated."""
+    try:
+        # Auto-resolve agent_id if not provided
+        agent_id = auto_resolve_agent_id(tenant["id"], agent_id)
+
+        pattern = f"%{q}%"
+        rows = _db_execute_rows("""
+            SELECT id, headline, memory_type, importance, created_at, context
+            FROM memory_service.memories
+            WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+              AND (headline ILIKE %s OR context ILIKE %s)
+            ORDER BY importance DESC, created_at DESC
+            LIMIT %s
+        """, (agent_id, tenant["id"], pattern, pattern, limit), tenant_id=tenant["id"])
+        
+        results = []
+        for row in (rows or []):
+            results.append({
+                "id": str(row[0]),
+                "headline": str(row[1]),
+                "memory_type": str(row[2]),
+                "importance": float(row[3]) if row[3] is not None else 0.5,
+                "created_at": str(row[4]),
+                "context": str(row[5]) if row[5] else "",
+            })
+        return results
+    except Exception:
+        raise_service_unavailable("Search failed")
 @app.get("/memories/{memory_id}")
 async def get_memory(memory_id: str, tenant: dict = Depends(require_api_key)):
     """Get full details for a specific memory including lineage data."""
@@ -1976,41 +2011,6 @@ async def delete_memory(memory_id: str, tenant: dict = Depends(require_api_key))
         raise_service_unavailable("Failed to delete memory.")
 
 
-@app.get("/memories/search")
-async def search_memories(
-    agent_id: Optional[str] = Query(None, min_length=1, max_length=128),
-    q: str = Query(..., min_length=1, max_length=500),
-    limit: int = Query(20, ge=1, le=100),
-    tenant: dict = Depends(require_api_key),
-):
-    """Search memories by keyword. Tenant-isolated."""
-    try:
-        # Auto-resolve agent_id if not provided
-        agent_id = auto_resolve_agent_id(tenant["id"], agent_id)
-
-        pattern = f"%{q}%"
-        rows = _db_execute_rows("""
-            SELECT id, headline, memory_type, importance, created_at, context
-            FROM memory_service.memories
-            WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
-              AND (headline ILIKE %s OR context ILIKE %s)
-            ORDER BY importance DESC, created_at DESC
-            LIMIT %s
-        """, (agent_id, tenant["id"], pattern, pattern, limit), tenant_id=tenant["id"])
-        
-        results = []
-        for row in (rows or []):
-            results.append({
-                "id": str(row[0]),
-                "headline": str(row[1]),
-                "memory_type": str(row[2]),
-                "importance": float(row[3]) if row[3] is not None else 0.5,
-                "created_at": str(row[4]),
-                "context": str(row[5]) if row[5] else "",
-            })
-        return results
-    except Exception:
-        raise_service_unavailable("Search failed")
 
 
 class BatchExtractItem(BaseModel):
@@ -3598,6 +3598,8 @@ async def admin_delete_user(email: str):
 class SynthesisRunRequest(BaseModel):
     agent_id: str = Field(..., description="Agent namespace to run synthesis for")
     max_clusters: Optional[int] = Field(None, ge=1, le=10, description="Max clusters to synthesize (capped at 10)")
+    force: Optional[bool] = Field(False, description="Skip cooldown check")
+    role_scope: Optional[str] = Field("public", description="Role tag for synthesis memories")
 
 
 # =============================================================================
