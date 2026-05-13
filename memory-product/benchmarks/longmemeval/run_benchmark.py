@@ -3,7 +3,10 @@
 LongMemEval benchmark adapter for 0Latency with production hardening.
 
 Features:
-- Exponential backoff retry for 502/429/503 errors
+- Async extraction via /memories/extract with worker queue
+- Bounded concurrency (ThreadPoolExecutor) for parallel submission
+- Exponential backoff retry for 502/429/503/520/524 errors
+- Circuit breaker to prevent hanging on degraded API
 - Rate limiting to prevent CloudFlare blocks  
 - Smoke test mode for pre-flight validation
 - Cost estimation before full runs
@@ -19,6 +22,7 @@ import subprocess
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import anthropic
 
 # Load benchmark credentials
@@ -63,7 +67,7 @@ if not ANTHROPIC_API_KEY:
 class LongMemEvalRunner:
     def __init__(self, dataset_path: str, max_questions: int = 5, max_sessions: int = None,
                  smoke_mode: bool = False, max_zero_streak: int = 10, confirm_cost: bool = False,
-                 scorer: str = "substring"):
+                 scorer: str = "substring", max_workers: int = 8):
         self.dataset_path = Path(dataset_path)
         self.max_questions = max_questions
         self.max_sessions = max_sessions
@@ -71,6 +75,7 @@ class LongMemEvalRunner:
         self.max_zero_streak = max_zero_streak
         self.confirm_cost = confirm_cost
         self.scorer = scorer
+        self.max_workers = max_workers
         self.headers = {
             "X-API-Key": API_KEY,
             "Content-Type": "application/json"
@@ -81,6 +86,7 @@ class LongMemEvalRunner:
         self.total_judge_tokens = 0
         self.zero_streak = 0
         self.dataset_total_count = 0
+        self.consecutive_failures = 0
         
         if self.scorer == "llm":
             if not ANTHROPIC_API_KEY:
@@ -140,84 +146,168 @@ class LongMemEvalRunner:
         print(f"Loaded {len(data)} questions from {self.dataset_path.name}", file=sys.stderr)
         return data[:self.max_questions]
     
+    def submit_extraction_job(self, payload: Dict) -> Tuple[str, str, int]:
+        """Submit single extraction job to async endpoint. Returns (job_id, error, status_code)."""
+        max_retries = 1  # Only 1 retry at benchmark layer (workers retry 3x internally)
+        
+        for attempt in range(max_retries + 1):
+            try:
+                response = requests.post(
+                    f"{API_BASE_URL}/memories/extract",
+                    headers=self.headers,
+                    json=payload,
+                    timeout=10
+                )
+                
+                print(f"DEBUG: POST status={response.status_code} body={response.text[:200]}", file=sys.stderr)
+                
+                if response.status_code == 202:
+                    data = response.json()
+                    return data["job_id"], None, 202
+                elif response.status_code in (429, 502, 503, 520, 524):
+                    if attempt < max_retries:
+                        time.sleep(0.5 * (2 ** attempt))
+                        continue
+                    return None, f"status_{response.status_code}", response.status_code
+                else:
+                    return None, f"status_{response.status_code}", response.status_code
+            except requests.exceptions.Timeout:
+                if attempt < max_retries:
+                    time.sleep(0.5)
+                    continue
+                return None, "timeout", 0
+            except Exception as e:
+                print(f"DEBUG: Exception {type(e).__name__}: {e}", file=sys.stderr)
+                return None, str(e), 0
+        
+        return None, "max_retries_exceeded", 0
+    
+    def poll_job_completion(self, job_id: str, max_wait: int = 120) -> Tuple[bool, str]:
+        """Poll job until complete or timeout. Returns (success, error)."""
+        start = time.time()
+        
+        while time.time() - start < max_wait:
+            try:
+                response = requests.get(
+                    f"{API_BASE_URL}/memories/extract/{job_id}",
+                    headers=self.headers,
+                    timeout=5
+                )
+                
+                if response.status_code != 200:
+                    return False, f"poll_status_{response.status_code}"
+                
+                data = response.json()
+                status = data.get("status")
+                
+                if status == "complete":
+                    return True, None
+                elif status == "failed":
+                    error = data.get("error", "unknown_error")
+                    return False, f"job_failed_{error}"
+                # status == "accepted" or "processing", keep polling
+                
+                time.sleep(0.5)
+            except Exception as e:
+                time.sleep(0.5)
+                continue
+        
+        return False, "poll_timeout"
+    
+    def extract_single_session(self, session: List[Dict], session_idx: int, question_id: str) -> Tuple[int, int]:
+        """Extract one session (all turns). Returns (turn_count, failed_count)."""
+        turn_count = 0
+        failed_count = 0
+        
+        i = 0
+        while i < len(session) - 1:
+            user_turn = session[i]
+            assistant_turn = session[i + 1]
+            
+            if user_turn["role"] != "user" or assistant_turn["role"] != "assistant":
+                i += 1
+                continue
+            
+            payload = {
+                "content": f"Human: {user_turn['content']}\n\nAssistant: {assistant_turn['content']}",
+                "session_key": f"longmemeval_{question_id}_session_{session_idx}"
+            }
+            
+            # Track tokens for cost estimation
+            self.total_extraction_tokens += len(user_turn["content"]) + len(assistant_turn["content"])
+            
+            # Submit job
+            job_id, error, status_code = self.submit_extraction_job(payload)
+            
+            if not job_id:
+                failed_count += 1
+                self.consecutive_failures += 1
+                i += 2
+                continue
+            
+            # Poll for completion
+            success, poll_error = self.poll_job_completion(job_id)
+            
+            if success:
+                turn_count += 1
+                self.consecutive_failures = 0
+            else:
+                failed_count += 1
+                self.consecutive_failures += 1
+            
+            # Circuit breaker
+            if self.consecutive_failures >= 5:
+                print(f"\n✗ CIRCUIT BREAKER: 5 consecutive failures", file=sys.stderr)
+                print(f"API appears degraded. Aborting to prevent hang.", file=sys.stderr)
+                raise RuntimeError("Circuit breaker tripped")
+            
+            i += 2
+        
+        return turn_count, failed_count
+    
     def extract_sessions(self, sessions: List[List[Dict]], question_id: str) -> int:
-        """Extract haystack sessions with exponential backoff retry logic."""
+        """Extract haystack sessions with async submission and bounded concurrency."""
         sessions_to_extract = sessions if self.max_sessions is None else sessions[:self.max_sessions]
         
         print(f"  Extracting {len(sessions_to_extract)}/{len(sessions)} sessions...", file=sys.stderr, end=" ")
         sys.stderr.flush()
         
         start = time.time()
-        turn_count = 0
-        failed_count = 0
+        total_turns = 0
+        total_failed = 0
+        session_times = []
         
-        for session_idx, session in enumerate(sessions_to_extract):
-            i = 0
-            while i < len(session) - 1:
-                user_turn = session[i]
-                assistant_turn = session[i + 1]
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {}
+            for session_idx, session in enumerate(sessions_to_extract):
+                future = executor.submit(self.extract_single_session, session, session_idx, question_id)
+                futures[future] = (session_idx, time.time())
+            
+            for future in as_completed(futures):
+                session_idx, session_start = futures[future]
+                session_elapsed = time.time() - session_start
+                session_times.append(session_elapsed)
                 
-                if user_turn["role"] != "user" or assistant_turn["role"] != "assistant":
-                    i += 1
-                    continue
-                
-                payload = {
-                    "human_message": user_turn["content"],
-                    "agent_message": assistant_turn["content"],
-                    "session_key": f"longmemeval_{question_id}_session_{session_idx}"
-                }
-                
-                # Track tokens for cost estimation
-                self.total_extraction_tokens += len(user_turn["content"]) + len(assistant_turn["content"])
-                
-                # Exponential backoff retry
-                max_retries = 5
-                retry_delay = 0.5
-                
-                for attempt in range(max_retries):
-                    try:
-                        response = requests.post(
-                            f"{API_BASE_URL}/extract",
-                            headers=self.headers,
-                            json=payload,
-                            timeout=90
-                        )
-                        
-                        if response.status_code in (200, 202):
-                            turn_count += 1
-                            time.sleep(0.1)  # Rate limit
-                            break
-                        elif response.status_code in (429, 502, 503):
-                            if attempt < max_retries - 1:
-                                time.sleep(retry_delay)
-                                retry_delay *= 2
-                                continue
-                            else:
-                                failed_count += 1
-                                if failed_count <= 3:
-                                    print(f"\nWARN: Turn failed after {max_retries} retries: {response.status_code}", file=sys.stderr)
-                                break
-                        else:
-                            failed_count += 1
-                            if failed_count <= 3:
-                                print(f"\nWARN: Turn extraction failed: {response.status_code}", file=sys.stderr)
-                            break
-                    except requests.exceptions.Timeout:
-                        failed_count += 1
-                        if failed_count <= 3:
-                            print(f"\nWARN: Turn timed out", file=sys.stderr)
-                        break
-                    except Exception as e:
-                        failed_count += 1
-                        if failed_count <= 3:
-                            print(f"\nWARN: Turn error: {e}", file=sys.stderr)
-                        break
-                
-                i += 2
+                try:
+                    turn_count, failed_count = future.result()
+                    total_turns += turn_count
+                    total_failed += failed_count
+                except Exception as e:
+                    print(f"\nERROR extracting session {session_idx}: {e}", file=sys.stderr)
+                    raise
         
         elapsed = time.time() - start
-        print(f"{turn_count} turns ({failed_count} failed) in {elapsed:.1f}s", file=sys.stderr)
-        return turn_count
+        
+        # Calculate per-session stats
+        if session_times:
+            session_times.sort()
+            p50 = session_times[len(session_times) // 2]
+            p95 = session_times[int(len(session_times) * 0.95)]
+            print(f"\n  {total_turns} turns ({total_failed} failed) in {elapsed:.1f}s | p50={p50:.1f}s p95={p95:.1f}s per session", file=sys.stderr)
+        else:
+            print(f"\n  {total_turns} turns ({total_failed} failed) in {elapsed:.1f}s", file=sys.stderr)
+        
+        return total_turns
     
     def recall(self, question: str) -> Tuple[str, float]:
         """Recall relevant context for question."""
@@ -337,6 +427,7 @@ Reply with ONLY "YES" or "NO"."""
         print(f"API: {API_BASE_URL}", file=sys.stderr)
         print(f"Max sessions per question: {self.max_sessions or 'all'}", file=sys.stderr)
         print(f"Max zero streak: {self.max_zero_streak}", file=sys.stderr)
+        print(f"Concurrency: {self.max_workers} workers", file=sys.stderr)
         print("", file=sys.stderr)
         
         for i, item in enumerate(questions, 1):
@@ -432,7 +523,8 @@ Reply with ONLY "YES" or "NO"."""
                 "tenant_id": TENANT_ID,
                 "api_base_url": API_BASE_URL,
                 "max_zero_streak": self.max_zero_streak,
-                "scorer": self.scorer
+                "scorer": self.scorer,
+                "max_workers": self.max_workers
             },
             "aggregate": {
                 "accuracy": accuracy,
@@ -472,6 +564,7 @@ if __name__ == "__main__":
     parser.add_argument("--confirm-cost", action="store_true", help="Confirm willingness to pay projected cost")
     parser.add_argument("--scorer", choices=["substring", "llm"], default="substring",
                         help="Scoring method: substring (exact match) or llm (Claude Sonnet judge)")
+    parser.add_argument("--max-workers", type=int, default=8, help="Max concurrent sessions for extraction")
     
     args = parser.parse_args()
     
@@ -488,7 +581,8 @@ if __name__ == "__main__":
         smoke_mode=args.smoke,
         max_zero_streak=args.max_zero_streak,
         confirm_cost=args.confirm_cost,
-        scorer=args.scorer
+        scorer=args.scorer,
+        max_workers=args.max_workers
     )
     
     runner.run(output_path=args.output)
