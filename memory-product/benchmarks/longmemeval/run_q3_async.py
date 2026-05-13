@@ -96,6 +96,9 @@ class BenchmarkRunner:
     def poll_job(self, job_id: str, turn: Dict, max_wait: int = 180) -> Dict:
         """Poll job until complete or timeout. Returns result dict."""
         start = time.time()
+        retries_5xx = 0
+        max_retries_5xx = 3
+        backoff_schedule = [1, 2, 4]
         
         while time.time() - start < max_wait:
             try:
@@ -110,6 +113,21 @@ class BenchmarkRunner:
                     data = response.json()
                     retry_after = data.get("detail", {}).get("error", {}).get("retry_after", 5)
                     time.sleep(retry_after)
+                    continue
+                elif 500 <= response.status_code < 600:
+                    # Transient server error — retry with exponential backoff
+                    retries_5xx += 1
+                    if retries_5xx > max_retries_5xx:
+                        elapsed = time.time() - start
+                        return {
+                            **turn,
+                            "job_id": job_id,
+                            "status": "failed",
+                            "error": f"poll_status_{response.status_code}_after_3_retries",
+                            "elapsed": elapsed
+                        }
+                    delay = backoff_schedule[retries_5xx - 1]
+                    time.sleep(delay)
                     continue
                 elif response.status_code != 200:
                     elapsed = time.time() - start
@@ -143,6 +161,8 @@ class BenchmarkRunner:
                         "elapsed": elapsed
                     }
                 
+                # Reset 5xx counter on successful poll (job still processing)
+                retries_5xx = 0
                 time.sleep(0.5)
             except Exception as e:
                 elapsed = time.time() - start
