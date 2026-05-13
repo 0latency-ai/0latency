@@ -26,6 +26,9 @@ RECALL_KEYWORD_MATCH_ENABLED = os.getenv("RECALL_KEYWORD_MATCH_ENABLED", "false"
 # F1: Voyage voyage-3-large embedding (flag-gated)
 RECALL_USE_VOYAGE = os.getenv("RECALL_USE_VOYAGE", "false").lower() in ("true", "1", "yes")
 
+# F3b: Entity-aware recall strategy (flag-gated)
+RECALL_ENTITY_STRATEGY_ENABLED = os.getenv("RECALL_ENTITY_STRATEGY_ENABLED", "false").lower() in ("true", "1", "yes")
+
 
 # --- Sprint 5: Query Classification & BM25 Fast-Path ---
 
@@ -376,7 +379,30 @@ def _build_always_include(agent_id: str, tenant_id: str = None, config: dict = N
 
 
 
-def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_text: str, tenant_id: str = None, project_id: str = None, include_raw_turns: bool = False, include_synthesis: bool = True, caller_role: str = "public", use_voyage: bool = False):
+def _extract_entities(text: str) -> list[str]:
+    """Extract proper noun entities from text for entity-aware retrieval (F3b)."""
+    words = re.findall(r'\b[A-Z][a-z]{2,}\b', text)
+    # Common words that are often capitalized at sentence starts — not entities
+    skip = {'The', 'This', 'That', 'What', 'When', 'Where', 'Which', 'How',
+            'Are', 'Was', 'Were', 'Has', 'Have', 'Had', 'Will', 'Would',
+            'Could', 'Should', 'Can', 'May', 'Did', 'Does', 'But', 'And',
+            'For', 'Not', 'All', 'Any', 'Her', 'His', 'Its', 'Our', 'They',
+            'Who', 'Why', 'After', 'Before', 'Recent', 'Also', 'Just',
+            'About', 'From', 'Into', 'Over', 'Some', 'Than', 'Then',
+            'Very', 'More', 'Much', 'Such', 'Each', 'Every', 'Other',
+            'Most', 'Same', 'Still', 'Back', 'Here', 'There', 'User',
+            'Recently', 'Now', 'Already', 'Never', 'Often', 'Being'}
+    entities = [w for w in words if w not in skip]
+    seen = set()
+    unique = []
+    for e in entities:
+        if e.lower() not in seen:
+            seen.add(e.lower())
+            unique.append(e)
+    return unique[:5]
+
+
+def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_text: str, tenant_id: str = None, project_id: str = None, include_raw_turns: bool = False, include_synthesis: bool = True, caller_role: str = "public", use_voyage: bool = False, entities: list[str] = None):
     """Retrieve candidate memories using multiple strategies — consolidated single query."""
     # SECURITY: Use provided tenant_id for all queries
     _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
@@ -432,26 +458,67 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
     tsquery_str = ' OR '.join(sanitized_keywords) if sanitized_keywords else '__no_keywords__'
     
     # ====================================================================
-    # CONSOLIDATED CTE QUERY (S1 + S2 + S3 in one round trip)
+    # ENTITY EXTRACTION (for S4, F3b)
+    # ====================================================================
+    _entity_regex = None
+    if entities:
+        escaped = [re.escape(e) for e in entities]
+        _entity_regex = r'\m(' + '|'.join(escaped) + r')\M'
+        logger.info(f"🏷️ Entity regex for S4: {_entity_regex}")
+
+    # ====================================================================
+    # CONSOLIDATED CTE QUERY (S1 + S2 + S3 + optional S4 in one round trip)
     # ====================================================================
     _t_db_start = _time_cp6.perf_counter()
-    
+
     _project_filter = "AND project_id = %s" if project_id else ""
-    
+
+    # Build S4 entity CTE conditionally (F3b)
+    _s4_cte = ""
+    _s4_union = ""
+    _s4_params = ()
+    if _entity_regex:
+        _s4_cte = f""",
+            entity_results AS (
+                SELECT id, headline, context, full_content, memory_type,
+                       importance, access_count, reinforcement_count,
+                       created_at, superseded_at,
+                       0.4 as similarity,
+                       'entity' as strategy
+                FROM memory_service.memories
+                WHERE (agent_id = %s OR memory_type = 'synthesis') AND tenant_id = %s::UUID
+                  AND superseded_at IS NULL
+                  AND (headline ~* %s OR context ~* %s)
+                  {_raw_turn_filter}
+                  {_synthesis_filter}
+                  {_project_filter}
+                  {_redaction_filter}
+                  AND id NOT IN (SELECT id FROM vector_results)
+                  AND id NOT IN (SELECT id FROM importance_results)
+                  AND id NOT IN (SELECT id FROM keyword_results)
+                ORDER BY importance DESC
+                LIMIT 30
+            )"""
+        _s4_union = "\n            UNION ALL\n            SELECT * FROM entity_results"
+        if project_id:
+            _s4_params = (agent_id, _tid, _entity_regex, _entity_regex, project_id)
+        else:
+            _s4_params = (agent_id, _tid, _entity_regex, _entity_regex)
+
     # Build params list based on whether project_id is present
     if project_id:
         _params = (
             embedding_str, agent_id, _tid, project_id, embedding_str,  # S1: vector_results
             agent_id, _tid, project_id,  # S2: importance_results
             agent_id, _tid, tsquery_str, project_id  # S3: keyword_results
-        )
+        ) + _s4_params
     else:
         _params = (
             embedding_str, agent_id, _tid, embedding_str,  # S1: vector_results
             agent_id, _tid,  # S2: importance_results
             agent_id, _tid, tsquery_str  # S3: keyword_results
-        )
-    
+        ) + _s4_params
+
     try:
         rows = _db_execute_rows(f"""
             WITH vector_results AS (
@@ -507,12 +574,12 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                   AND id NOT IN (SELECT id FROM importance_results)
                 ORDER BY importance DESC
                 LIMIT 50
-            )
+            ){_s4_cte}
             SELECT * FROM vector_results
             UNION ALL
             SELECT * FROM importance_results
             UNION ALL
-            SELECT * FROM keyword_results
+            SELECT * FROM keyword_results{_s4_union}
         """, _params, tenant_id=_tid)
         
         _t_db_ms = int((_time_cp6.perf_counter() - _t_db_start) * 1000)
@@ -521,7 +588,8 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
         _s1_rows_count = 0
         _s2_rows_count = 0
         _s3_rows_count = 0
-        
+        _s4_rows_count = 0
+
         logger.info(f"✅ Consolidated query returned {len(rows) if rows else 0} rows")
         for row in rows:
             if len(row) >= 12:  # tuple of 12 columns from cursor
@@ -537,16 +605,18 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                         _s2_rows_count += 1
                     elif strategy == 'keyword':
                         _s3_rows_count += 1
+                    elif strategy == 'entity':
+                        _s4_rows_count += 1
 
                     similarity = float(row[10]) if row[10] is not None else 0
                     logger.debug(f"  • [{strategy}] Memory {str(row[1])[:50]}... similarity={similarity:.3f}")
-        
+
     except Exception as e:
         logger.error(f"_retrieve_candidates failed: {type(e).__name__}: {e}", exc_info=True)
         logger.error(f"❌ Consolidated query failed: {e}")
         print(f"Warning: Consolidated query failed: {e}")
         _t_db_ms = int((_time_cp6.perf_counter() - _t_db_start) * 1000)
-        _s1_rows_count = _s2_rows_count = _s3_rows_count = 0
+        _s1_rows_count = _s2_rows_count = _s3_rows_count = _s4_rows_count = 0
     
     # Simplified logging: just embed + db
     _t_total_ms = _t_embed_ms + _t_db_ms
@@ -559,6 +629,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
         "s1_rows": _s1_rows_count,
         "s2_rows": _s2_rows_count,
         "s3_rows": _s3_rows_count,
+        "s4_rows": _s4_rows_count,
     }
 
 
@@ -701,9 +772,14 @@ def recall_fixed(
             "recall_details": [],
         }
     
+    # Step 3b: Entity extraction (F3b — flag-gated)
+    _entities = _extract_entities(conversation_context) if RECALL_ENTITY_STRATEGY_ENABLED else []
+    if _entities:
+        logger.info(f"🏷️ Extracted entities: {_entities}")
+
     # Step 4: Retrieve candidates (tenant-scoped)
     _search_t0 = _time.time()
-    candidates, _vector_timing = _retrieve_candidates(agent_id, query_embedding, conversation_context, tenant_id=_tid, project_id=project_id, include_raw_turns=include_raw_turns, include_synthesis=include_synthesis, caller_role=caller_role, use_voyage=_use_voyage)
+    candidates, _vector_timing = _retrieve_candidates(agent_id, query_embedding, conversation_context, tenant_id=_tid, project_id=project_id, include_raw_turns=include_raw_turns, include_synthesis=include_synthesis, caller_role=caller_role, use_voyage=_use_voyage, entities=_entities)
     _search_t1 = _time.time()
     _search_ms = (_search_t1 - _search_t0) * 1000
     # logger.info(f"[VECTOR SUBPHASES] embed={_embed_ms:.0f}ms s1={_vector_timing["s1_ms"]}ms s2={_vector_timing["s2_ms"]}ms s3={_vector_timing["s3_ms"]}ms")  # Old logging - consolidated query now logs internally
@@ -821,7 +897,15 @@ def recall_fixed(
             # Pinned memories get highest priority, overriding all other boosts
             if c.get("is_pinned"):
                 composite *= 2.0  # Strong boost for pinned memories
-            
+
+            # F3b: Entity-mention bonus — memories whose headline names a query entity
+            if _entities:
+                hl_lower = (c.get("headline") or "").lower()
+                for ent in _entities:
+                    if ent.lower() in hl_lower:
+                        composite *= 1.05
+                        break  # One bonus per memory
+
             if c.get("superseded_at"):
                 continue
             

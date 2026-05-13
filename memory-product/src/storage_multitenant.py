@@ -552,11 +552,29 @@ def _check_contradiction(agent_id: str, headline: str, embedding: list[float], t
 def _handle_correction(memory: dict, correction_id: str, tenant_id: str):
     """Handle correction by superseding old facts within the tenant.
     Snapshots the old memory's state to memory_versions before superseding.
+
+    F3a: When contradicts_id is known (from _check_contradiction), supersede
+    that specific memory directly instead of doing a fuzzy embedding search.
     """
-    # Search for related memories that this corrects (within tenant only)
+    metadata = memory.get('metadata', {})
+    contradicts_id = metadata.get('contradicts_id')
+
+    if contradicts_id:
+        # F3a: Direct supersession — target the known contradicted memory
+        rows = _db_execute_rows(
+            "SELECT id, headline FROM memory_service.memories "
+            "WHERE id = %s AND superseded_at IS NULL",
+            (contradicts_id,), tenant_id=tenant_id,
+        )
+        if rows:
+            old_id, old_headline = rows[0]
+            _supersede_memory(old_id, old_headline, correction_id, memory, tenant_id)
+        return
+
+    # Fallback: embedding search for corrections without a known target
     embed_text = f"{memory['headline']}. {memory['context']}"
     embedding = _embed_text(embed_text)
-    
+
     query = """
         SELECT id, headline, agent_id
         FROM memory_service.memories
@@ -566,27 +584,30 @@ def _handle_correction(memory: dict, correction_id: str, tenant_id: str):
         ORDER BY embedding <=> %s::vector
         LIMIT 5
     """
-    
+
     rows = _db_execute_rows(query, (correction_id, embedding), tenant_id=tenant_id)
-    
+
     if rows:
-        for (old_id, old_headline, agent_id) in rows:
-            # Snapshot version before superseding
-            try:
-                from versioning import snapshot_version
-                snapshot_version(old_id, tenant_id, changed_by="extraction",
-                                change_reason=f"superseded by correction: {memory['headline'][:120]}")
-            except Exception as e:
-                print(f"  ⚠ Version snapshot failed (non-fatal): {e}")
-            
-            # Supersede the top match within this tenant
-            _db_execute("""
-                UPDATE memory_service.memories
-                SET superseded_at = now(), superseded_by = %s
-                WHERE id = %s
-            """, (correction_id, old_id), tenant_id=tenant_id, fetch_results=False)
-            print(f"  ✂ Superseded memory: {old_id} ({old_headline})")
-            break  # Only supersede top match
+        old_id, old_headline = rows[0][0], rows[0][1]
+        _supersede_memory(old_id, old_headline, correction_id, memory, tenant_id)
+
+
+def _supersede_memory(old_id, old_headline, correction_id, memory, tenant_id):
+    """Write superseded_at + superseded_by on the old memory."""
+    try:
+        from versioning import snapshot_version
+        snapshot_version(old_id, tenant_id, changed_by="extraction",
+                        change_reason=f"superseded by correction: {memory['headline'][:120]}")
+    except Exception as e:
+        print(f"  ⚠ Version snapshot failed (non-fatal): {e}")
+
+    _db_execute_rows(
+        "UPDATE memory_service.memories "
+        "SET superseded_at = now(), superseded_by = %s "
+        "WHERE id = %s AND superseded_at IS NULL",
+        (correction_id, old_id), tenant_id=tenant_id, fetch_results=False,
+    )
+    print(f"  ✂ Superseded memory: {old_id} ({old_headline})")
 
 
 def store_memories(memories: list[dict], tenant_id: str = None) -> dict:
