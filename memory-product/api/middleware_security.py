@@ -52,17 +52,18 @@ async def security_middleware(request: Request, call_next):
     tenant_id = "anon"
     client_ip = request.client.host if request.client else "unknown"
     
-    # IP rate limiting (best effort - don't break API if Redis is down)
-    try:
-        check_ip_rate_limit(client_ip)
-    except HTTPException as exc:
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={"detail": exc.detail},
-            headers=dict(exc.headers) if exc.headers else {},
-        )
-    except Exception:
-        pass  # Redis down? Continue without rate limiting
+    # IP rate limiting — skip loopback (internal service traffic)
+    if client_ip not in ("127.0.0.1", "::1"):
+        try:
+            check_ip_rate_limit(client_ip)
+        except HTTPException as exc:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+                headers=dict(exc.headers) if exc.headers else {},
+            )
+        except Exception:
+            pass  # Redis down? Continue without rate limiting
     
     # Process the actual request
     response = await call_next(request)
