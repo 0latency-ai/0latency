@@ -6,6 +6,7 @@ import sys
 import os
 import uuid
 from fastapi import Request, HTTPException
+from fastapi.responses import JSONResponse
 import time
 import logging
 
@@ -54,8 +55,12 @@ async def security_middleware(request: Request, call_next):
     # IP rate limiting (best effort - don't break API if Redis is down)
     try:
         check_ip_rate_limit(client_ip)
-    except HTTPException:
-        raise  # Re-raise rate limit responses
+    except HTTPException as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=dict(exc.headers) if exc.headers else {},
+        )
     except Exception:
         pass  # Redis down? Continue without rate limiting
     
