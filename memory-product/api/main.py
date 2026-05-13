@@ -3,6 +3,8 @@ Zero Latency Memory API — Phase B
 FastAPI REST endpoints for multi-tenant agent memory with real authentication.
 """
 import os
+import faulthandler
+faulthandler.enable()  # API_HARDENING: dump traceback on SIGSEGV/SIGABRT/SIGFPE
 import sys
 import time
 import base64
