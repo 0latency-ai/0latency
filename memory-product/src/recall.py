@@ -29,6 +29,9 @@ RECALL_USE_VOYAGE = os.getenv("RECALL_USE_VOYAGE", "false").lower() in ("true", 
 # F3b: Entity-aware recall strategy (flag-gated)
 RECALL_ENTITY_STRATEGY_ENABLED = os.getenv("RECALL_ENTITY_STRATEGY_ENABLED", "false").lower() in ("true", "1", "yes")
 
+# F4: Entity-aware type bonus tuning (flag-gated)
+RECALL_TYPE_BONUS_ENTITY_AWARE = os.getenv("RECALL_TYPE_BONUS_ENTITY_AWARE", "false").lower() in ("true", "1", "yes")
+
 
 # --- Sprint 5: Query Classification & BM25 Fast-Path ---
 
@@ -866,16 +869,28 @@ def recall_fixed(
             )
             
             # Type bonuses — tie-breakers, not overrides.
-            # Scaled down from Phase 3 values to prevent type from
-            # outranking semantic relevance. A 1.3x bonus on identity
-            # was allowing imp=0.8/sim=0.3 identities to outrank
-            # imp=0.6/sim=0.66 facts — the opposite of useful recall.
+            # F4: When RECALL_TYPE_BONUS_ENTITY_AWARE is on, identity/preference
+            # bonuses are 1.15x only if the memory's headline overlaps with query
+            # entities; otherwise reduced to 1.05x. This prevents high-importance
+            # identity memories (e.g. "User founded X") from outranking the
+            # semantically relevant entity-bearing memory (e.g. "Rachel moved").
+            _has_entity_overlap = False
+            if _entities and RECALL_TYPE_BONUS_ENTITY_AWARE:
+                _hl_low = (c.get("headline") or "").lower()
+                _has_entity_overlap = any(e.lower() in _hl_low for e in _entities)
+
             if c["memory_type"] == "identity":
-                composite *= 1.15  # Identity facts (names, roles, permanent attributes)
+                if RECALL_TYPE_BONUS_ENTITY_AWARE:
+                    composite *= 1.15 if _has_entity_overlap else 1.05
+                else:
+                    composite *= 1.15
             elif c["memory_type"] == "correction":
                 composite *= 1.10  # Corrections — recent overrides
             elif c["memory_type"] == "preference":
-                composite *= 1.15  # Preferences — agent behavior alignment
+                if RECALL_TYPE_BONUS_ENTITY_AWARE:
+                    composite *= 1.15 if _has_entity_overlap else 1.05
+                else:
+                    composite *= 1.15
             elif c["memory_type"] == "event":
                 composite *= 1.10  # Events — specific, temporally grounded
             elif c["memory_type"] == "decision" and days_since < 7:
@@ -904,7 +919,7 @@ def recall_fixed(
                 for ent in _entities:
                     if ent.lower() in hl_lower:
                         composite *= 1.05
-                        break  # One bonus per memory
+                        break  # One bonus per memory, headline match only
 
             if c.get("superseded_at"):
                 continue
