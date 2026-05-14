@@ -616,7 +616,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             WITH vector_results AS (
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
-                       created_at, superseded_at,
+                       created_at, event_at, superseded_at,
                        1 - ({_emb_col} <=> %s::vector) as similarity,
                        'vector' as strategy
                 FROM memory_service.memories
@@ -633,7 +633,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             importance_results AS (
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
-                       created_at, superseded_at,
+                       created_at, event_at, superseded_at,
                        0.5 as similarity,
                        'importance' as strategy
                 FROM memory_service.memories
@@ -651,7 +651,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             keyword_results AS (
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
-                       created_at, superseded_at,
+                       created_at, event_at, superseded_at,
                        0.35 as similarity,
                        'keyword' as strategy
                 FROM memory_service.memories
@@ -686,7 +686,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
         for row in rows:
             if len(row) >= 12:  # tuple of 12 columns from cursor
                 mem_id = str(row[0])
-                strategy = row[11]
+                strategy = row[12]
 
                 if mem_id not in candidates:
                     candidates[mem_id] = _parse_candidate_row(row)
@@ -738,8 +738,9 @@ def _parse_candidate_row(row: tuple) -> dict:
         "access_count": int(row[6]) if row[6] is not None else 0,
         "reinforcement_count": int(row[7]) if row[7] is not None else 1,
         "created_at": row[8] if row[8] else datetime.now(timezone.utc),
-        "superseded_at": row[9],
-        "similarity": float(row[10]) if row[10] is not None else 0,
+        "event_at": row[9],  # nullable — prefer over created_at for temporal scoring
+        "superseded_at": row[10],
+        "similarity": float(row[11]) if row[11] is not None else 0,
     }
 
 
@@ -992,7 +993,8 @@ def recall_fixed(
     # Pre-compute recency for all candidates to detect degeneration
     raw_recencies = []
     for c in candidates:
-        days_since = (now - c["created_at"]).total_seconds() / 86400
+        temporal_ref = c.get("event_at") or c["created_at"]
+        days_since = (now - temporal_ref).total_seconds() / 86400
         raw_recencies.append(math.exp(-0.693 * days_since / max(half_life_days, 0.01)))
 
     # Adaptive weight rebalancing based on signal quality
@@ -1017,7 +1019,8 @@ def recall_fixed(
         try:
             semantic_sim = c["similarity"]
             recency = raw_recencies[idx_c]
-            days_since = (now - c["created_at"]).total_seconds() / 86400
+            temporal_ref = c.get("event_at") or c["created_at"]
+            days_since = (now - temporal_ref).total_seconds() / 86400
 
             importance_val = c["importance"] * (1 + 0.1 * min(c["reinforcement_count"], 5))
             importance_val = min(importance_val, 1.0)
@@ -1357,7 +1360,7 @@ def _retrieve_candidates_cross_agent(
             rows = _db_execute_rows(f"""
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
-                       created_at, superseded_at,
+                       created_at, event_at, superseded_at,
                        1 - ({_emb_col} <=> %s::vector) as similarity
                 FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s::UUID
