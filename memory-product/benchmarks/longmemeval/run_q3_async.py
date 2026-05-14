@@ -15,6 +15,7 @@ import json
 import time
 import argparse
 import requests
+import psycopg2
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -24,6 +25,7 @@ from datetime import datetime
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8420")
 API_KEY = os.getenv("API_KEY")
 TENANT_ID = os.getenv("TENANT_ID")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not API_KEY or not TENANT_ID:
     print("ERROR: Set API_KEY and TENANT_ID environment variables", file=sys.stderr)
@@ -38,6 +40,79 @@ class BenchmarkRunner:
     def __init__(self, dataset_path: str, max_workers: int = 16):
         self.dataset_path = Path(dataset_path)
         self.max_workers = max_workers
+
+    def preflight_wipe(self) -> Dict:
+        """Delete all longmemeval benchmark memories from the tenant.
+
+        Returns a dict with wipe metadata for the results JSON.
+        Hard-halts if DATABASE_URL is not set or post-wipe count != 0.
+        """
+        if not DATABASE_URL:
+            print("  HALT: DATABASE_URL not set — cannot run preflight wipe", file=sys.stderr)
+            sys.exit(4)
+
+        print(f"\n  PREFLIGHT_WIPE")
+        print(f"  Tenant: {TENANT_ID}")
+
+        conn = psycopg2.connect(DATABASE_URL)
+        try:
+            with conn.cursor() as cur:
+                # Count benchmark memories before wipe
+                cur.execute(
+                    "SELECT COUNT(*) FROM memory_service.memories "
+                    "WHERE tenant_id = %s::UUID AND source_session LIKE 'longmemeval_%%'",
+                    (TENANT_ID,)
+                )
+                pre_count = cur.fetchone()[0]
+                print(f"  Benchmark memories before wipe: {pre_count}")
+
+                if pre_count > 0:
+                    # Delete all benchmark memories
+                    cur.execute(
+                        "DELETE FROM memory_service.memories "
+                        "WHERE tenant_id = %s::UUID AND source_session LIKE 'longmemeval_%%'",
+                        (TENANT_ID,)
+                    )
+                    deleted = cur.rowcount
+                    conn.commit()
+                    print(f"  Deleted: {deleted}")
+                else:
+                    deleted = 0
+                    print(f"  Clean — no benchmark memories to delete")
+
+                # Verify: count must be exactly 0
+                cur.execute(
+                    "SELECT COUNT(*) FROM memory_service.memories "
+                    "WHERE tenant_id = %s::UUID AND source_session LIKE 'longmemeval_%%'",
+                    (TENANT_ID,)
+                )
+                post_count = cur.fetchone()[0]
+
+                # Total memories remaining (base/test data)
+                cur.execute(
+                    "SELECT COUNT(*) FROM memory_service.memories "
+                    "WHERE tenant_id = %s::UUID",
+                    (TENANT_ID,)
+                )
+                total_remaining = cur.fetchone()[0]
+
+                print(f"  Post-wipe benchmark memories: {post_count}")
+                print(f"  Total memories remaining: {total_remaining}")
+
+                if post_count != 0:
+                    print(f"  HALT: Post-wipe count is {post_count}, expected 0", file=sys.stderr)
+                    sys.exit(4)
+
+                print(f"  PASS: tenant clean for benchmark")
+        finally:
+            conn.close()
+
+        return {
+            "pre_wipe_benchmark_count": pre_count,
+            "deleted": deleted,
+            "post_wipe_benchmark_count": post_count,
+            "total_remaining": total_remaining,
+        }
 
     def load_dataset(self) -> List[Dict]:
         """Load dataset (single or multi-question)."""
@@ -366,13 +441,15 @@ class BenchmarkRunner:
 
         return result
 
-    def run(self, output_path: str = None, recall_only: bool = False):
+    def run(self, output_path: str = None, recall_only: bool = False, skip_wipe: bool = False):
         """Run benchmark with submit-all-then-poll pattern.
 
         Processes all questions in the dataset sequentially. Each question:
         Phase 1 (submit) → Phase 2 (poll) → Phase 3 (results) → Phase 4 (recall).
 
         If recall_only=True, skip Phases 1-3 (ingestion) and run Phase 4 only.
+        Preflight wipe deletes all longmemeval benchmark memories before ingestion
+        unless skip_wipe=True or recall_only=True.
         """
         print(f"\nRunning Async Benchmark{'  [recall-only mode]' if recall_only else ''}...")
         print(f"API: {API_BASE_URL}")
@@ -394,6 +471,13 @@ class BenchmarkRunner:
                   f"sessions={len(q['haystack_sessions']):3d}  turns={len(turns):4d}  "
                   f"Q: {q['question'][:55]}")
         print(f"\n  Total: {len(questions)} questions, {total_turns_all} turns")
+
+        # Pre-flight wipe: remove stale benchmark memories
+        wipe_result = None
+        if not recall_only and not skip_wipe:
+            wipe_result = self.preflight_wipe()
+        elif skip_wipe:
+            print(f"\n  PREFLIGHT_WIPE: skipped (--skip-wipe)")
 
         # Pre-flight health calibration
         if not recall_only:
@@ -654,6 +738,7 @@ class BenchmarkRunner:
                 "total_questions": len(questions),
                 "total_turns": total_turns,
                 "recall_only": recall_only,
+                "preflight_wipe": wipe_result,
                 "timestamp": datetime.utcnow().isoformat(),
                 "aggregate": agg_data,
                 "per_question": all_question_results,
@@ -679,6 +764,8 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", help="Output path for results JSON")
     parser.add_argument("--recall-only", action="store_true",
                         help="Skip ingestion (Phases 1-3), run recall verification (Phase 4) only")
+    parser.add_argument("--skip-wipe", action="store_true",
+                        help="Skip preflight wipe (dangerous: allows contamination)")
     parser.add_argument("--max-workers", type=int, default=16,
                         help="Max concurrent workers for ingestion (default: 16)")
     args = parser.parse_args()
@@ -687,5 +774,9 @@ if __name__ == "__main__":
         print(f"ERROR: Dataset not found: {args.dataset}", file=sys.stderr)
         sys.exit(1)
 
+    if not args.recall_only and not args.skip_wipe and not DATABASE_URL:
+        print("ERROR: DATABASE_URL required for preflight wipe. Set it or use --skip-wipe", file=sys.stderr)
+        sys.exit(4)
+
     runner = BenchmarkRunner(args.dataset, max_workers=args.max_workers)
-    runner.run(output_path=args.output, recall_only=args.recall_only)
+    runner.run(output_path=args.output, recall_only=args.recall_only, skip_wipe=args.skip_wipe)
