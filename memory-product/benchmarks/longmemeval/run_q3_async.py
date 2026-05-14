@@ -404,8 +404,10 @@ class BenchmarkRunner:
             # Auto-extract: proper nouns from the question
             import re
             proper_nouns = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', question_text)
-            common_starts = {"where", "what", "when", "how", "who", "why", "did", "does", "do",
-                           "is", "are", "was", "were", "has", "have", "had", "the", "after", "her"}
+            common_starts = {"where", "what", "when", "how", "who", "why", "did", "does", "do", "can",
+                           "is", "are", "was", "were", "has", "have", "had", "the", "after", "her",
+                           "could", "should", "would", "may", "might", "shall", "must",
+                           "please", "tell", "give", "help", "let", "will", "which", "this"}
             entity_keywords = [n.lower() for n in proper_nouns if n.lower() not in common_starts]
         elif isinstance(entity_keywords, str):
             entity_keywords = [entity_keywords.lower()]
