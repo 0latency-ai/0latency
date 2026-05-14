@@ -33,6 +33,95 @@ RECALL_ENTITY_STRATEGY_ENABLED = os.getenv("RECALL_ENTITY_STRATEGY_ENABLED", "fa
 RECALL_TYPE_BONUS_ENTITY_AWARE = os.getenv("RECALL_TYPE_BONUS_ENTITY_AWARE", "false").lower() in ("true", "1", "yes")
 
 
+
+# --- Adaptive Composite Scoring (recall hardening) ---
+
+def _compute_signal_spread(scores: list) -> float:
+    """Compute standard deviation of scores to detect signal degeneration."""
+    if len(scores) < 2:
+        return 0.0
+    mean = sum(scores) / len(scores)
+    variance = sum((s - mean) ** 2 for s in scores) / len(scores)
+    return math.sqrt(variance)
+
+
+def _compute_adaptive_weights(
+    recency_scores: list,
+    semantic_scores: list,
+    base_semantic: float,
+    base_recency: float,
+    base_importance: float,
+    base_access: float,
+) -> tuple:
+    """Adaptively rebalance scoring weights based on signal quality.
+
+    When non-semantic signals carry no query-discriminative information,
+    their weight is redistributed to semantic similarity (the only
+    query-dependent signal).
+
+    Detects two degeneration modes:
+    1. Recency degeneration: all memories share near-identical timestamps
+       (batch ingestion).
+    2. Semantic degeneration: vector search returned mostly fixed-similarity
+       candidates from importance/keyword strategies (sparse embedding column).
+
+    When both are degenerate, importance and access weights are also
+    redistributed to semantic since they produce a static global ranking.
+
+    Returns: (semantic_w, recency_w, importance_w, access_w,
+              type_bonus_dampening, recency_spread, semantic_spread,
+              recency_informative, semantic_informative)
+    """
+    recency_spread = _compute_signal_spread(recency_scores)
+    semantic_spread = _compute_signal_spread(semantic_scores) if semantic_scores else 0.0
+
+    # Recency informativeness (sigmoid)
+    rec_midpoint = 0.15
+    rec_steepness = 25.0
+    recency_informative = 1.0 / (1.0 + math.exp(-rec_steepness * (recency_spread - rec_midpoint)))
+
+    # Semantic informativeness: when semantic spread is high, vector search
+    # is providing real discrimination. When low (< 0.05), most candidates
+    # came from importance/keyword strategies with fixed scores.
+    sem_midpoint = 0.05
+    sem_steepness = 40.0
+    semantic_informative = 1.0 / (1.0 + math.exp(-sem_steepness * (semantic_spread - sem_midpoint)))
+
+    # Start with base weights
+    recency_w = base_recency
+    importance_w = base_importance
+    access_w = base_access
+    semantic_w = base_semantic
+    redistributed = 0.0
+
+    # Phase 1: Redistribute recency when degenerate
+    rec_reduction = base_recency * (1.0 - recency_informative)
+    recency_w -= rec_reduction
+    redistributed += rec_reduction
+
+    # Phase 2: When recency is degenerate AND semantic spread is low,
+    # importance and access are also query-independent. Redistribute
+    # a portion toward semantic.
+    if recency_informative < 0.5:
+        query_invariant_factor = (1.0 - recency_informative) * (1.0 - semantic_informative)
+        imp_reduction = base_importance * 0.6 * query_invariant_factor
+        acc_reduction = base_access * 0.8 * query_invariant_factor
+        importance_w -= imp_reduction
+        access_w -= acc_reduction
+        redistributed += imp_reduction + acc_reduction
+
+    semantic_w += redistributed
+
+    # Type bonus dampening: proportional to how query-dependent the overall
+    # scoring is. When signals degenerate, type bonuses must not dominate.
+    combined_informative = min(1.0, recency_informative + semantic_informative * 0.5)
+    type_bonus_dampening = 0.2 + 0.8 * combined_informative
+
+    return (semantic_w, recency_w, importance_w, access_w,
+            type_bonus_dampening, recency_spread, semantic_spread,
+            recency_informative, semantic_informative)
+
+
 # --- Sprint 5: Query Classification & BM25 Fast-Path ---
 
 def classify_query(query: str) -> dict:
@@ -775,6 +864,36 @@ def recall_fixed(
             "recall_details": [],
         }
     
+    # Step 3a: Check embedding coverage — fall back to local if configured
+    # column is sparse (e.g. RECALL_USE_VOYAGE=true but most memories lack
+    # embedding_voyage). This is a defensive fallback, not a model switch.
+    if _use_voyage:
+        try:
+            _cov_rows = _db_execute_rows(
+                "SELECT COUNT(embedding_voyage), COUNT(*) "
+                "FROM memory_service.memories "
+                "WHERE tenant_id = %s::UUID AND superseded_at IS NULL "
+                "AND (agent_id = %s OR memory_type = 'synthesis')",
+                (_tid, agent_id), tenant_id=_tid
+            )
+            if _cov_rows and _cov_rows[0][1] > 0:
+                _voyage_count = _cov_rows[0][0] or 0
+                _total_count = _cov_rows[0][1]
+                _voyage_coverage = _voyage_count / _total_count
+                if _voyage_coverage < 0.5:
+                    logger.info("[ADAPTIVE] Voyage coverage %.1f%% (%d/%d) — falling back to local_embedding",
+                                _voyage_coverage * 100, _voyage_count, _total_count)
+                    _use_voyage = False
+                    # Re-generate query embedding with local model
+                    _embed_t0 = _time.time()
+                    query_embedding = _embed_text_local(conversation_context[:2000])
+                    _embed_t1 = _time.time()
+                    _embed_ms = (_embed_t1 - _embed_t0) * 1000
+                    logger.info("Re-embedded with MiniLM-L6-v2, %dd, %.0fms",
+                                len(query_embedding), _embed_ms)
+        except Exception as e:
+            logger.warning("Embedding coverage check failed (non-fatal): %s", e)
+
     # Step 3b: Entity extraction (F3b — flag-gated)
     _entities = _extract_entities(conversation_context) if RECALL_ENTITY_STRATEGY_ENABLED else []
     if _entities:
@@ -788,6 +907,37 @@ def recall_fixed(
     # logger.info(f"[VECTOR SUBPHASES] embed={_embed_ms:.0f}ms s1={_vector_timing["s1_ms"]}ms s2={_vector_timing["s2_ms"]}ms s3={_vector_timing["s3_ms"]}ms")  # Old logging - consolidated query now logs internally
     logger.info(f"📦 Retrieved {len(candidates)} candidates")
     
+    # Prepare embedding string for SQL similarity computation
+    embedding_str = "[" + ",".join(str(v) for v in query_embedding) + "]"
+    _emb_col = "embedding_voyage" if _use_voyage else "local_embedding"
+
+    # Recompute real cosine similarity for candidates from non-vector
+    # strategies (S2/S3) that have placeholder similarity values.
+    # Without this, S2 candidates (similarity=0.5) and S3 candidates
+    # (similarity=0.35) have fake semantic scores that pollute the
+    # adaptive scoring formula.
+    _candidates_to_fix = [c for c in candidates if c["similarity"] in (0.5, 0.35)]
+    if _candidates_to_fix and query_embedding:
+        try:
+            _fix_ids = [c["id"] for c in _candidates_to_fix]
+            _fix_rows = _db_execute_rows(
+                f"SELECT id::text, 1 - ({_emb_col} <=> %s::vector) as sim "
+                f"FROM memory_service.memories "
+                f"WHERE id = ANY(%s::uuid[]) AND {_emb_col} IS NOT NULL",
+                (embedding_str, _fix_ids), tenant_id=_tid
+            )
+            if _fix_rows:
+                _sim_map = {str(r[0]): float(r[1]) if r[1] is not None else 0.1 for r in _fix_rows}
+                _fixed_count = 0
+                for c in candidates:
+                    if c["id"] in _sim_map:
+                        c["similarity"] = _sim_map[c["id"]]
+                        _fixed_count += 1
+                logger.info("[ADAPTIVE] Recomputed real similarity for %d/%d non-vector candidates",
+                            _fixed_count, len(_candidates_to_fix))
+        except Exception as e:
+            logger.warning("Similarity recomputation failed (non-fatal): %s", e)
+
     if not candidates:
         logger.warning("⚠️ No candidates found - returning empty result")
         return {
@@ -835,102 +985,133 @@ def recall_fixed(
         _kw_hits = sum(1 for v in keyword_matches.values() if v)
         logger.info(f"🔑 Keyword match: {_kw_hits}/{len(keyword_matches)} hits, tsquery='{_kw_tsquery}', {_kw_ms:.0f}ms (recency_weight={recency_weight:.2f})")
 
-    # Step 5: Score each candidate
+    # Step 5: Score each candidate (adaptive composite scoring)
     now = datetime.now(timezone.utc)
     scored = []
 
+    # Pre-compute recency for all candidates to detect degeneration
+    raw_recencies = []
     for c in candidates:
+        days_since = (now - c["created_at"]).total_seconds() / 86400
+        raw_recencies.append(math.exp(-0.693 * days_since / max(half_life_days, 0.01)))
+
+    # Adaptive weight rebalancing based on signal quality
+    raw_semantics = [c["similarity"] for c in candidates]
+    adaptive = _compute_adaptive_weights(
+        raw_recencies,
+        raw_semantics,
+        base_semantic=semantic_weight,
+        base_recency=recency_weight,
+        base_importance=importance_weight,
+        base_access=access_weight,
+    )
+    a_semantic_w, a_recency_w, a_importance_w, a_access_w, type_bonus_dampening, recency_spread, semantic_spread, recency_informative, semantic_informative = adaptive
+    logger.info("[ADAPTIVE] rec_spread=%.4f sem_spread=%.4f rec_info=%.3f sem_info=%.3f "
+                "weights: sem=%.3f rec=%.3f imp=%.3f acc=%.3f "
+                "type_dampen=%.3f",
+                recency_spread, semantic_spread, recency_informative, semantic_informative,
+                a_semantic_w, a_recency_w, a_importance_w, a_access_w,
+                type_bonus_dampening)
+
+    for idx_c, c in enumerate(candidates):
         try:
             semantic_sim = c["similarity"]
-
+            recency = raw_recencies[idx_c]
             days_since = (now - c["created_at"]).total_seconds() / 86400
-            recency = math.exp(-0.693 * days_since / max(half_life_days, 0.01))
-            # No cliff boost — exponential decay is sufficient.
-            # The half_life_days parameter (default 3) already strongly
-            # favors recent memories: 1-day-old scores 0.79, 7-day-old
-            # scores 0.19. A hard cliff at 24h created a discontinuity
-            # that also made all same-day memories score identically,
-            # drowning semantic signal in batch-ingestion scenarios.
 
-            importance = c["importance"] * (1 + 0.1 * min(c["reinforcement_count"], 5))
-            importance = min(importance, 1.0)
+            importance_val = c["importance"] * (1 + 0.1 * min(c["reinforcement_count"], 5))
+            importance_val = min(importance_val, 1.0)
 
             access_freq = min(c["access_count"] / 10, 1.0)
 
-            # F2: keyword match score — 1.0 if tsvector matches query, 0.0 otherwise
+            # F2: keyword match score
             kw_score = 1.0 if keyword_matches.get(c["id"], False) else 0.0
 
             composite = (
-                semantic_weight * semantic_sim +
-                recency_weight * recency +
-                importance_weight * importance +
-                access_weight * access_freq +
+                a_semantic_w * semantic_sim +
+                a_recency_w * recency +
+                a_importance_w * importance_val +
+                a_access_w * access_freq +
                 keyword_match_weight * kw_score
             )
-            
-            # Type bonuses — tie-breakers, not overrides.
-            # F4: When RECALL_TYPE_BONUS_ENTITY_AWARE is on, identity/preference
-            # bonuses are 1.15x only if the memory's headline overlaps with query
-            # entities; otherwise reduced to 1.05x. This prevents high-importance
-            # identity memories (e.g. "User founded X") from outranking the
-            # semantically relevant entity-bearing memory (e.g. "Rachel moved").
+
+            # Type bonuses -- dampened when recency is degenerate so they
+            # re-rank within a semantic tier, never across tiers.
             _has_entity_overlap = False
             if _entities and RECALL_TYPE_BONUS_ENTITY_AWARE:
                 _hl_low = (c.get("headline") or "").lower()
                 _has_entity_overlap = any(e.lower() in _hl_low for e in _entities)
 
+            # Compute raw type multiplier, then dampen
+            type_mult = 1.0
             if c["memory_type"] == "identity":
                 if RECALL_TYPE_BONUS_ENTITY_AWARE:
-                    composite *= 1.15 if _has_entity_overlap else 1.05
+                    type_mult = 1.15 if _has_entity_overlap else 1.05
                 else:
-                    composite *= 1.15
+                    type_mult = 1.15
             elif c["memory_type"] == "correction":
-                composite *= 1.10  # Corrections — recent overrides
+                type_mult = 1.10
             elif c["memory_type"] == "preference":
                 if RECALL_TYPE_BONUS_ENTITY_AWARE:
-                    composite *= 1.15 if _has_entity_overlap else 1.05
+                    type_mult = 1.15 if _has_entity_overlap else 1.05
                 else:
-                    composite *= 1.15
+                    type_mult = 1.15
             elif c["memory_type"] == "event":
-                composite *= 1.10  # Events — specific, temporally grounded
+                type_mult = 1.10
             elif c["memory_type"] == "decision" and days_since < 7:
-                composite *= 1.2   # Recent decisions are highly relevant
+                type_mult = 1.2
             elif c["memory_type"] == "synthesis":
-                composite *= 1.15  # Phase 4: synthesis rows promoted above constituents
+                type_mult = 1.15
             elif c["memory_type"] == "pattern":
-                # CP8 P5.5 Task 11: Pattern-aware recall
-                # Boost patterns based on observation count and recency
-                pattern_boost = 1.2  # Base boost for pattern memories
+                pattern_boost = 1.2
                 obs_count = c.get("observation_count", 0)
                 if obs_count >= 5:
-                    pattern_boost *= 1.1  # Additional boost for well-established patterns
+                    pattern_boost *= 1.1
                 if days_since < 3:
-                    pattern_boost *= 1.15  # Recent patterns are more relevant
-                composite *= pattern_boost
-            
-            # CP8 P5.5 Task 12: Pin-wins-over-pattern
-            # Pinned memories get highest priority, overriding all other boosts
-            if c.get("is_pinned"):
-                composite *= 2.0  # Strong boost for pinned memories
+                    pattern_boost *= 1.15
+                type_mult = pattern_boost
 
-            # F3b: Entity-mention bonus — memories whose headline names a query entity
+            # Apply dampened type bonus: lerp between 1.0 (no bonus) and full bonus
+            dampened_mult = 1.0 + (type_mult - 1.0) * type_bonus_dampening
+            composite *= dampened_mult
+
+            # CP8 P5.5 Task 12: Pin-wins-over-pattern (not dampened -- explicit user intent)
+            if c.get("is_pinned"):
+                composite *= 2.0
+
+            # F3b: Entity-mention bonus (dampened like other type bonuses)
             if _entities:
                 hl_lower = (c.get("headline") or "").lower()
                 for ent in _entities:
                     if ent.lower() in hl_lower:
-                        composite *= 1.05
-                        break  # One bonus per memory, headline match only
+                        entity_mult = 1.0 + (1.05 - 1.0) * type_bonus_dampening
+                        composite *= entity_mult
+                        break
 
             if c.get("superseded_at"):
                 continue
-            
+
             scored.append({
                 **c,
                 "composite": composite,
+                "_score_components": {
+                    "semantic": round(a_semantic_w * semantic_sim, 4),
+                    "recency": round(a_recency_w * recency, 4),
+                    "importance": round(a_importance_w * importance_val, 4),
+                    "access": round(a_access_w * access_freq, 4),
+                    "keyword": round(keyword_match_weight * kw_score, 4),
+                    "type_multiplier": round(dampened_mult, 4),
+                    "raw_semantic": round(semantic_sim, 4),
+                    "raw_recency": round(recency, 4),
+                    "recency_spread": round(recency_spread, 4),
+                    "semantic_spread": round(semantic_spread, 4),
+                    "recency_informative": round(recency_informative, 3),
+                    "semantic_informative": round(semantic_informative, 3),
+                },
             })
         except Exception:
             continue
-    
+
     # Step 6: Rank by composite score
     scored.sort(key=lambda x: x["composite"], reverse=True)
     logger.info(f"📊 Scored {len(scored)} memories")
@@ -1034,7 +1215,7 @@ def recall_fixed(
                     all_parent_ids.extend(item["parent_ids"])
                 
                 if all_parent_ids:
-                    from src.storage_multitenant import _db_execute_rows
+                    import storage_multitenant as _st_evidence
                     placeholders = ",".join(["%s"] * len(all_parent_ids))
                     parent_query = f"""
                         SELECT id, headline, context, full_content, memory_type, importance
@@ -1042,7 +1223,7 @@ def recall_fixed(
                         WHERE id = ANY(%s::uuid[])
                           AND tenant_id = %s
                     """
-                    parent_rows = _db_execute_rows(parent_query, (all_parent_ids, _tid), tenant_id=_tid)
+                    parent_rows = _st_evidence._db_execute_rows(parent_query, (all_parent_ids, _tid), tenant_id=_tid)
                     
                     # Build lookup dict
                     parent_lookup = {}
@@ -1080,7 +1261,7 @@ def recall_fixed(
                 cluster_ids = list(set(item["cluster_id"] for item in synthesis_clusters))
                 
                 if cluster_ids:
-                    from src.storage_multitenant import _db_execute_rows
+                    import storage_multitenant as _st_evidence
                     cluster_query = """
                         SELECT id, headline, context, full_content, memory_type, importance, metadata->>'cluster_id' as cluster_id
                         FROM memory_service.memories
