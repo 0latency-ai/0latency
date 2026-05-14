@@ -85,7 +85,7 @@ class BenchmarkRunner:
                 f"{API_BASE_URL}/memories/extract",
                 headers=HEADERS,
                 json=payload,
-                timeout=10
+                timeout=30
             )
 
             if response.status_code == 202:
@@ -395,6 +395,34 @@ class BenchmarkRunner:
                   f"Q: {q['question'][:55]}")
         print(f"\n  Total: {len(questions)} questions, {total_turns_all} turns")
 
+        # Pre-flight health calibration
+        if not recall_only:
+            print(f"\n  PREFLIGHT_HEALTH_CALIBRATION")
+            probe_latencies = []
+            for i in range(5):
+                try:
+                    probe_start = time.time()
+                    resp = requests.get(f"{API_BASE_URL}/health", timeout=5)
+                    latency = time.time() - probe_start
+                    status = resp.status_code
+                except Exception as e:
+                    latency = 5.0
+                    status = 0
+                probe_latencies.append(latency)
+                print(f"    probe {i+1}/5: {latency*1000:.1f}ms (status={status})")
+                if i < 4:
+                    time.sleep(1)
+
+            sorted_latencies = sorted(probe_latencies)
+            preflight_p50 = sorted_latencies[len(sorted_latencies) // 2]
+            preflight_p95 = sorted_latencies[int(len(sorted_latencies) * 0.95)]
+            print(f"    idle p50={preflight_p50*1000:.1f}ms, p95={preflight_p95*1000:.1f}ms")
+
+            if preflight_p95 > 0.200:
+                print(f"    HALT: p95 {preflight_p95*1000:.1f}ms > 200ms threshold — API not idle")
+                sys.exit(3)
+            print(f"    PASS: proceeding with 500ms drain threshold")
+
         all_question_results = []
         agg_succeeded = 0
         agg_failed = 0
@@ -508,6 +536,55 @@ class BenchmarkRunner:
                 "recall_verification": recall_result,
             }
             all_question_results.append(q_result)
+
+            # Adaptive inter-question cool-down: wait for API to drain backlog
+            if not recall_only and q_idx < len(questions) - 1:
+                consecutive_fast = 0
+                cooldown_start = time.time()
+                max_cooldown = 300  # 5 minutes max
+                health_threshold = 0.5  # seconds
+                required_consecutive = 3
+
+                print(f"\n  Cool-down: waiting for API to drain (3x < {health_threshold}s health probes)...")
+                while consecutive_fast < required_consecutive:
+                    elapsed_cooldown = time.time() - cooldown_start
+                    if elapsed_cooldown > max_cooldown:
+                        print(f"  HALT: API did not drain within {max_cooldown}s")
+                        # Write partial results before halting
+                        if output_path:
+                            partial_data = {
+                                "gate": "gate_06",
+                                "dataset": self.dataset_path.name,
+                                "total_questions": len(questions),
+                                "completed_questions": q_idx + 1,
+                                "halted_reason": f"cooldown_timeout_{max_cooldown}s",
+                                "timestamp": datetime.utcnow().isoformat(),
+                                "per_question": all_question_results,
+                            }
+                            output_file = Path(output_path)
+                            output_file.parent.mkdir(parents=True, exist_ok=True)
+                            with open(output_file, "w") as f:
+                                json.dump(partial_data, f, indent=2)
+                            print(f"  Partial results written to: {output_file}")
+                        sys.exit(2)
+
+                    try:
+                        probe_start = time.time()
+                        resp = requests.get(f"{API_BASE_URL}/health", timeout=5)
+                        probe_latency = time.time() - probe_start
+
+                        if resp.status_code == 200 and probe_latency < health_threshold:
+                            consecutive_fast += 1
+                        else:
+                            consecutive_fast = 0
+                    except Exception:
+                        consecutive_fast = 0
+
+                    if consecutive_fast < required_consecutive:
+                        time.sleep(5)
+
+                cooldown_elapsed = time.time() - cooldown_start
+                print(f"  Cool-down complete: {cooldown_elapsed:.1f}s (API drained)")
 
         bench_wall_total = time.time() - bench_wall_start
 
