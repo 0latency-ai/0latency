@@ -1678,7 +1678,8 @@ async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api
                 conversation_context=req.conversation_context,
                 budget_tokens=req.budget_tokens,
                 tenant_id=tenant["id"],
-                include_synthesis=req.include_synthesis
+                include_synthesis=req.include_synthesis,
+                expand=req.expand,
             )
 
         _t2 = time.time()

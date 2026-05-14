@@ -355,6 +355,7 @@ def recall_hybrid(
         tenant_id=_tid,
         project_id=project_id,
         include_synthesis=include_synthesis,
+        expand=expand,
     )
     vector_time = (_time.time() - _vector_start) * 1000
     
@@ -700,7 +701,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                     elif strategy == 'entity':
                         _s4_rows_count += 1
 
-                    similarity = float(row[10]) if row[10] is not None else 0
+                    similarity = float(row[11]) if row[11] is not None else 0
                     logger.debug(f"  • [{strategy}] Memory {str(row[1])[:50]}... similarity={similarity:.3f}")
 
     except Exception as e:
@@ -799,7 +800,7 @@ def recall_fixed(
     logger.debug(f"📝 Context: {conversation_context[:200]}...")
     
     # Check response cache (thread-safe) — cache key includes tenant_id for isolation
-    cache_key = _hashlib.md5(f"{_tid}:{agent_id}:{conversation_context}:{budget_tokens}".encode(), usedforsecurity=False).hexdigest()
+    cache_key = _hashlib.md5(f"{_tid}:{agent_id}:{conversation_context}:{budget_tokens}:{expand}".encode(), usedforsecurity=False).hexdigest()
     now = _time.time()
     with _recall_cache_lock:
         if cache_key in _recall_cache:
@@ -1148,6 +1149,7 @@ def recall_fixed(
                 "composite": round(candidate["composite"], 3),
                 "headline": candidate["headline"],
                 "id": candidate["id"],
+                "_score_components": candidate.get("_score_components"),
             })
             tokens_used += tokens
     
@@ -1175,6 +1177,7 @@ def recall_fixed(
                 "composite": s["composite"],
                 "memory_type": s.get("memory_type", "fact"),
                 "metadata": s.get("metadata", {}),
+                "_score_components": s.get("_score_components"),
             }
             for s in selected
         ],
@@ -1197,6 +1200,14 @@ def recall_fixed(
 
 
     # B-4 Stage 02: Hierarchical expansion
+    # Score decomposition: default OFF. Only include _score_components
+    # in recall_details when expand=decomposition is requested.
+    if "recall_details" in result and result["recall_details"]:
+        _expand_opts = set(opt.strip() for opt in (expand or "").split(",")) if expand else set()
+        if "decomposition" not in _expand_opts:
+            for detail in result["recall_details"]:
+                detail.pop("_score_components", None)
+
     if expand and "recall_details" in result:
         expand_opts = set(opt.strip() for opt in expand.split(","))
         if "evidence" in expand_opts:

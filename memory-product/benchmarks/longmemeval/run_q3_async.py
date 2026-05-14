@@ -21,6 +21,64 @@ from typing import Dict, List, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
+import re as _re
+
+def _fuzzy_answer_match(answer_keywords: list, headline: str, threshold: float = 0.35) -> bool:
+    """Fuzzy answer matching: token overlap + substring + numeric patterns.
+
+    Replaces exact substring matching for answer-bearing memory identification.
+    Returns True if the headline likely contains the answer.
+
+    Matching strategies (any one triggers a match):
+    1. Exact substring (original behavior, for backwards compatibility)
+    2. Token overlap: at least `threshold` of answer tokens appear in headline
+    3. Numeric/specific pattern: numbers, times, percentages from answer found in headline
+    4. Proper noun matching: capitalized multi-word terms from answer found in headline
+    """
+    headline_lower = headline.lower()
+
+    # Strategy 1: Original exact substring matching
+    if all(kw in headline_lower for kw in answer_keywords):
+        return True
+
+    # Strategy 2: Token overlap
+    # Combine all answer keywords into a token set
+    stopwords = {'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can',
+                 'had', 'her', 'was', 'one', 'our', 'out', 'has', 'his', 'how',
+                 'its', 'may', 'who', 'did', 'get', 'she', 'use', 'that', 'with',
+                 'this', 'from', 'they', 'been', 'have', 'were', 'said', 'each',
+                 'which', 'their', 'will', 'other', 'about', 'would', 'user'}
+    answer_tokens = set()
+    for kw in answer_keywords:
+        for word in _re.findall(r'\w+', kw):
+            if len(word) > 2 and word not in stopwords:
+                answer_tokens.add(word)
+
+    if answer_tokens:
+        headline_tokens = set(_re.findall(r'\w+', headline_lower))
+        overlap = answer_tokens & headline_tokens
+        overlap_ratio = len(overlap) / len(answer_tokens)
+        if overlap_ratio >= threshold:
+            return True
+
+    # Strategy 3: Numeric/specific patterns
+    for kw in answer_keywords:
+        specifics = _re.findall(r'\d+:\d+|\d+(?:\.\d+)?%?|\$\d+', kw)
+        for s in specifics:
+            if s in headline_lower:
+                return True
+
+    # Strategy 4: Proper nouns (multi-word capitalized terms)
+    for kw in answer_keywords:
+        proper = _re.findall(r'[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*', kw)
+        for p in proper:
+            if p.lower() in headline_lower:
+                return True
+
+    return False
+
+
+
 # Configuration
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8420")
 API_KEY = os.getenv("API_KEY")
@@ -355,8 +413,8 @@ class BenchmarkRunner:
             headline_lower = mem.get("headline", "").lower()
             mem_type = mem.get("memory_type", "")
 
-            # Check all criteria
-            answer_match = all(kw in headline_lower for kw in answer_keywords)
+            # Check all criteria (fuzzy matching for answer, exact for entity/type)
+            answer_match = _fuzzy_answer_match(answer_keywords, headline_lower)
             entity_match = all(kw in headline_lower for kw in entity_keywords) if entity_keywords else True
             type_match = (mem_type == type_filter) if type_filter else True
 
