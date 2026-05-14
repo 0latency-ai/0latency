@@ -16,6 +16,7 @@ import time
 import argparse
 import requests
 import psycopg2
+import redis as _redis
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -172,6 +173,43 @@ class BenchmarkRunner:
             "total_remaining": total_remaining,
         }
 
+    def preflight_queue_drain(self):
+        """Drain RQ extraction queue and flush stale job-tracking keys.
+
+        Must run BEFORE submitting new jobs. Waits for any in-flight RQ
+        jobs to complete (does NOT delete the queue — that orphans jobs),
+        then removes all extract_job:* Redis keys so the next run starts
+        with a clean tracking state.
+
+        Without this, killed-then-relaunched runs accumulate "accepted"
+        orphan keys whose RQ jobs were deleted mid-queue, and pollers
+        waste time on stale entries.
+        """
+        print("\n  PREFLIGHT_QUEUE_DRAIN")
+        r = _redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
+        # Phase A: wait for RQ queue to drain (max 120s)
+        deadline = time.time() + 120
+        while time.time() < deadline:
+            qlen = r.llen('rq:queue:extraction')
+            if qlen == 0:
+                break
+            print(f"    waiting: {qlen} jobs in RQ queue...")
+            time.sleep(5)
+        else:
+            qlen = r.llen('rq:queue:extraction')
+            if qlen > 0:
+                print(f"    WARN: {qlen} jobs still in queue after 120s — flushing")
+                r.delete('rq:queue:extraction')
+
+        # Phase B: flush ALL extract_job:* tracking keys
+        flushed = 0
+        for key in r.scan_iter('extract_job:*'):
+            r.delete(key)
+            flushed += 1
+        print(f"    Flushed {flushed} stale job-tracking keys")
+        print(f"    PASS: queue drained, tracking state clean")
+
     def load_dataset(self) -> List[Dict]:
         """Load dataset (single or multi-question)."""
         with open(self.dataset_path) as f:
@@ -229,7 +267,7 @@ class BenchmarkRunner:
         except Exception as e:
             return None, {**turn, "error": str(e)}
 
-    def poll_job(self, job_id: str, turn: Dict, max_wait: int = 180) -> Dict:
+    def poll_job(self, job_id: str, turn: Dict, max_wait: int = 900) -> Dict:
         """Poll job until complete or timeout. Returns result dict."""
         start = time.time()
         retries_5xx = 0
@@ -534,6 +572,7 @@ class BenchmarkRunner:
         wipe_result = None
         if not recall_only and not skip_wipe:
             wipe_result = self.preflight_wipe()
+            self.preflight_queue_drain()
         elif skip_wipe:
             print(f"\n  PREFLIGHT_WIPE: skipped (--skip-wipe)")
 

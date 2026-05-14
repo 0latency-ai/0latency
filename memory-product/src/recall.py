@@ -575,7 +575,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             entity_results AS (
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
-                       created_at, superseded_at,
+                       created_at, event_at, superseded_at,
                        0.4 as similarity,
                        'entity' as strategy
                 FROM memory_service.memories
