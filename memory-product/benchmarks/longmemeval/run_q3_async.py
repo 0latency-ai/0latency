@@ -76,6 +76,24 @@ def _fuzzy_answer_match(answer_keywords: list, headline: str, threshold: float =
             if p.lower() in headline_lower:
                 return True
 
+    # Strategy 5: Bidirectional matching for long (preference-format) answers.
+    # Multi-sentence answer descriptions (e.g. "The user would prefer suggestions
+    # of sony-compatible accessories...") have 15-25 content tokens, diluting the
+    # forward overlap ratio below threshold even when the headline captures the
+    # core concept. Use relaxed bidirectional thresholds:
+    #   forward >= 0.10  (at least 10% of answer concepts in headline)
+    #   reverse >= 0.20  (at least 20% of headline concepts in answer)
+    answer_text_length = sum(len(kw) for kw in answer_keywords)
+    if answer_tokens and answer_text_length > 100:
+        headline_content = {t for t in _re.findall(r'\w+', headline_lower)
+                            if len(t) > 2 and t not in stopwords}
+        overlap = answer_tokens & headline_content
+        if overlap and headline_content:
+            fwd_ratio = len(overlap) / len(answer_tokens)
+            rev_ratio = len(overlap) / len(headline_content)
+            if fwd_ratio >= 0.10 or rev_ratio >= 0.20:
+                return True
+
     return False
 
 
