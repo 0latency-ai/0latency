@@ -35,6 +35,31 @@ from storage_multitenant import store_memories, track_api_usage
 # Redis connection
 redis_conn = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
 
+
+def _split_content_roles(content: str) -> tuple:
+    """Split 'Human: ...\n\nAssistant: ...' into (human, assistant).
+
+    The async extract endpoint receives a single content field containing
+    both roles. This function restores proper role separation so the
+    extraction prompt can distinguish human vs assistant content.
+    """
+    # Try double-newline separator first, then single-newline
+    sep_double = "\n\nAssistant: "
+    sep_single = "\nAssistant: "
+    for sep in [sep_double, sep_single]:
+        idx = content.find(sep)
+        if idx != -1:
+            human = content[:idx]
+            agent = content[idx + len(sep):]
+            if human.startswith("Human: "):
+                human = human[len("Human: "):]
+            return human.strip(), agent.strip()
+    # Fallback: no assistant portion found
+    human = content
+    if human.startswith("Human: "):
+        human = human[len("Human: "):]
+    return human.strip(), ""
+
 def process_extraction_job(job_id: str, content: str, agent_id: str, 
                           session_key: str, tenant_id: str):
     """
@@ -57,10 +82,13 @@ def process_extraction_job(job_id: str, content: str, agent_id: str,
             "started_at": datetime.now(timezone.utc).isoformat(),
         })
         
+        # Split content into human/assistant roles for proper extraction
+        human_msg, agent_msg = _split_content_roles(content)
+        
         # Extract memories from content (set source=api_extract for proper source_type tracking)
         memories, raw_turn_id = extract_memories(
-            human_message=content,
-            agent_message="",
+            human_message=human_msg,
+            agent_message=agent_msg,
             agent_id=agent_id,
             session_key=session_key,
             tenant_id=tenant_id,
