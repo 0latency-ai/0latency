@@ -852,36 +852,90 @@ async def get_current_user(claims: dict = Depends(require_jwt)):
 
 @router.post("/api-key/regenerate")
 async def regenerate_api_key(claims: dict = Depends(require_jwt)):
-    """Regenerate API key for the current user's tenant."""
+    """Regenerate API key for the current user's tenant.
+
+    Dual-path rotation: updates both tenants.api_key_live (trigger-024
+    auto-recomputes api_key_hash) AND the api_keys table atomically.
+    """
     user_id = claims.get("sub")
     rows = _db_exec("""
         SELECT tenant_id FROM memory_service.users WHERE id = %s::UUID
     """, (user_id,))
-    
+
     if not rows or not rows[0][0]:
         raise HTTPException(404, detail="No tenant associated with user")
-    
+
     tenant_id = str(rows[0][0])
-    
-    # Generate new key
-    new_key = f"zl_live_{''.join(secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(32))}"
-    new_hash = hashlib.sha256(new_key.encode()).hexdigest()
-    
-    _db_exec("""
-        UPDATE memory_service.tenants SET api_key_hash = %s, api_key_live = %s WHERE id = %s::UUID
-    """, (new_hash, new_key, tenant_id), fetch=False)
-    
-    
-    # Track API key creation
-    track_posthog_event(
-        tenant_id=int(tenant_id),
-        event_name="api_key_created",
-        properties={
-            "method": "regenerate",
-            "email": claims.get("email")
-        }
-    )
-    return {"api_key": new_key, "message": "New API key generated. Old key is immediately invalid."}
+
+    # Generate new key (40 chars: 8-char prefix + 32-char body)
+    new_key_body = "".join(secrets.choice("abcdefghijklmnopqrstuvwxyz0123456789") for _ in range(32))
+    new_key = f"zl_live_{new_key_body}"
+    new_key_hash = hashlib.sha256(new_key.encode()).hexdigest()
+
+    # Dual-path rotation in a single transaction
+    pool = _get_connection_pool()
+    conn = pool.getconn()
+    try:
+        conn.autocommit = False
+        with conn.cursor() as cur:
+            # 1) Mark existing active keys as 'rotating' with 24h grace
+            cur.execute("""
+                UPDATE memory_service.api_keys
+                SET status = 'rotating',
+                    rotated_at = now(),
+                    revoke_at = now() + interval '24 hours'
+                WHERE tenant_id = %s::uuid AND status = 'active'
+            """, (tenant_id,))
+
+            # 2) Insert new active key row
+            cur.execute("""
+                INSERT INTO memory_service.api_keys (tenant_id, key_hash, status, created_at)
+                VALUES (%s::uuid, %s, 'active', now())
+            """, (tenant_id, new_key_hash))
+
+            # 3) Update tenants.api_key_live — trigger-024 auto-recomputes api_key_hash
+            cur.execute("""
+                UPDATE memory_service.tenants
+                SET api_key_live = %s
+                WHERE id = %s::uuid AND active = true
+                RETURNING id
+            """, (new_key, tenant_id))
+
+            if not cur.fetchall():
+                conn.rollback()
+                raise HTTPException(404, detail="Tenant not found or inactive")
+
+        conn.commit()
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Key rotation failed for tenant={tenant_id}: {e}", exc_info=True)
+        raise HTTPException(503, detail="Key rotation failed. Try again or contact support.")
+    finally:
+        pool.putconn(conn)
+
+    # Invalidate auth cache (best-effort, outside transaction)
+    try:
+        from api.main import _invalidate_tenant_cache
+        _invalidate_tenant_cache(tenant_id)
+    except Exception:
+        pass
+
+    # Track event (best-effort, tenant_id is UUID string)
+    try:
+        track_posthog_event(
+            tenant_id=tenant_id,
+            event_name="api_key_created",
+            properties={
+                "method": "regenerate",
+                "email": claims.get("email")
+            }
+        )
+    except Exception:
+        pass
+
+    return {"api_key": new_key, "message": "New API key generated. Old key remains valid for 24 hours."}
 
 # ========== SIMPLE EMAIL/PASSWORD AUTH ==========
 import sys
