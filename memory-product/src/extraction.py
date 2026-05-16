@@ -17,6 +17,7 @@ import requests
 
 # --- Configuration ---
 
+# Pinned model version (not "latest" alias) — deterministic extraction requires exact version
 EXTRACTION_MODEL = os.environ.get("EXTRACTION_MODEL", "claude-haiku-4-5-20251001")
 
 # Lazy env reads — resolved at call time, not import time.
@@ -131,7 +132,7 @@ def _call_anthropic(prompt: str) -> str:
     body = {
         "model": EXTRACTION_MODEL,
         "max_tokens": 4096,
-        "temperature": 0.1,
+        "temperature": 0,
         "messages": [{"role": "user", "content": prompt}]
     }
     
@@ -153,9 +154,10 @@ def _call_openai(prompt: str) -> str:
     }
     
     body = {
-        "model": "gpt-4o-mini",
-        "temperature": 0.1,
+        "model": "gpt-4o-mini-2024-07-18",
+        "temperature": 0,
         "max_tokens": 4096,
+        "seed": 42,
         "response_format": {"type": "json_object"},
         "messages": [
             {"role": "system", "content": "You extract structured memories from conversations. Always respond with valid JSON."},
