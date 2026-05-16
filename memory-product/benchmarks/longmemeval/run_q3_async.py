@@ -473,9 +473,19 @@ class BenchmarkRunner:
             mem_type = mem.get("memory_type", "")
 
             # Check all criteria (fuzzy matching for answer, exact for entity/type)
+            # Primary: match against headline
             answer_match = _fuzzy_answer_match(answer_keywords, headline_lower)
             entity_match = all(kw in headline_lower for kw in entity_keywords) if entity_keywords else True
             type_match = (mem_type == type_filter) if type_filter else True
+
+            # Fallback: if headline doesn't match, also check full_content
+            if not answer_match or not entity_match:
+                full_text_lower = (mem.get("full_content") or mem.get("context") or "").lower()
+                if full_text_lower:
+                    if not answer_match:
+                        answer_match = _fuzzy_answer_match(answer_keywords, full_text_lower)
+                    if not entity_match:
+                        entity_match = all(kw in headline_lower or kw in full_text_lower for kw in entity_keywords) if entity_keywords else True
 
             if answer_match and entity_match and type_match:
                 answer_bearing_rank = rank_idx + 1  # 1-indexed

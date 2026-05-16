@@ -1152,8 +1152,11 @@ def recall_fixed(
                 "memory_type": candidate["memory_type"],
                 "composite": round(candidate["composite"], 3),
                 "headline": candidate["headline"],
+                "context": candidate.get("context", ""),
+                "full_content": candidate.get("full_content", ""),
                 "id": candidate["id"],
                 "_score_components": candidate.get("_score_components"),
+                "metadata": candidate.get("metadata", {}),
             })
             tokens_used += tokens
     
@@ -1177,6 +1180,8 @@ def recall_fixed(
             {
                 "id": s["id"],
                 "headline": s["headline"],
+                "context": s.get("context", ""),
+                "full_content": s.get("full_content", ""),
                 "tier": s["tier"],
                 "composite": s["composite"],
                 "memory_type": s.get("memory_type", "fact"),
