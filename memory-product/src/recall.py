@@ -976,15 +976,19 @@ def recall_fixed(
             import storage_multitenant as _st_mod
             kw_rows = _st_mod._db_execute_rows("""
                 SELECT id::text,
-                       (search_text @@ websearch_to_tsquery('english', %s))::int
+                       ts_rank(search_text, websearch_to_tsquery('english', %s))
                 FROM memory_service.memories
                 WHERE id = ANY(%s::uuid[])
-            """, (_kw_tsquery, candidate_ids), tenant_id=_tid)
-            keyword_matches = {str(row[0]): bool(row[1]) for row in (kw_rows or [])}
+                  AND search_text @@ websearch_to_tsquery('english', %s)
+            """, (_kw_tsquery, candidate_ids, _kw_tsquery), tenant_id=_tid)
+            _raw_kw_scores = {str(row[0]): float(row[1]) for row in (kw_rows or [])}
+            # Normalize to [0, 1] so top keyword match gets full weight
+            _kw_max = max(_raw_kw_scores.values()) if _raw_kw_scores else 1.0
+            keyword_matches = {k: v / _kw_max if _kw_max > 0 else 0.0 for k, v in _raw_kw_scores.items()}
         except Exception as e:
             logger.warning(f"Keyword match lookup failed (non-fatal): {e}")
         _kw_ms = (_time.time() - _kw_t0) * 1000
-        _kw_hits = sum(1 for v in keyword_matches.values() if v)
+        _kw_hits = sum(1 for v in keyword_matches.values() if v > 0.01)
         logger.info(f"🔑 Keyword match: {_kw_hits}/{len(keyword_matches)} hits, tsquery='{_kw_tsquery}', {_kw_ms:.0f}ms (recency_weight={recency_weight:.2f})")
 
     # Step 5: Score each candidate (adaptive composite scoring)
@@ -1029,7 +1033,7 @@ def recall_fixed(
             access_freq = min(c["access_count"] / 10, 1.0)
 
             # F2: keyword match score
-            kw_score = 1.0 if keyword_matches.get(c["id"], False) else 0.0
+            kw_score = keyword_matches.get(c["id"], 0.0)
 
             composite = (
                 a_semantic_w * semantic_sim +
