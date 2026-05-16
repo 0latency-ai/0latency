@@ -80,18 +80,19 @@ def _fuzzy_answer_match(answer_keywords: list, headline: str, threshold: float =
     # Multi-sentence answer descriptions (e.g. "The user would prefer suggestions
     # of sony-compatible accessories...") have 15-25 content tokens, diluting the
     # forward overlap ratio below threshold even when the headline captures the
-    # core concept. Use relaxed bidirectional thresholds:
+    # core concept. Tightened thresholds (2026-05-15, kill Q14-class false positives):
+    #   minimum overlap count >= 3 tokens (avoids spurious 2-token matches)
     #   forward >= 0.10  (at least 10% of answer concepts in headline)
-    #   reverse >= 0.20  (at least 20% of headline concepts in answer)
+    #   reverse >= 0.30  (at least 30% of headline concepts in answer)
     answer_text_length = sum(len(kw) for kw in answer_keywords)
     if answer_tokens and answer_text_length > 100:
         headline_content = {t for t in _re.findall(r'\w+', headline_lower)
                             if len(t) > 2 and t not in stopwords}
         overlap = answer_tokens & headline_content
-        if overlap and headline_content:
+        if len(overlap) >= 3 and headline_content:
             fwd_ratio = len(overlap) / len(answer_tokens)
             rev_ratio = len(overlap) / len(headline_content)
-            if fwd_ratio >= 0.10 or rev_ratio >= 0.20:
+            if fwd_ratio >= 0.10 and rev_ratio >= 0.30:
                 return True
 
     return False
@@ -480,6 +481,14 @@ class BenchmarkRunner:
                 answer_bearing_rank = rank_idx + 1  # 1-indexed
                 answer_bearing_memory = mem
                 break
+
+        # RANK-20 CEILING: Any answer found beyond rank 20 is NOT_FOUND.
+        # Locked definition as of 2026-05-15 (Stage 1B clean baseline).
+        RANK_CEILING = 20
+        if answer_bearing_rank is not None and answer_bearing_rank > RANK_CEILING:
+            print(f"  Rank ceiling applied: rank {answer_bearing_rank} > {RANK_CEILING} -> NOT_FOUND")
+            answer_bearing_rank = None
+            answer_bearing_memory = None
 
         # Compute top-20 composite distribution
         top_20 = details[:20]
