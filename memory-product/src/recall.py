@@ -1116,8 +1116,8 @@ def recall_fixed(
         except Exception:
             continue
 
-    # Step 6: Rank by composite score
-    scored.sort(key=lambda x: x["composite"], reverse=True)
+    # Step 6: Rank by composite score (stable: secondary key = id ASC for deterministic ties)
+    scored.sort(key=lambda x: (-x["composite"], x.get("id", "")))
     logger.info(f"📊 Scored {len(scored)} memories")
     for i, s in enumerate(scored[:5]):
         logger.debug(f"  {i+1}. {s['headline'][:50]}... score={s['composite']:.3f}")
@@ -1533,8 +1533,8 @@ def recall_cross_agent(
         except Exception as e:
             logger.warning(f"Scoring failed for {c.get('id', 'unknown')}: {e}")
     
-    # Step 6: Rank by composite score
-    scored.sort(key=lambda x: x["composite"], reverse=True)
+    # Step 6: Rank by composite score (stable: secondary key = id ASC for deterministic ties)
+    scored.sort(key=lambda x: (-x["composite"], x.get("id", "")))
     
     logger.info(f"📊 Scored {len(scored)} cross-agent memories")
     for i, s in enumerate(scored[:5]):
