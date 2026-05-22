@@ -419,8 +419,17 @@ class LongMemEvalRunner:
         if not recall_details:
             return "No relevant memories were retrieved."
 
+        # Aggregation and temporal questions need a wider evidence window —
+        # the answer is built from multiple memories scattered across recall.
+        # Other questions are usually one-shot lookups and don't benefit
+        # from longer context (and pay more token cost for nothing).
+        _q_lower = question.lower()
+        _is_aggregation = bool(re.search(r"\bhow many\b|\bcount\b|\btotal\b|\ball of\b|\bevery\b|\beach\b|\blist\b", _q_lower))
+        _is_temporal = bool(re.search(r"\bhow many (days|weeks|months|years)\b|\bbetween\b|\bsince\b|\bafter\b|\bbefore\b|\border\b|\bsequence\b|\bwhen did\b", _q_lower))
+        slice_cap = 40 if (_is_aggregation or _is_temporal) else 25
+
         snippets = []
-        for i, mem in enumerate(recall_details[:25], start=1):
+        for i, mem in enumerate(recall_details[:slice_cap], start=1):
             body = (mem.get("full_content") or mem.get("context") or mem.get("headline") or "").strip()
             if not body:
                 continue

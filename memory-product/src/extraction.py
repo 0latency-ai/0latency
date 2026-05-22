@@ -144,12 +144,21 @@ Extract memories as JSON array:"""
 # Assistant-content extraction prompt — separate path for extracting what the AI said/recommended
 ASSISTANT_EXTRACTION_PROMPT = """You are a memory extraction system. Your job is to extract useful information that the AI assistant provided in its response. Focus ONLY on what the assistant contributed — recommendations, explanations, answers, and factual information it shared.
 
+This exchange occurred on: {conversation_date}.
+When the response references relative time ("today", "yesterday", "last week", "in March", "next Tuesday"), resolve it to an absolute date relative to the conversation date above, and emit it on the memory as `event_at` in YYYY-MM-DD format. If the memory describes something that happened during this exchange (or the assistant's response is dated), set event_at to {conversation_date}. Leave event_at as null only if no date is implied at all.
+
 Extract information STATED OR PROVIDED BY THE ASSISTANT:
 - Specific recommendations or suggestions (travel destinations, products, restaurants, techniques, tools)
 - Answers the assistant provided to the user's questions
 - Plans, itineraries, recipes, or structured guidance the assistant created
 - Technical explanations, professional advice, or analysis results
-- Factual claims or data the assistant shared
+- Factual claims or data the assistant shared — INCLUDING specific values mentioned about the user's life context (e.g. "the Plesiosaur on page 12 has a blue scaly body", "the restaurant Miss Bee Providore at Cihampelas Walk serves Nasi Goreng")
+
+DO NOT SKIP: Specific factual claims (dollar amounts, dates, names, colors, locations, addresses, numeric values) that the assistant made about anything tied to the user's life, prior conversation, or a topic they're researching. These specifics are EXACTLY what future questions will ask about. Even if a fact appears as a passing mention in a longer answer, extract it as its own memory.
+
+SPECIFIC VALUE PRESERVATION: Preserve all numeric values, proper names, dates, addresses, and exact phrasings verbatim in headline and context. Do not paraphrase or summarize numbers. For tabular/mapping data (e.g. "Admon: Sunday 8am-4pm | Magdy: Monday 4pm-12am | ..."), preserve every entity→value pair in full_content — do NOT collapse to a generic summary.
+
+AVOID GENERIC GUIDANCE: Do NOT extract memories whose headline would start with "N tips for X" / "N strategies to Y" / "N techniques for Z" / "best practices" — these are assistant-generated lists with no user-specific value. Only extract concrete specifics tied to the user's actual context.
 
 Skip:
 - Information about the user (preferences, identity, personal facts — handled by separate extraction)
@@ -589,6 +598,7 @@ def extract_memories(
                 existing_context=enhanced_context,
                 human_message=human_message,
                 agent_message=agent_message,
+                conversation_date=conversation_date,
             )
             assistant_raw = _call_model(assistant_prompt)
             
@@ -641,7 +651,21 @@ def extract_memories(
                     "contradicts": mem.get("contradicts"),
                     "extraction_path": "assistant",
                 }
-                
+
+                # Same event_at parse + range-validation as the user path so
+                # hallucinated dates get dropped to None instead of stored.
+                a_event_at_raw = (mem.get("event_at") or "").strip()
+                a_event_at_val = None
+                if a_event_at_raw:
+                    try:
+                        parsed = datetime.fromisoformat(a_event_at_raw[:10]).date()
+                        conv_d = datetime.fromisoformat(conversation_date).date()
+                        delta_days = (parsed - conv_d).days
+                        if -3650 <= delta_days <= 365:
+                            a_event_at_val = parsed.isoformat()
+                    except (ValueError, TypeError):
+                        a_event_at_val = None
+
                 memory_obj = {
                     "id": _generate_id(f"asst_{headline}", now),
                     "agent_id": agent_id,
@@ -660,6 +684,7 @@ def extract_memories(
                     "source_type": "assistant",
                     "extracted_at": now,
                     "valid_from": now,
+                    "event_at": a_event_at_val,
                     "metadata": a_metadata,
                     "ttl_hours": a_ttl,
                     "decision_text": mem.get("decision_text") if a_memory_type == "decision" else None,
