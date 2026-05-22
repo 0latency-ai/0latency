@@ -317,10 +317,17 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
             import logging as _log
             _log.getLogger(__name__).warning(f"Voyage embedding failed (non-fatal): {_ve}")
     
-    # Check for duplicate/reinforcement within this tenant
-    existing = _check_duplicate(memory['agent_id'], memory['headline'], embedding, 
-                               memory_type=memory.get('memory_type'), tenant_id=current_tenant)
-    
+    # Check for duplicate/reinforcement within this tenant.
+    # Skip dedup entirely for corrections — by design they share entities and high
+    # embedding similarity with the memory they're correcting (e.g. "$350K Wells Fargo"
+    # vs "$400K Wells Fargo"). Reinforcing the old memory instead of inserting the
+    # correction is exactly the bug that loses knowledge-update facts.
+    if memory.get('memory_type') == 'correction':
+        existing = None
+    else:
+        existing = _check_duplicate(memory['agent_id'], memory['headline'], embedding,
+                                   memory_type=memory.get('memory_type'), tenant_id=current_tenant)
+
     if existing:
         # Snapshot version before reinforcement
         try:
