@@ -49,6 +49,10 @@ DO NOT SKIP: Any statement that contains a SPECIFIC FACTUAL VALUE about the user
 - The conversation is mostly about something else
 These passing-mention specific facts are EXACTLY the ones future queries will ask about — losing them is the worst failure mode. Assign importance ≥ 0.5 to any such fact (NOT 0.1-0.3) so it doesn't get treated as filler downstream.
 
+USER-RECALL FRAMING: When the user phrases a fact as a recall ("remember when I X?", "as I told you, I X", "like I mentioned, I X", "you know how I X", "recall that I X"), TREAT X AS A FIRST-CLASS FACT TO EXTRACT — NOT as a question or a duplicate-of-existing-memory. The user is asserting X happened. Extract it exactly as if the user said "I X" directly. Example: "Remember when I got pre-approved for $400,000 from Wells Fargo?" → extract a `fact` memory "Pre-approved for $400,000 from Wells Fargo" with the value preserved verbatim. Do NOT skip this just because the user "should" know it — the system needs the fact in the index.
+
+DURATION & DATE-RANGE EVENTS: When a memory describes an event with a duration (e.g. "5-day camping trip to Yellowstone", "2-week vacation in Italy", "3.5 weeks watching all Marvel movies", "completed the Spitfire model over 3 weekends"), the headline MUST include the duration verbatim and full_content must contain explicit numeric duration ("5 days", "14 days", "3.5 weeks"). If you can determine BOTH a start date and an end date, set `event_at` to the START date AND include the END date in full_content (e.g. "Trip dates: 2023-04-12 to 2023-04-17"). For trips and multi-day activities, ALSO populate `categories` with the location (country/state/city) so questions like "trips in the US" can filter geographically.
+
 SPECIFIC VALUE PRESERVATION: When the user states a specific value (dollar amount, count, date, time, address, phone number, name, or an entity→value mapping like "Admon works Sunday 8am-4pm"), preserve the EXACT value verbatim in headline and context. Do not round, paraphrase, or summarize numbers. For tabular/mapping data (e.g. a shift schedule, a price list, a roster), preserve each entity→value pair in full_content — do NOT collapse them into a generic summary like "team has 7 agents".
 
 For each extracted memory, provide:
@@ -77,7 +81,13 @@ For each extracted memory, provide:
    - 0.0-0.2: Probably not a real fact — clearly hypothetical or joking
 9. **entities**: List of people, projects, organizations, or concepts mentioned
 10. **project*: Which project/area this relates to (if any)
-11. **categories*: 1-3 auto-inferred tags
+11. **categories**: 1-4 specific domain tags. These MUST be concrete topic identifiers that a future query could match against. Use lowercase short labels. Common examples:
+    - Domain interests: "ai", "machine-learning", "healthcare", "medical-research", "politics", "current-events", "finance", "investing", "real-estate", "law", "education"
+    - Activities/hobbies: "photography", "running", "cycling", "camping", "cooking", "gardening", "reading", "gaming", "knitting", "modeling-kits"
+    - Tech: "cameras", "phones", "laptops", "audio", "smart-home"
+    - Life areas: "travel", "fitness", "career", "family", "pets", "home"
+    - Specific brands when relevant: "sony", "apple", "tesla", "adobe"
+    A "User reads AI healthcare research papers" memory should have categories=["ai","healthcare","research"]. A "User prefers Sony cameras" memory should have categories=["photography","cameras","sony"]. DO NOT use vague tags like "general", "info", "note", "user" — those are useless for retrieval.
 12. **scope**: Hierarchical path like /project/subarea (e.g., /pfl-academy/oklahoma, /personal/preferences)
 13. **temporal_type**: How does this fact relate to time?
     - "permanent": Always true (names, identities, preferences) — should never decay

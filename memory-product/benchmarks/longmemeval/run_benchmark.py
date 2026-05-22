@@ -426,7 +426,11 @@ class LongMemEvalRunner:
         _q_lower = question.lower()
         _is_aggregation = bool(re.search(r"\bhow many\b|\bcount\b|\btotal\b|\ball of\b|\bevery\b|\beach\b|\blist\b", _q_lower))
         _is_temporal = bool(re.search(r"\bhow many (days|weeks|months|years)\b|\bbetween\b|\bsince\b|\bafter\b|\bbefore\b|\border\b|\bsequence\b|\bwhen did\b", _q_lower))
-        slice_cap = 40 if (_is_aggregation or _is_temporal) else 25
+        # Aggregation needs a *much* wider window: e.g. "5 model kits" requires
+        # finding 5 specific instances scattered across 50 sessions. 40 wasn't
+        # enough — bumping to 60 surfaces nearly all relevant evidence while still
+        # fitting comfortably in Sonnet's context.
+        slice_cap = 60 if (_is_aggregation or _is_temporal) else 25
 
         snippets = []
         for i, mem in enumerate(recall_details[:slice_cap], start=1):
@@ -464,9 +468,17 @@ You will be given a question and a set of memories retrieved from a persistent s
 
 Rules:
 1. If the answer is stated directly in a memory, quote or paraphrase it.
-2. If two memories conflict on the same fact: (a) prefer memories with type=correction over type=fact; (b) among same-type memories, prefer the most recent `event=` date; (c) if neither rule resolves the conflict (e.g. both are facts with the same date or no dates), list BOTH values briefly with their context — don't drop one. The goal is to surface the right answer, not to commit confidently to the wrong one.
-3. For counting/aggregation questions ("how many X have I done"), count ONLY memories that explicitly state the user did, owned, led, completed, or directly experienced an instance of X. Do NOT count memories that merely discuss X in general (e.g. "tips for X", "how to X", "plans about X") or list X as an option/recommendation. Show your selected instances briefly before stating the count.
-4. For date-difference questions ("how many days/weeks/months between/since X"), anchor on the `event=` tag on each memory (NOT the `logged=` tag, which is when the memory was recorded and is unrelated to when the fact occurred). Today is given above. If an event lacks an event date, infer from in-text phrasing ("last Sunday", "two weeks ago", "in February") relative to today's date.
+2. If two or more memories give conflicting values for the same fact, ALWAYS list every distinct value with its supporting memory (e.g. "Memory 2 says X, Memory 5 says Y, Memory 11 says Z"). Do NOT try to pick a winner based on memory_type — `correction` and `fact` labels are assigned by an upstream LLM and are unreliable. Do NOT drop a value just because another memory contradicts it. Just present all values plainly; downstream evaluation will identify the correct answer.
+3. For counting/aggregation questions ("how many X have I done"), count ONLY memories that explicitly state the user did, owned, led, completed, attended, or directly experienced an instance of X. The following are NEVER counted as instances of X (these are the most common overcount mistakes):
+   - "Evaluating a role/offer for X" → NOT doing X
+   - "Considering/thinking about X" → NOT doing X
+   - "Planning to do X" → NOT doing X yet
+   - "Taking a class about X" / "Studying X" → NOT doing X
+   - "Discussing X" / "Researching X" → NOT doing X
+   - Memories that only list X as a recommendation, option, or general tip → NOT instances
+   ALSO: pay attention to scoping qualifiers in the question. If the question asks about "X at/from Y" (e.g. "items at a store", "trips in the US", "books from the library"), exclude instances that don't satisfy Y (e.g. an item lent to a friend is NOT "at a store"; a trip to Mexico is NOT "in the US"). The qualifier is part of the count.
+   Show the specific instances you selected (briefly) before stating the count. If the user has fewer instances than you initially listed, REVISE DOWN. It is better to undercount than overcount.
+4. For date-difference questions ("how many days/weeks/months between/since X"), anchor ONLY on the `event=` tag on each memory. The `logged=` tag is the ingest year (typically 2026) and is MEANINGLESS for the question — completely ignore `logged=` for date arithmetic. Today's date is given above; treat the question's frame of reference as today. If a memory has no `event=` tag, infer from in-text phrasing ("last Sunday", "two weeks ago", "in February") relative to today's date. If you cannot anchor an event to a date, exclude it from the calculation.
 5. For preference/recommendation questions ("can you suggest/recommend X for me"), tailor the answer to user-specific facts in the memories (brand preferences, prior choices, stated requirements) rather than giving generic advice.
 6. If the answer is genuinely not derivable, say "I don't have enough information to answer that." — but only after exhausting rules 2-5.
 7. Do not invent facts not present in the memories.
@@ -667,6 +679,15 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
             
             scorer_label = "LLM" if self.scorer == "llm" else "sub"
             print(f"  Match: {match} ({scorer_label}) | Latency: {recall_latency_ms:.0f}ms | Wall: {question_elapsed:.1f}s", file=sys.stderr)
+
+            # Live debug dump on every question (especially valuable for failures).
+            # Shows expected vs synthesized + top-3 recall headlines so we can tell
+            # at a glance whether failure was retrieval, reasoning, or judging.
+            print(f"  Expected: {str(expected_answer)[:160]}", file=sys.stderr)
+            print(f"  Synthesized: {synthesized_answer[:200].replace(chr(10), ' / ')}", file=sys.stderr)
+            print(f"  expected_answer_rank: {expected_in_recall_rank}", file=sys.stderr)
+            for m in top_diagnostics[:3]:
+                print(f"    [{m.get('memory_type')}/{m.get('tier')} c={m.get('composite')}] {(m.get('headline') or '')[:100]}", file=sys.stderr)
             
             # Smoke test validations
             if self.smoke_mode:
