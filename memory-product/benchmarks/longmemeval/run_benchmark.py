@@ -248,6 +248,7 @@ class LongMemEvalRunner:
                 continue
 
             payload = {
+                "agent_id": f"longmemeval_{question_id}",
                 "content": f"Human: {user_turn['content']}\n\nAssistant: {assistant_turn['content']}",
                 "session_key": f"longmemeval_{question_id}_session_{session_idx}",
             }
@@ -336,7 +337,7 @@ class LongMemEvalRunner:
         
         return total_turns
     
-    def recall(self, question: str) -> Tuple[str, float, list]:
+    def recall(self, question: str, question_id: Optional[str] = None) -> Tuple[str, float, list]:
         """Recall relevant context for question.
 
         Returns (context, latency_ms, recall_details). recall_details carries
@@ -344,12 +345,18 @@ class LongMemEvalRunner:
         by the API when expand is truthy (see api/main.py:1697).
         Without it, context_block returns headline-only for memories whose
         composite landed in the 0.25-0.45 band — root cause of LongMemEval misses.
+
+        question_id scopes the recall to that question's per-question agent_id
+        namespace, matching the LongMemEval published methodology (each question
+        is one fictional user's history; no cross-question contamination).
         """
         payload = {
             "conversation_context": question,
             "budget_tokens": 8000,
             "expand": "evidence",
         }
+        if question_id:
+            payload["agent_id"] = f"longmemeval_{question_id}"
         self.total_recall_tokens += len(question)
 
         # Up to 2 attempts. A 30s timeout returning 0 memories on the first try
@@ -601,6 +608,7 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
         for i, item in enumerate(questions, 1):
             question_id = item["question_id"]
             question = item["question"]
+            question_type = item.get("question_type", "unknown")
             expected_answer = item["answer"]
             haystack_sessions = item["haystack_sessions"]
             haystack_dates = item.get("haystack_dates")
@@ -615,7 +623,7 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
             
             print(f"  Recalling...", file=sys.stderr, end=" ")
             sys.stderr.flush()
-            context, recall_latency_ms, recall_details = self.recall(question)
+            context, recall_latency_ms, recall_details = self.recall(question, question_id=question_id)
             print(f"{recall_latency_ms:.0f}ms, {len(context)} chars, {len(recall_details)} memories", file=sys.stderr)
             self.latencies.append(recall_latency_ms)
 
@@ -663,6 +671,7 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
 
             results.append({
                 "question_id": question_id,
+                "question_type": question_type,
                 "question": question,
                 "expected": expected_answer,
                 "hypothesis": hypothesis[:200],
@@ -731,7 +740,19 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
         p95_idx = int(len(latencies_sorted) * 0.95)
         
         accuracy = sum(r["match"] for r in results) / len(results) * 100 if results else 0
-        
+
+        # Per-question-type breakdown matches the LongMemEval / Mem0 reporting
+        # format so the numbers are directly comparable across systems.
+        by_question_type = {}
+        for r in results:
+            qt = r.get("question_type", "unknown")
+            bucket = by_question_type.setdefault(qt, {"passed": 0, "total": 0})
+            bucket["total"] += 1
+            if r["match"]:
+                bucket["passed"] += 1
+        for qt, bucket in by_question_type.items():
+            bucket["accuracy"] = round(100.0 * bucket["passed"] / bucket["total"], 1) if bucket["total"] else 0.0
+
         output_data = {
             "metadata": {
                 "timestamp": timestamp,
@@ -750,7 +771,8 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
                 "p95_recall_latency_ms": int(latencies_sorted[p95_idx]) if latencies_sorted else 0,
                 "n_questions": len(results),
                 "total_extraction_tokens": self.total_extraction_tokens,
-                "total_recall_tokens": self.total_recall_tokens
+                "total_recall_tokens": self.total_recall_tokens,
+                "by_question_type": by_question_type,
             },
             "results": results
         }
@@ -766,7 +788,14 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
         print(f"Accuracy: {accuracy:.1f}% ({sum(r['match'] for r in results)}/{len(results)})", file=sys.stderr)
         print(f"p50 latency: {output_data['aggregate']['p50_recall_latency_ms']}ms", file=sys.stderr)
         print(f"p95 latency: {output_data['aggregate']['p95_recall_latency_ms']}ms", file=sys.stderr)
-        
+
+        # Per-stratum breakdown (matches Mem0 / LongMemEval reporting format)
+        if by_question_type:
+            print(f"\nBy question_type:", file=sys.stderr)
+            for qt in sorted(by_question_type, key=lambda k: -by_question_type[k]["total"]):
+                b = by_question_type[qt]
+                print(f"  {qt:<32} {b['passed']:>3}/{b['total']:<3} ({b['accuracy']:>5.1f}%)", file=sys.stderr)
+
         return output_data
 
 if __name__ == "__main__":
