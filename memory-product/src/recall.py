@@ -629,7 +629,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                   {_project_filter}
                   {_redaction_filter}
                 ORDER BY {_emb_col} <=> %s::vector
-                LIMIT 80
+                LIMIT 150
             ),
             importance_results AS (
                 SELECT id, headline, context, full_content, memory_type,

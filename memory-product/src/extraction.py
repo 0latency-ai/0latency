@@ -87,7 +87,13 @@ For each extracted memory, provide:
     - "goal": A future aspiration or target ($1M ARR goal)
 12. **ttl_hours**: (optional, only for ephemeral) Number of hours this memory stays relevant. Default 12.
 
-STRUCTURED LIST PRESERVATION: When the conversation contains a numbered list, checklist, ordered plan, or set of items that form a coherent group, extract them as ONE memory with the full list preserved. Do NOT shatter a 9-item checklist into 9 separate memories. The headline should reference the list ("9-item pre-launch checklist" or "Phase A→B→C cost comparison"), and full_content should contain all items with their ordering and any dependencies. Individual items from the list should ONLY get their own separate memory if they contain significant standalone information beyond their role in the list.
+STRUCTURED LIST PRESERVATION: Two cases — handle differently:
+
+CASE 1 — SEQUENTIAL LIST OR CHECKLIST (steps in a process, items in a single plan): Extract as ONE memory with all items preserved in full_content. Do NOT shatter a 9-item checklist into 9 separate memories. Example: "9-item pre-launch checklist", "Phase A→B→C cost comparison".
+
+CASE 2 — LOOKUP TABLE / MAPPING (entity→value pairs that someone might query individually): Extract ONE memory containing the FULL TABLE in full_content, AND ALSO emit ONE separate memory per row for fast individual lookup. Example: a team shift schedule like "Admon: Sunday 8am-4pm | Magdy: Monday 4pm-12am | Ehab: Tuesday 12am-8am..." — emit one "GM social media team shift rotation" memory with the whole table, PLUS one memory per agent ("Admon's shift: Sunday 8am-4pm", "Magdy's shift: Monday 4pm-12am", etc.). The headline of each row memory MUST contain BOTH the entity name AND its value so a future query for "what is Admon's shift" finds it via headline match. Other examples: price lists per product, contact info per person, room assignments per attendee, scores per team — each row is its own queryable fact.
+
+Distinguishing rule: if a user might later ask "what is X's Y" where X is one row's key, it is a LOOKUP TABLE (case 2). If the question would only ever be "what is the whole list", it is a SEQUENTIAL LIST (case 1).
 
 DECISION SPECIFICITY: When the human responds to a list of items (e.g., "3: Agreed. 4: Yes, let's do that. 5: Sounds good"), extract ONE decision memory that captures ALL their responses together, not individual memories per item. The headline should be "Responses to [list name]" and full_content should map each item to the human's specific response and rationale.
 
