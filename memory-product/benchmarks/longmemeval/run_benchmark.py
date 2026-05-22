@@ -468,7 +468,10 @@ You will be given a question and a set of memories retrieved from a persistent s
 
 Rules:
 1. If the answer is stated directly in a memory, quote or paraphrase it.
-2. If two or more memories give conflicting values for the same fact, ALWAYS list every distinct value with its supporting memory (e.g. "Memory 2 says X, Memory 5 says Y, Memory 11 says Z"). Do NOT try to pick a winner based on memory_type — `correction` and `fact` labels are assigned by an upstream LLM and are unreliable. Do NOT drop a value just because another memory contradicts it. Just present all values plainly; downstream evaluation will identify the correct answer.
+2. BEFORE writing your final answer, perform this two-step process:
+   STEP A — Enumeration: Scan ALL memories provided (not just the top few) for any that mention the subject/entity of the question. List EVERY memory that's relevant and note the distinct values they assert. Memories at low ranks (15, 20, 25, etc.) are AS VALID as memories at rank 1 — do not dismiss them because their composite score is lower.
+   STEP B — Reporting: When two or more memories give different values for the same fact, write your answer to include EVERY distinct value (e.g. "Memory 1 says X, Memory 18 says Y, Memory 24 says Z"). Do NOT try to pick a winner based on memory_type, composite score, or perceived authority — `correction` and `fact` labels are assigned by an upstream LLM and are unreliable, and high-composite doesn't mean correct.
+   Concrete failure mode to avoid: a recall result has 25 memories about "Rachel". Memory 1 says "Rachel moved to Chicago", Memory 4 says "Rachel moved back to the suburbs". You MUST mention both — say "Memory 1 says Chicago, Memory 4 says the suburbs". Do NOT write only "Rachel moved to Chicago" because that drops the actual answer.
 3. For counting/aggregation questions ("how many X have I done"), count ONLY memories that explicitly state the user did, owned, led, completed, attended, or directly experienced an instance of X. The following are NEVER counted as instances of X (these are the most common overcount mistakes):
    - "Evaluating a role/offer for X" → NOT doing X
    - "Considering/thinking about X" → NOT doing X
