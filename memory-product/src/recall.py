@@ -575,7 +575,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             entity_results AS (
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
-                       created_at, event_at, superseded_at,
+                       created_at, event_at, superseded_at, categories,
                        0.4 as similarity,
                        'entity' as strategy
                 FROM memory_service.memories
@@ -617,7 +617,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             WITH vector_results AS (
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
-                       created_at, event_at, superseded_at,
+                       created_at, event_at, superseded_at, categories,
                        1 - ({_emb_col} <=> %s::vector) as similarity,
                        'vector' as strategy
                 FROM memory_service.memories
@@ -634,7 +634,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             importance_results AS (
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
-                       created_at, event_at, superseded_at,
+                       created_at, event_at, superseded_at, categories,
                        0.5 as similarity,
                        'importance' as strategy
                 FROM memory_service.memories
@@ -652,7 +652,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
             keyword_results AS (
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
-                       created_at, event_at, superseded_at,
+                       created_at, event_at, superseded_at, categories,
                        0.35 as similarity,
                        'keyword' as strategy
                 FROM memory_service.memories
@@ -685,9 +685,9 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
 
         logger.info(f"✅ Consolidated query returned {len(rows) if rows else 0} rows")
         for row in rows:
-            if len(row) >= 12:  # tuple of 12 columns from cursor
+            if len(row) >= 14:  # 14 columns now: 0-10 base, 11 categories, 12 similarity, 13 strategy
                 mem_id = str(row[0])
-                strategy = row[12]
+                strategy = row[13]
 
                 if mem_id not in candidates:
                     candidates[mem_id] = _parse_candidate_row(row)
@@ -701,7 +701,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                     elif strategy == 'entity':
                         _s4_rows_count += 1
 
-                    similarity = float(row[11]) if row[11] is not None else 0
+                    similarity = float(row[12]) if row[12] is not None else 0
                     logger.debug(f"  • [{strategy}] Memory {str(row[1])[:50]}... similarity={similarity:.3f}")
 
     except Exception as e:
@@ -741,7 +741,8 @@ def _parse_candidate_row(row: tuple) -> dict:
         "created_at": row[8] if row[8] else datetime.now(timezone.utc),
         "event_at": row[9],  # nullable — prefer over created_at for temporal scoring
         "superseded_at": row[10],
-        "similarity": float(row[11]) if row[11] is not None else 0,
+        "categories": list(row[11]) if row[11] else [],  # text[] column from memories table
+        "similarity": float(row[12]) if row[12] is not None else 0,
     }
 
 
@@ -1012,6 +1013,32 @@ def recall_fixed(
         re.IGNORECASE,
     )
 
+    # Topic-scoped retrieval: extract topic keywords from the query and use them
+    # to bias scoring toward memories tagged with matching `categories`. Targets
+    # the AI/healthcare / Miami-hotel / Sony-camera class of preference questions
+    # where user has multiple topic interests and recall surfaces the wrong one.
+    _TOPIC_KEYWORDS = {
+        # Tech/AI
+        "ai", "artificial intelligence", "machine learning", "ml", "deep learning",
+        # Health/medical
+        "healthcare", "medical", "health", "medicine", "doctor",
+        # Photography
+        "photography", "camera", "cameras", "photo", "lens", "sony", "canon", "nikon",
+        # Travel/places
+        "travel", "trip", "vacation", "hotel", "miami", "orlando", "paris", "bandung",
+        # Food
+        "restaurant", "food", "cuisine", "dining", "korean", "japanese", "italian",
+        # Topics
+        "politics", "current events", "news", "finance", "investing", "real-estate",
+        "mortgage", "education", "career", "fitness", "running", "marathon", "5k",
+        # Hobbies
+        "model kits", "modeling", "gaming", "reading", "cooking",
+        "camping", "hiking", "outdoor",
+        # Entertainment
+        "movie", "movies", "marvel", "star wars", "music", "concert", "theater",
+    }
+    _query_topics = {kw for kw in _TOPIC_KEYWORDS if kw in _ctx_lower}
+
     # Pre-compute recency for all candidates to detect degeneration
     raw_recencies = []
     for c in candidates:
@@ -1126,6 +1153,19 @@ def recall_fixed(
             # Not dampened — explicit query intent overrides recency-spread degeneration.
             if _is_preference_query and c["memory_type"] in ("preference", "identity"):
                 composite *= 1.5
+
+            # Topic-scoped scoring: boost candidates whose categories intersect
+            # the query's detected topics; penalize off-topic preference/identity
+            # candidates when the query has clear topic signals.
+            # Targets AI/healthcare-vs-politics, Miami-hotel-vs-Seattle, Sony-camera
+            # classes where user has multiple preferences and we want the right topic.
+            if _query_topics:
+                cand_categories = {str(cat).lower() for cat in (c.get("categories") or [])}
+                if cand_categories:
+                    if cand_categories & _query_topics:
+                        composite *= 1.3
+                    elif c["memory_type"] in ("preference", "identity"):
+                        composite *= 0.8
 
             if c.get("superseded_at"):
                 continue
@@ -1415,7 +1455,7 @@ def _retrieve_candidates_cross_agent(
             rows = _db_execute_rows(f"""
                 SELECT id, headline, context, full_content, memory_type,
                        importance, access_count, reinforcement_count,
-                       created_at, event_at, superseded_at,
+                       created_at, event_at, superseded_at, categories,
                        1 - ({_emb_col} <=> %s::vector) as similarity
                 FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s::UUID

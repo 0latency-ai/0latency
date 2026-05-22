@@ -43,17 +43,22 @@ Extract ONLY information that would be useful in future conversations. Skip:
 - Speculative future plans that haven't been committed to
 
 DO NOT SKIP: Any statement that contains a SPECIFIC FACTUAL VALUE about the user's life — a dollar amount, a count, a date, a duration, a measurement, a proper name (person/place/organization/brand), a phone/address, or a role/title — must always be extracted as a `fact` (or `identity` for permanent attributes) memory, EVEN IF:
-- It's a "passing mention" embedded in an unrelated conversation topic (e.g. the user mentions "$400,000 pre-approval" while chatting about cable TV — still extract the $400,000 fact)
+- It's a "passing mention" embedded in an unrelated conversation topic (e.g. user is talking about weekend plans and mentions a $2,400 gym membership — still extract the $2,400 gym fact)
 - It's not the main topic of the current exchange
 - It seems trivial or minor at first glance
 - The conversation is mostly about something else
 These passing-mention specific facts are EXACTLY the ones future queries will ask about — losing them is the worst failure mode. Assign importance ≥ 0.5 to any such fact (NOT 0.1-0.3) so it doesn't get treated as filler downstream.
 
-USER-RECALL FRAMING: When the user phrases a fact as a recall ("remember when I X?", "as I told you, I X", "like I mentioned, I X", "you know how I X", "recall that I X"), TREAT X AS A FIRST-CLASS FACT TO EXTRACT — NOT as a question or a duplicate-of-existing-memory. The user is asserting X happened. Extract it exactly as if the user said "I X" directly. Example: "Remember when I got pre-approved for $400,000 from Wells Fargo?" → extract a `fact` memory "Pre-approved for $400,000 from Wells Fargo" with the value preserved verbatim. Do NOT skip this just because the user "should" know it — the system needs the fact in the index.
+USER-RECALL FRAMING: When the user phrases a fact as a recall ("remember when I X?", "as I told you, I X", "like I mentioned, I X", "you know how I X", "recall that I X"):
+1. TREAT X AS A FIRST-CLASS FACT TO EXTRACT. The user is asserting X happened.
+2. Set importance ≥ 0.7 (NEVER below). These are user-confirmed historical facts that future queries will ask about.
+3. NEVER skip them as "passing mention" even if the conversation topic is unrelated to X. The "remember when" framing is the user re-asserting a fact in passing — treat it identically to a direct statement.
+4. The headline MUST contain the specific value verbatim. If the user recalls "I bought a road bike for $1,800", the headline should be "Bought road bike for $1,800" — NOT "Past bike purchase" or "Bike discussion".
+5. If existing memory context shows a DIFFERENT value about the same entity (e.g. an existing memory says one phone number, user now states a different phone number), set memory_type=correction AND contradicts_id to that memory's UUID. The dedup pipeline allows different specific values to coexist, but corrections are still the cleanest path.
 
-DURATION & DATE-RANGE EVENTS: When a memory describes an event with a duration (e.g. "5-day camping trip to Yellowstone", "2-week vacation in Italy", "3.5 weeks watching all Marvel movies", "completed the Spitfire model over 3 weekends"), the headline MUST include the duration verbatim and full_content must contain explicit numeric duration ("5 days", "14 days", "3.5 weeks"). If you can determine BOTH a start date and an end date, set `event_at` to the START date AND include the END date in full_content (e.g. "Trip dates: 2023-04-12 to 2023-04-17"). For trips and multi-day activities, ALSO populate `categories` with the location (country/state/city) so questions like "trips in the US" can filter geographically.
+DURATION & DATE-RANGE EVENTS: When a memory describes an event with a duration (e.g. "3-day conference in Boston", "2-week renovation project", "6 weeks of physical therapy", "spent 4 weekends restoring the bookshelf"), the headline MUST include the duration verbatim. The full_content MUST contain a parseable line in this EXACT format: "Duration: N weeks" or "Duration: N days" or "Duration: N months" (numeric N, no fuzzy words like "several" or "a few"). If the user says "it took me 2 weeks to finish the kitchen renovation", full_content includes literally "Duration: 2 weeks". If you can determine BOTH a start date and an end date, set `event_at` to the START date AND include the END date in full_content (e.g. "Project dates: 2023-04-12 to 2023-04-17"). For trips and multi-day activities, ALSO populate `categories` with the location (country/state/city) so questions like "trips in country X" can filter geographically.
 
-SPECIFIC VALUE PRESERVATION: When the user states a specific value (dollar amount, count, date, time, address, phone number, name, or an entity→value mapping like "Admon works Sunday 8am-4pm"), preserve the EXACT value verbatim in headline and context. Do not round, paraphrase, or summarize numbers. For tabular/mapping data (e.g. a shift schedule, a price list, a roster), preserve each entity→value pair in full_content — do NOT collapse them into a generic summary like "team has 7 agents".
+SPECIFIC VALUE PRESERVATION: When the user states a specific value (dollar amount, count, date, time, address, phone number, name, or an entity→value mapping like "Alex covers the morning shift"), preserve the EXACT value verbatim in headline and context. Do not round, paraphrase, or summarize numbers. For tabular/mapping data (e.g. a shift schedule, a price list, a roster), preserve each entity→value pair in full_content — do NOT collapse them into a generic summary like "team has 7 members".
 
 For each extracted memory, provide:
 1. **headline**: One-line summary (10-20 tokens). Must be self-contained and meaningful.
@@ -82,12 +87,12 @@ For each extracted memory, provide:
 9. **entities**: List of people, projects, organizations, or concepts mentioned
 10. **project*: Which project/area this relates to (if any)
 11. **categories**: 1-4 specific domain tags. These MUST be concrete topic identifiers that a future query could match against. Use lowercase short labels. Common examples:
-    - Domain interests: "ai", "machine-learning", "healthcare", "medical-research", "politics", "current-events", "finance", "investing", "real-estate", "law", "education"
-    - Activities/hobbies: "photography", "running", "cycling", "camping", "cooking", "gardening", "reading", "gaming", "knitting", "modeling-kits"
+    - Domain interests: "tech", "science", "healthcare", "research", "politics", "current-events", "finance", "investing", "real-estate", "law", "education"
+    - Activities/hobbies: "photography", "running", "cycling", "camping", "cooking", "gardening", "reading", "gaming", "knitting", "modeling"
     - Tech: "cameras", "phones", "laptops", "audio", "smart-home"
     - Life areas: "travel", "fitness", "career", "family", "pets", "home"
-    - Specific brands when relevant: "sony", "apple", "tesla", "adobe"
-    A "User reads AI healthcare research papers" memory should have categories=["ai","healthcare","research"]. A "User prefers Sony cameras" memory should have categories=["photography","cameras","sony"]. DO NOT use vague tags like "general", "info", "note", "user" — those are useless for retrieval.
+    - Specific brands when relevant
+    A memory about scientific journals the user reads should include both the domain ("research") and topic tags relevant to the subject. A memory about a camera-brand preference should include "photography", "cameras", and the brand. DO NOT use vague tags like "general", "info", "note", "user" — those are useless for retrieval.
 12. **scope**: Hierarchical path like /project/subarea (e.g., /pfl-academy/oklahoma, /personal/preferences)
 13. **temporal_type**: How does this fact relate to time?
     - "permanent": Always true (names, identities, preferences) — should never decay
@@ -101,7 +106,7 @@ STRUCTURED LIST PRESERVATION: Two cases — handle differently:
 
 CASE 1 — SEQUENTIAL LIST OR CHECKLIST (steps in a process, items in a single plan): Extract as ONE memory with all items preserved in full_content. Do NOT shatter a 9-item checklist into 9 separate memories. Example: "9-item pre-launch checklist", "Phase A→B→C cost comparison".
 
-CASE 2 — LOOKUP TABLE / MAPPING (entity→value pairs that someone might query individually): Extract ONE memory containing the FULL TABLE in full_content, AND ALSO emit ONE separate memory per row for fast individual lookup. Example: a team shift schedule like "Admon: Sunday 8am-4pm | Magdy: Monday 4pm-12am | Ehab: Tuesday 12am-8am..." — emit one "GM social media team shift rotation" memory with the whole table, PLUS one memory per agent ("Admon's shift: Sunday 8am-4pm", "Magdy's shift: Monday 4pm-12am", etc.). The headline of each row memory MUST contain BOTH the entity name AND its value so a future query for "what is Admon's shift" finds it via headline match. Other examples: price lists per product, contact info per person, room assignments per attendee, scores per team — each row is its own queryable fact.
+CASE 2 — LOOKUP TABLE / MAPPING (entity→value pairs that someone might query individually): Extract ONE memory containing the FULL TABLE in full_content, AND ALSO emit ONE separate memory per row for fast individual lookup. For example, a team rotation listing each person's assigned slot should emit: one parent memory with the full table preserved, PLUS one memory per person ("<Name>'s slot: <time/day>"). Each row memory's headline MUST contain BOTH the entity name AND its value so a future query for "what is <Name>'s slot" finds it via headline match. Other examples: price lists per product, contact info per person, room assignments per attendee, scores per team — each row is its own queryable fact.
 
 Distinguishing rule: if a user might later ask "what is X's Y" where X is one row's key, it is a LOOKUP TABLE (case 2). If the question would only ever be "what is the whole list", it is a SEQUENTIAL LIST (case 1).
 
@@ -116,7 +121,7 @@ Do NOT re-extract memories from the recent context turns — only extract NEW me
 
 CONTRADICTION CHECK: Before extracting, compare against the existing memory context below. The context lines are formatted as `[id=<UUID>] <headline>`. Only mark a new memory as "correction" when ALL THREE of the following are true:
 1. There is an EXISTING memory in the context above about the same specific entity (same person, same property, same numeric attribute) — not just a related topic.
-2. The current exchange provides a DIFFERENT VALUE for that exact attribute (e.g. previously "$350K Wells Fargo pre-approval" → now "$400K Wells Fargo pre-approval"; previously "commute 30 min" → now "commute 45 min each way").
+2. The current exchange provides a DIFFERENT VALUE for that exact attribute (e.g. previously "monthly rent $1,500" → now "monthly rent $1,800"; previously "drives a 2019 Honda" → now "drives a 2024 Tesla").
 3. You can COPY THE EXACT UUID of the contradicted memory from its `[id=<UUID>]` tag above — do NOT invent a UUID, do NOT guess.
 
 If all three are satisfied:
@@ -127,7 +132,7 @@ If all three are satisfied:
 
 If you cannot satisfy all three (especially #3 — having the exact UUID), do NOT use type "correction". Extract the new value as a regular `fact` memory instead. A correction without `contradicts_id` is treated as a regular fact and does NOT supersede anything — it must have the UUID to take effect.
 
-A merely related or topically-similar memory is NOT a contradiction. Two different aspects of the same person (e.g. "Rachel lives in Chicago" and "Rachel works as a teacher") are both facts, not a correction of each other.
+A merely related or topically-similar memory is NOT a contradiction. Two different aspects of the same person (e.g. one memory about their city and another about their job) are both facts, not a correction of each other.
 
 If nothing worth extracting, return an empty array [].
 
@@ -168,11 +173,11 @@ Extract information STATED OR PROVIDED BY THE ASSISTANT:
 - Answers the assistant provided to the user's questions
 - Plans, itineraries, recipes, or structured guidance the assistant created
 - Technical explanations, professional advice, or analysis results
-- Factual claims or data the assistant shared — INCLUDING specific values mentioned about the user's life context (e.g. "the Plesiosaur on page 12 has a blue scaly body", "the restaurant Miss Bee Providore at Cihampelas Walk serves Nasi Goreng")
+- Factual claims or data the assistant shared — INCLUDING specific descriptive details the assistant provided about something tied to the user's context (e.g. the color/shape of an item from a book they referenced, the name of a venue and what's served there, the address of a recommended place)
 
 DO NOT SKIP: Specific factual claims (dollar amounts, dates, names, colors, locations, addresses, numeric values) that the assistant made about anything tied to the user's life, prior conversation, or a topic they're researching. These specifics are EXACTLY what future questions will ask about. Even if a fact appears as a passing mention in a longer answer, extract it as its own memory.
 
-SPECIFIC VALUE PRESERVATION: Preserve all numeric values, proper names, dates, addresses, and exact phrasings verbatim in headline and context. Do not paraphrase or summarize numbers. For tabular/mapping data (e.g. "Admon: Sunday 8am-4pm | Magdy: Monday 4pm-12am | ..."), preserve every entity→value pair in full_content — do NOT collapse to a generic summary.
+SPECIFIC VALUE PRESERVATION: Preserve all numeric values, proper names, dates, addresses, and exact phrasings verbatim in headline and context. Do not paraphrase or summarize numbers. For tabular/mapping data (rosters, schedules, price lists, contact directories), preserve every entity→value pair in full_content — do NOT collapse to a generic summary.
 
 AVOID GENERIC GUIDANCE: Do NOT extract memories whose headline would start with "N tips for X" / "N strategies to Y" / "N techniques for Z" / "best practices" — these are assistant-generated lists with no user-specific value. Only extract concrete specifics tied to the user's actual context.
 

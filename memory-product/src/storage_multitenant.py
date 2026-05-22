@@ -477,9 +477,36 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
     return {"id": mem_id, "deduplicated": False}
 
 
+# Narrow regex: ONLY dollar amounts and ISO dates. Deliberately excludes bare integers
+# (which previously matched "25:50" / "27:12" and caused noise). Times don't match $-amounts.
+_VALUE_TOKEN_RE = __import__("re").compile(
+    r"(\$[\d,]+(?:\.\d+)?[KMB]?|\d{4}-\d{2}-\d{2})"
+)
+
+
+def _value_tokens(text: str) -> set:
+    """Extract specific value tokens (dollar amounts, ISO dates) from a headline.
+
+    Used by _check_duplicate to detect when two semantically similar memories
+    actually represent different facts. Example: "Pre-approved for $350,000
+    from Wells Fargo" vs "Pre-approved for $400,000 from Wells Fargo" share
+    ~0.95 embedding similarity but should NOT be deduplicated.
+    """
+    if not text:
+        return set()
+    return {m.lower() for m in _VALUE_TOKEN_RE.findall(text)}
+
+
 def _check_duplicate(agent_id: str, headline: str, embedding: list[float],
                     threshold: float = 0.85, memory_type: str = None, tenant_id: str = None) -> Optional[str]:
-    """Check if a very similar memory already exists within the tenant."""
+    """Check if a very similar memory already exists within the tenant.
+
+    Value-mismatch escape: only applies when memory_type ∈ {'fact', 'identity'}.
+    When the new memory's headline contains a $-amount or ISO date that DIFFERS
+    from the candidate match's headline, treat as a fact update and allow insert.
+    Fixes the Wells Fargo $400K-merged-into-$350K class of bug. Narrow enough
+    not to trigger on times ("25:50") or bare integers.
+    """
     current_tenant = tenant_id or _current_tenant_id
 
     query = """
@@ -495,8 +522,20 @@ def _check_duplicate(agent_id: str, headline: str, embedding: list[float],
     rows = _db_execute_rows(query, (embedding, agent_id, current_tenant, embedding), tenant_id=current_tenant)
 
     if rows:
+        # Only run the value-mismatch escape for fact/identity types. Preferences
+        # and decisions don't carry contested specific values in the same way.
+        new_values = _value_tokens(headline) if memory_type in ("fact", "identity") else set()
+
         for row in rows:
             mem_id, existing_headline, existing_type, similarity = row[0], row[1], row[2].strip(), float(row[3])
+
+            # Value-mismatch escape: if both headlines have $-amounts or ISO dates
+            # AND they disagree, this is a fact update, not a duplicate.
+            if new_values:
+                existing_values = _value_tokens(existing_headline)
+                if existing_values and not (new_values & existing_values):
+                    print(f"[DEDUP-ESCAPE] value mismatch: existing='{existing_headline[:60]}' new='{headline[:60]}'")
+                    continue
 
             # Tier 1: Very high similarity = duplicate regardless
             if similarity >= 0.92:
