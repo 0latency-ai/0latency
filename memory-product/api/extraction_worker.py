@@ -60,31 +60,33 @@ def _split_content_roles(content: str) -> tuple:
         human = human[len("Human: "):]
     return human.strip(), ""
 
-def process_extraction_job(job_id: str, content: str, agent_id: str, 
-                          session_key: str, tenant_id: str):
+def process_extraction_job(job_id: str, content: str, agent_id: str,
+                          session_key: str, tenant_id: str,
+                          session_timestamp: str = None):
     """
     Process a memory extraction job.
     This function is executed by RQ workers in the background.
-    
+
     Args:
         job_id: Unique job identifier
         content: Content to extract memories from
         agent_id: Agent identifier
         session_key: Session key for grouping
         tenant_id: Tenant identifier
+        session_timestamp: ISO 8601 date of this conversation (for event_at resolution)
     """
     try:
         logger.info(f"Starting extraction job {job_id} for tenant {tenant_id}")
-        
+
         # Update job status to processing
         redis_conn.hset(f"extract_job:{job_id}", mapping={
             "status": "processing",
             "started_at": datetime.now(timezone.utc).isoformat(),
         })
-        
+
         # Split content into human/assistant roles for proper extraction
         human_msg, agent_msg = _split_content_roles(content)
-        
+
         # Extract memories from content (set source=api_extract for proper source_type tracking)
         memories, raw_turn_id = extract_memories(
             human_message=human_msg,
@@ -93,6 +95,7 @@ def process_extraction_job(job_id: str, content: str, agent_id: str,
             session_key=session_key,
             tenant_id=tenant_id,
             source="api_extract",  # Track as API extraction, not conversation
+            session_timestamp=session_timestamp,
         )
         
         # Store memories if any were extracted

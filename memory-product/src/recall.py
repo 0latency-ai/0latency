@@ -629,7 +629,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                   {_project_filter}
                   {_redaction_filter}
                 ORDER BY {_emb_col} <=> %s::vector
-                LIMIT 200
+                LIMIT 80
             ),
             importance_results AS (
                 SELECT id, headline, context, full_content, memory_type,
@@ -995,6 +995,23 @@ def recall_fixed(
     now = datetime.now(timezone.utc)
     scored = []
 
+    # Query intent detection — used to apply targeted boosts/penalties below.
+    # Preference queries ("recommend X for me") should surface user-specific
+    # preference/identity memories. Generic-advice memories ("10 tips for Y")
+    # should be penalized when they crowd out specific facts.
+    _ctx_lower = conversation_context.lower()
+    _is_preference_query = bool(re.search(
+        r'\b(recommend|suggest|what should i|what would you|tailor|complement|for me\b|that i .{0,20}(like|prefer|enjoy))',
+        _ctx_lower,
+    ))
+    # Narrow regex: only clearly generic guidance ("N tips/strategies/ways/steps for X").
+    # Avoid penalizing legitimate count-based facts like "10 dessert restaurants in Orlando"
+    # by requiring a guidance-style noun AND a "for/to" preposition that follows.
+    _GENERIC_ADVICE_RE = re.compile(
+        r'^\s*\d+[-\s.]*(tips|strategies|ways|steps|techniques|methods|approaches|practices|principles|rules|guidelines|criteria|tactics)\b',
+        re.IGNORECASE,
+    )
+
     # Pre-compute recency for all candidates to detect degeneration
     raw_recencies = []
     for c in candidates:
@@ -1096,6 +1113,20 @@ def recall_fixed(
                         composite *= entity_mult
                         break
 
+            # Generic-advice penalty: "10 tips for X" / "Six strategies for Y" headlines
+            # are usually assistant-generated guidance, not user-specific facts. They
+            # outrank specific factual memories when the question is about a specific fact.
+            # Reduce their composite so factual memories surface higher.
+            if _GENERIC_ADVICE_RE.match(c.get("headline") or ""):
+                composite *= 0.65
+
+            # Preference-query boost: when the user explicitly asks "recommend X
+            # for me" / "suggest X" / "what should I", strongly favor user-specific
+            # preference and identity memories over high-importance generic facts.
+            # Not dampened — explicit query intent overrides recency-spread degeneration.
+            if _is_preference_query and c["memory_type"] in ("preference", "identity"):
+                composite *= 1.5
+
             if c.get("superseded_at"):
                 continue
 
@@ -1155,11 +1186,13 @@ def recall_fixed(
                 "context": candidate.get("context", ""),
                 "full_content": candidate.get("full_content", ""),
                 "id": candidate["id"],
+                "event_at": candidate.get("event_at"),
+                "created_at": candidate.get("created_at"),
                 "_score_components": candidate.get("_score_components"),
                 "metadata": candidate.get("metadata", {}),
             })
             tokens_used += tokens
-    
+
     # Step 8: Format context block
     logger.info(f"✅ Selected {len(selected)} memories, {tokens_used} tokens used")
     context_block = always_block
@@ -1185,6 +1218,8 @@ def recall_fixed(
                 "tier": s["tier"],
                 "composite": s["composite"],
                 "memory_type": s.get("memory_type", "fact"),
+                "event_at": s.get("event_at").isoformat() if s.get("event_at") else None,
+                "created_at": s.get("created_at").isoformat() if s.get("created_at") else None,
                 "metadata": s.get("metadata", {}),
                 "_score_components": s.get("_score_components"),
             }

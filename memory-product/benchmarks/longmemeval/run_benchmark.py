@@ -14,16 +14,30 @@ Features:
 - Memory-efficient loading for large datasets
 """
 import os
+import re
 import sys
 import json
 import time
 import requests
 import subprocess
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import anthropic
+
+
+_HAYSTACK_DATE_RE = re.compile(r"^(\d{4})/(\d{2})/(\d{2})")
+
+
+def _parse_haystack_date(raw: Optional[str]) -> Optional[str]:
+    """Convert LongMemEval haystack date 'YYYY/MM/DD (Day) HH:MM' to ISO 'YYYY-MM-DD'."""
+    if not raw:
+        return None
+    m = _HAYSTACK_DATE_RE.match(raw.strip())
+    if not m:
+        return None
+    return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
 
 # Load benchmark credentials
 env_file = Path(__file__).parent / ".env.benchmark"
@@ -134,12 +148,12 @@ class LongMemEvalRunner:
                 print(f"OK", file=sys.stderr)
                 print(f"Loaded {len(data)}/{self.dataset_total_count} questions from {self.dataset_path.name}", file=sys.stderr)
                 return data
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError) as e:
-                print(f"WARN: jq failed ({e}), falling back to standard load", file=sys.stderr)
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError) as e:
+                print(f"WARN: jq/grep unavailable ({e}), falling back to standard load", file=sys.stderr)
                 # Fall through to standard load
         
         # Standard load for full runs
-        with open(self.dataset_path) as f:
+        with open(self.dataset_path, encoding='utf-8') as f:
             data = json.load(f)
         self.dataset_total_count = len(data)
         
@@ -149,7 +163,7 @@ class LongMemEvalRunner:
     def submit_extraction_job(self, payload: Dict) -> Tuple[str, str, int]:
         """Submit single extraction job to async endpoint. Returns (job_id, error, status_code)."""
         max_retries = 1  # Only 1 retry at benchmark layer (workers retry 3x internally)
-        
+
         for attempt in range(max_retries + 1):
             try:
                 response = requests.post(
@@ -185,7 +199,8 @@ class LongMemEvalRunner:
     def poll_job_completion(self, job_id: str, max_wait: int = 120) -> Tuple[bool, str]:
         """Poll job until complete or timeout. Returns (success, error)."""
         start = time.time()
-        
+        status = None
+
         while time.time() - start < max_wait:
             try:
                 response = requests.get(
@@ -193,45 +208,51 @@ class LongMemEvalRunner:
                     headers=self.headers,
                     timeout=5
                 )
-                
+
                 if response.status_code != 200:
+                    print(f"DEBUG: GET status={response.status_code} body={response.text[:200]}", file=sys.stderr)
                     return False, f"poll_status_{response.status_code}"
-                
+
                 data = response.json()
                 status = data.get("status")
-                
-                if status == "complete":
+
+                if status in ("complete", "completed", "done"):
                     return True, None
-                elif status == "failed":
+                elif status in ("failed", "error"):
                     error = data.get("error", "unknown_error")
+                    print(f"DEBUG: job_failed job_id={job_id} status={status} error={error}", file=sys.stderr)
                     return False, f"job_failed_{error}"
-                # status == "accepted" or "processing", keep polling
-                
+                # status == "accepted", "processing", "queued" — keep polling
+
                 time.sleep(0.5)
             except Exception as e:
+                print(f"DEBUG: poll exception {type(e).__name__}: {e}", file=sys.stderr)
                 time.sleep(0.5)
                 continue
-        
+
+        print(f"DEBUG: poll_timeout job_id={job_id} last_status={status}", file=sys.stderr)
         return False, "poll_timeout"
     
-    def extract_single_session(self, session: List[Dict], session_idx: int, question_id: str) -> Tuple[int, int]:
+    def extract_single_session(self, session: List[Dict], session_idx: int, question_id: str, session_date: Optional[str] = None) -> Tuple[int, int]:
         """Extract one session (all turns). Returns (turn_count, failed_count)."""
         turn_count = 0
         failed_count = 0
-        
+
         i = 0
         while i < len(session) - 1:
             user_turn = session[i]
             assistant_turn = session[i + 1]
-            
+
             if user_turn["role"] != "user" or assistant_turn["role"] != "assistant":
                 i += 1
                 continue
-            
+
             payload = {
                 "content": f"Human: {user_turn['content']}\n\nAssistant: {assistant_turn['content']}",
-                "session_key": f"longmemeval_{question_id}_session_{session_idx}"
+                "session_key": f"longmemeval_{question_id}_session_{session_idx}",
             }
+            if session_date:
+                payload["session_timestamp"] = session_date
             
             # Track tokens for cost estimation
             self.total_extraction_tokens += len(user_turn["content"]) + len(assistant_turn["content"])
@@ -265,22 +286,28 @@ class LongMemEvalRunner:
         
         return turn_count, failed_count
     
-    def extract_sessions(self, sessions: List[List[Dict]], question_id: str) -> int:
-        """Extract haystack sessions with async submission and bounded concurrency."""
+    def extract_sessions(self, sessions: List[List[Dict]], question_id: str, haystack_dates: Optional[List[str]] = None) -> int:
+        """Extract haystack sessions with async submission and bounded concurrency.
+
+        haystack_dates: per-session date strings like "2023/04/23 (Sun) 08:57" from the
+        LongMemEval dataset. Converted to ISO and forwarded as session_timestamp so the
+        extractor can populate event_at and resolve relative dates ("last Sunday").
+        """
         sessions_to_extract = sessions if self.max_sessions is None else sessions[:self.max_sessions]
-        
+
         print(f"  Extracting {len(sessions_to_extract)}/{len(sessions)} sessions...", file=sys.stderr, end=" ")
         sys.stderr.flush()
-        
+
         start = time.time()
         total_turns = 0
         total_failed = 0
         session_times = []
-        
+
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = {}
             for session_idx, session in enumerate(sessions_to_extract):
-                future = executor.submit(self.extract_single_session, session, session_idx, question_id)
+                session_date = _parse_haystack_date(haystack_dates[session_idx]) if haystack_dates and session_idx < len(haystack_dates) else None
+                future = executor.submit(self.extract_single_session, session, session_idx, question_id, session_date)
                 futures[future] = (session_idx, time.time())
             
             for future in as_completed(futures):
@@ -309,43 +336,152 @@ class LongMemEvalRunner:
         
         return total_turns
     
-    def recall(self, question: str) -> Tuple[str, float]:
-        """Recall relevant context for question."""
-        payload = {"conversation_context": question, "budget_tokens": 4000}
+    def recall(self, question: str) -> Tuple[str, float, list]:
+        """Recall relevant context for question.
+
+        Returns (context, latency_ms, recall_details). recall_details carries
+        per-memory full_content, tier, and composite score. It is only populated
+        by the API when expand is truthy (see api/main.py:1697).
+        Without it, context_block returns headline-only for memories whose
+        composite landed in the 0.25-0.45 band — root cause of LongMemEval misses.
+        """
+        payload = {
+            "conversation_context": question,
+            "budget_tokens": 8000,
+            "expand": "evidence",
+        }
         self.total_recall_tokens += len(question)
-        
-        start = time.time()
+
+        # Up to 2 attempts. A 30s timeout returning 0 memories on the first try
+        # (observed on e831120c in run-20260521) is consistent with a transient
+        # DB stall, not "no matching memories" — retrying recovers.
+        for attempt in range(2):
+            start = time.time()
+            try:
+                response = requests.post(
+                    f"{API_BASE_URL}/recall",
+                    headers=self.headers,
+                    json=payload,
+                    timeout=60 if attempt == 0 else 90,
+                )
+                latency_ms = (time.time() - start) * 1000
+
+                if response.status_code != 200:
+                    print(f"WARN: Recall failed: {response.status_code} (attempt {attempt+1})", file=sys.stderr)
+                    if attempt == 0:
+                        time.sleep(1)
+                        continue
+                    return "", latency_ms, []
+
+                data = response.json()
+                recall_details = data.get("recall_details") or []
+
+                if not recall_details and attempt == 0:
+                    print(f"WARN: empty recall (attempt {attempt+1}); retrying", file=sys.stderr)
+                    time.sleep(1)
+                    continue
+
+                if recall_details:
+                    parts = []
+                    for i, mem in enumerate(recall_details, start=1):
+                        body = (mem.get("full_content") or "").strip()
+                        if not body:
+                            body = (mem.get("context") or "").strip()
+                        if not body:
+                            body = (mem.get("headline") or "").strip()
+                        if body:
+                            mtype = mem.get("memory_type", "fact")
+                            parts.append(f"[Memory {i} | type={mtype}] {body}")
+                    context = "\n\n".join(parts) if parts else (data.get("context_block") or "")
+                else:
+                    context = data.get("context", "") or data.get("context_block", "")
+
+                self.total_recall_tokens += data.get("tokens_used", 0)
+
+                return context, latency_ms, recall_details
+            except Exception as e:
+                latency_ms = (time.time() - start) * 1000
+                print(f"WARN: Recall exception (attempt {attempt+1}): {e}", file=sys.stderr)
+                if attempt == 0:
+                    time.sleep(1)
+                    continue
+                return "", latency_ms, []
+
+        return "", 0.0, []
+
+    def reason_about_answer(self, question: str, recall_details: list, today: Optional[str] = None) -> str:
+        """Post-recall reasoning: synthesize an explicit answer from retrieved memories.
+
+        Closes the gap for date-arithmetic, aggregation, and 'buried in noise'
+        questions. The judge then evaluates the synthesized answer rather than
+        the raw memory dump, which is far less brittle.
+        """
+        if not recall_details:
+            return "No relevant memories were retrieved."
+
+        snippets = []
+        for i, mem in enumerate(recall_details[:25], start=1):
+            body = (mem.get("full_content") or mem.get("context") or mem.get("headline") or "").strip()
+            if not body:
+                continue
+            mtype = mem.get("memory_type", "fact")
+            comp = mem.get("composite", 0) or 0
+            try:
+                comp_fmt = f"{float(comp):.2f}"
+            except (TypeError, ValueError):
+                comp_fmt = str(comp)
+            event_at = mem.get("event_at") or mem.get("created_at") or ""
+            date_tag = f" | date={event_at[:10]}" if event_at else ""
+            snippets.append(f"[Memory {i} | type={mtype} | score={comp_fmt}{date_tag}]\n{body}")
+
+        if not snippets:
+            return "No relevant memories were retrieved."
+
+        memories_text = "\n\n".join(snippets)
+
+        anchor_date = today or datetime.now().date().isoformat()
+        prompt = f"""You are a reasoning agent for a memory recall system. Today's date is {anchor_date}.
+
+You will be given a question and a set of memories retrieved from a persistent store. Your job: produce a concise, factual answer to the question based ONLY on the information in those memories.
+
+Rules:
+1. If the answer is stated directly in a memory, quote or paraphrase it.
+2. If two memories conflict on the same fact, prefer memories with type=correction over type=fact, and prefer the most recent (highest date) when types tie. Do NOT hedge with "conflicting records" — pick the authoritative value and state it plainly.
+3. For counting/aggregation questions ("how many X"), scan ALL memories provided for distinct instances of X — do not just rely on the top-ranked memory. List the instances you found, then state the count.
+4. For date-difference questions ("how many days/weeks/months between/since X"), use the date= tag on each memory plus today's date. If one event lacks a date, infer from context (e.g. "last Sunday", "two weeks ago", "in February") relative to today's date.
+5. For preference/recommendation questions ("can you suggest/recommend X for me"), tailor the answer to user-specific facts in the memories (brand preferences, prior choices, stated requirements) rather than giving generic advice.
+6. If the answer is genuinely not derivable, say "I don't have enough information to answer that." — but only after exhausting rules 2-5.
+7. Do not invent facts not present in the memories.
+
+Question: {question}
+
+Memories:
+{memories_text}
+
+Answer:"""
+
         try:
-            response = requests.post(
-                f"{API_BASE_URL}/recall",
-                headers=self.headers,
-                json=payload,
-                timeout=30
+            response = self.anthropic_client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=800,
+                temperature=0.0,
+                messages=[{"role": "user", "content": prompt}],
             )
-            latency_ms = (time.time() - start) * 1000
-            
-            if response.status_code != 200:
-                print(f"WARN: Recall failed: {response.status_code}", file=sys.stderr)
-                return "", latency_ms
-            
-            data = response.json()
-            context = data.get("context", "") or data.get("context_block", "")
-            self.total_recall_tokens += data.get("tokens_used", 0)
-            
-            return context, latency_ms
+            answer = response.content[0].text.strip()
+            self.total_judge_tokens += response.usage.input_tokens + response.usage.output_tokens
+            return answer
         except Exception as e:
-            latency_ms = (time.time() - start) * 1000
-            print(f"WARN: Recall exception: {e}", file=sys.stderr)
-            return "", latency_ms
+            print(f"WARN: reasoning failed ({e}); returning concatenated context", file=sys.stderr)
+            return memories_text
     
     def llm_judge(self, question: str, expected: str, context: str) -> bool:
-        """Use Claude Sonnet to judge if context contains the expected answer."""
+        """Use Claude Sonnet 4.6 to judge if context contains the expected answer."""
         # Send up to 20K chars of context for accurate judgment
         ctx = context[:20000] if len(context) > 20000 else context
-        
-        prompt = f"""You are a benchmark judge for a memory recall system. Given a question, the expected answer, and a recalled context block, determine if the context contains information that answers the question correctly.
 
-The context block contains recalled memory snippets. The expected answer may appear verbatim, paraphrased, or be inferable from the information present.
+        prompt = f"""You are a strict benchmark judge for a memory recall system.
+
+Task: Determine if the recalled context contains information that correctly answers the question. Accept verbatim answers, paraphrases, and answers that can be deduced by combining clear facts in the context. Reject answers that require speculation or facts not present.
 
 Question: {question}
 Expected answer: {expected}
@@ -353,12 +489,11 @@ Expected answer: {expected}
 Recalled context:
 {ctx}
 
-Does the recalled context contain information that correctly answers the question with the expected answer (verbatim, paraphrased, or clearly inferable)?
-Reply with ONLY "YES" or "NO"."""
+Reply with ONLY "YES" if the context contains or clearly implies the expected answer, or "NO" otherwise."""
 
         try:
             response = self.anthropic_client.messages.create(
-                model="claude-sonnet-4-5-20250929",
+                model="claude-sonnet-4-6",
                 max_tokens=3,
                 temperature=0.0,
                 messages=[{"role": "user", "content": prompt}]
@@ -435,28 +570,64 @@ Reply with ONLY "YES" or "NO"."""
             question = item["question"]
             expected_answer = item["answer"]
             haystack_sessions = item["haystack_sessions"]
-            
+            haystack_dates = item.get("haystack_dates")
+            question_date = _parse_haystack_date(item.get("question_date"))
+
             print(f"[{i}/{len(questions)}] {question_id}", file=sys.stderr)
             print(f"  Q: {question}", file=sys.stderr)
-            
+
             question_start = time.time()
-            
-            num_extracted = self.extract_sessions(haystack_sessions, question_id)
+
+            num_extracted = self.extract_sessions(haystack_sessions, question_id, haystack_dates)
             
             print(f"  Recalling...", file=sys.stderr, end=" ")
             sys.stderr.flush()
-            context, recall_latency_ms = self.recall(question)
-            print(f"{recall_latency_ms:.0f}ms, {len(context)} chars", file=sys.stderr)
+            context, recall_latency_ms, recall_details = self.recall(question)
+            print(f"{recall_latency_ms:.0f}ms, {len(context)} chars, {len(recall_details)} memories", file=sys.stderr)
             self.latencies.append(recall_latency_ms)
-            
+
+            # Phase 3: post-recall reasoning layer — synthesize an explicit answer
+            # from retrieved memories. Required for date/aggregation questions and
+            # questions where the answer is buried in the recalled set.
+            if self.scorer == "llm" and recall_details:
+                print(f"  Reasoning...", file=sys.stderr, end=" ")
+                sys.stderr.flush()
+                synthesized_answer = self.reason_about_answer(question, recall_details, today=question_date)
+                print(f"{len(synthesized_answer)} chars", file=sys.stderr)
+                judge_context = synthesized_answer
+            else:
+                synthesized_answer = ""
+                judge_context = context
+
             question_elapsed = time.time() - question_start
-            
-            hypothesis = self.answer_question(question, context)
+
+            hypothesis = self.answer_question(question, judge_context)
             if self.scorer == "llm":
-                match = self.llm_judge(question, str(expected_answer), context)
+                match = self.llm_judge(question, str(expected_answer), judge_context)
             else:
                 match = str(expected_answer).lower() in hypothesis.lower()
-            
+
+            # Phase 4: per-question diagnostics. Capture top-15 so we can see
+            # whether failure was retrieval-side (answer absent) or reasoning-side
+            # (answer present in mem 6-15 but not surfaced).
+            top_diagnostics = []
+            for m in recall_details[:15]:
+                top_diagnostics.append({
+                    "id": m.get("id"),
+                    "memory_type": m.get("memory_type"),
+                    "tier": m.get("tier"),
+                    "composite": m.get("composite"),
+                    "headline": (m.get("headline") or "")[:120],
+                })
+            expected_lower = str(expected_answer).lower()
+            expected_in_recall_rank = None
+            for idx, m in enumerate(recall_details, start=1):
+                full = (m.get("full_content", "") or "").lower()
+                ctx = (m.get("context", "") or "").lower()
+                if expected_lower in full or expected_lower in ctx:
+                    expected_in_recall_rank = idx
+                    break
+
             results.append({
                 "question_id": question_id,
                 "question": question,
@@ -468,7 +639,12 @@ Reply with ONLY "YES" or "NO"."""
                 "recall_latency_ms": int(recall_latency_ms),
                 "num_turns_extracted": num_extracted,
                 "num_sessions_total": len(haystack_sessions),
-                "wall_clock_seconds": round(question_elapsed, 1)
+                "wall_clock_seconds": round(question_elapsed, 1),
+                "total_recalled": len(recall_details),
+                "top_memories": top_diagnostics,
+                "expected_answer_in_recall": expected_in_recall_rank is not None,
+                "expected_answer_rank": expected_in_recall_rank,
+                "synthesized_answer": synthesized_answer[:800],
             })
             
             scorer_label = "LLM" if self.scorer == "llm" else "sub"
@@ -565,15 +741,15 @@ if __name__ == "__main__":
     parser.add_argument("--scorer", choices=["substring", "llm"], default="substring",
                         help="Scoring method: substring (exact match) or llm (Claude Sonnet judge)")
     parser.add_argument("--max-workers", type=int, default=8, help="Max concurrent sessions for extraction")
-    
+
     args = parser.parse_args()
-    
+
     # Cost confirmation gate for large runs
     if not args.smoke and args.max_questions > 10 and not args.confirm_cost:
         print("ERROR: Large run requires --confirm-cost flag after reviewing smoke test estimate", file=sys.stderr)
         print("Run with --smoke first to see projected cost", file=sys.stderr)
         sys.exit(1)
-    
+
     runner = LongMemEvalRunner(
         dataset_path=args.dataset,
         max_questions=args.max_questions,
@@ -582,7 +758,7 @@ if __name__ == "__main__":
         max_zero_streak=args.max_zero_streak,
         confirm_cost=args.confirm_cost,
         scorer=args.scorer,
-        max_workers=args.max_workers
+        max_workers=args.max_workers,
     )
     
     runner.run(output_path=args.output)

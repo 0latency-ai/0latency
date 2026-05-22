@@ -377,7 +377,7 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
              embedding_voyage,
              source_session, source_turn, source_type, metadata,
              thread_id, project_id, thread_title, project_name,
-             decision_text, rationale)
+             decision_text, rationale, event_at)
         VALUES
             (%s::UUID, %s, %s, %s, %s, %s,
              %s, %s, %s, %s,
@@ -385,7 +385,7 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
              %s::vector,
              %s, %s, %s, %s::jsonb,
              %s, %s, %s, %s,
-             %s, %s)
+             %s, %s, %s)
         RETURNING id;
     """
 
@@ -411,7 +411,8 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
         json.dumps(memory.get('metadata', {})),
         thread_id_val, project_id_val, thread_title_val, project_name_val,
         memory.get("decision_text"),
-        memory.get("rationale")
+        memory.get("rationale"),
+        memory.get("event_at"),
     )
     
     rows = _db_execute_rows(query, params, tenant_id=current_tenant)

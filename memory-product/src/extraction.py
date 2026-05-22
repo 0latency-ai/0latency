@@ -31,6 +31,9 @@ def _openai_key():
 # Extraction prompt — the core of Phase 1
 EXTRACTION_PROMPT = """You are a memory extraction system. Your job is to analyze a conversation exchange between a human and an AI agent, and extract structured memories worth preserving.
 
+This exchange occurred on: {conversation_date}.
+When the conversation references relative time ("today", "yesterday", "last Sunday", "two weeks ago", "in March", "next Tuesday"), resolve it to an absolute date relative to the conversation date above, and emit it on the memory as `event_at` in YYYY-MM-DD format. If the memory itself describes something that happened during this exchange, set event_at to {conversation_date}. Leave event_at as null only if no date is implied at all.
+
 Extract ONLY information that would be useful in future conversations. Skip:
 - Routine pleasantries and filler
 - Information that's only relevant to the immediate exchange
@@ -38,6 +41,8 @@ Extract ONLY information that would be useful in future conversations. Skip:
 - Hypothetical statements ("what if...", "imagine if...", "could we...") — unless the user explicitly decides to pursue them
 - Sarcastic or joking statements — do NOT store jokes as facts
 - Speculative future plans that haven't been committed to
+
+SPECIFIC VALUE PRESERVATION: When the user states a specific value (dollar amount, count, date, time, address, phone number, name, or an entity→value mapping like "Admon works Sunday 8am-4pm"), preserve the EXACT value verbatim in headline and context. Do not round, paraphrase, or summarize numbers. For tabular/mapping data (e.g. a shift schedule, a price list, a roster), preserve each entity→value pair in full_content — do NOT collapse them into a generic summary like "team has 7 agents".
 
 For each extracted memory, provide:
 1. **headline**: One-line summary (10-20 tokens). Must be self-contained and meaningful.
@@ -287,6 +292,7 @@ def extract_memories(
     tenant_id: Optional[str] = None,
     source: str = "api",
     metadata: Optional[dict] = None,
+    session_timestamp: Optional[str] = None,
 ) -> tuple[list[dict], Optional[str]]:
     """
     Extract structured memories from a single conversation exchange,
@@ -377,12 +383,17 @@ def extract_memories(
     enhanced_context = existing_context or "(no existing context)"
     if conversation_context:
         enhanced_context = f"{conversation_context}\n\n--- Recent Memory Headlines ---\n{existing_context or '(none)'}"
-    
+
+    # Resolve conversation date for relative-date anchoring in the prompt.
+    # Fall back to now() when caller didn't supply one (live conversations).
+    conversation_date = (session_timestamp or "")[:10] or datetime.now(timezone.utc).date().isoformat()
+
     prompt = EXTRACTION_PROMPT.format(
         existing_context=enhanced_context,
         recent_context=recent_context,
         human_message=human_message,
         agent_message=agent_message,
+        conversation_date=conversation_date,
     )
     
     # Call the model
@@ -485,7 +496,21 @@ def extract_memories(
             "temporal_type": temporal_type,
             "contradicts": mem.get("contradicts"),
         }
-        
+
+        # Validate event_at: ISO date string (YYYY-MM-DD) within sensible range
+        # relative to conversation_date. Hallucinated dates → drop to None.
+        event_at_raw = (mem.get("event_at") or "").strip()
+        event_at_val = None
+        if event_at_raw:
+            try:
+                parsed = datetime.fromisoformat(event_at_raw[:10]).date()
+                conv_d = datetime.fromisoformat(conversation_date).date()
+                delta_days = (parsed - conv_d).days
+                if -3650 <= delta_days <= 365:
+                    event_at_val = parsed.isoformat()
+            except (ValueError, TypeError):
+                event_at_val = None
+
         # Build the structured memory object
         memory_obj = {
             "id": _generate_id(headline, now),
@@ -505,12 +530,13 @@ def extract_memories(
             "source_type": source,  # Pass through source parameter to DB column
             "extracted_at": now,
             "valid_from": now,
+            "event_at": event_at_val,
             "metadata": atom_metadata,
             "ttl_hours": ttl_hours,
             "decision_text": mem.get("decision_text") if memory_type == "decision" else None,
             "rationale": mem.get("rationale") if memory_type == "decision" else None,
         }
-        
+
         validated.append(memory_obj)
     
     # DEBUG: Log filtering results
@@ -523,8 +549,12 @@ def extract_memories(
     # ASSISTANT-CONTENT EXTRACTION PATH (additive, separate prompt)
     # Extracts facts/recommendations from the assistant's response.
     # Tagged with source_type="assistant" for provenance.
+    # Gated by EXTRACTION_ASSISTANT_PASS (default: off) — this path roughly
+    # doubles extraction cost per turn and pollutes the index with generic
+    # "10 tips for X" memories that outrank specific facts in recall.
     # ========================================================================
-    if agent_message and len(agent_message.strip()) >= 50:
+    _assistant_pass_enabled = os.environ.get("EXTRACTION_ASSISTANT_PASS", "0").lower() in ("1", "true", "yes")
+    if _assistant_pass_enabled and agent_message and len(agent_message.strip()) >= 50:
         try:
             assistant_prompt = ASSISTANT_EXTRACTION_PROMPT.format(
                 existing_context=enhanced_context,

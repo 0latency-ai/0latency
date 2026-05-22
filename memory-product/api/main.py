@@ -478,11 +478,13 @@ class ExtractRequest(BaseModel):
     agent_message: str = Field(..., min_length=1, max_length=50000)
     session_key: Optional[str] = Field(None, max_length=256)
     turn_id: Optional[str] = Field(None, max_length=256)
+    session_timestamp: Optional[str] = Field(None, max_length=40, description="ISO 8601 timestamp of when this conversation occurred. Used to resolve relative dates ('today', 'last Sunday') during extraction and to populate event_at.")
 
 class AsyncExtractRequest(BaseModel):
     agent_id: Optional[str] = Field(None, min_length=1, max_length=128)
     content: str = Field(..., min_length=1, max_length=100000)
     session_key: Optional[str] = Field(None, max_length=256)
+    session_timestamp: Optional[str] = Field(None, max_length=40, description="ISO 8601 timestamp of when this conversation occurred.")
 
 
 # CP7b Phase 2: Checkpoint models
@@ -640,6 +642,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
             existing_context=existing_context,
             tenant_id=tenant["id"],
             source="api",
+            session_timestamp=req.session_timestamp,
         )
         if not memories:
             response = ExtractResponse(memories_stored=0, memory_ids=[], raw_turn_id=None)
@@ -860,6 +863,7 @@ async def async_extract_endpoint(
                 agent_id,  # positional arg 3
                 req.session_key or f"session-{job_id[:8]}",  # positional arg 4
                 tenant["id"],  # positional arg 5
+                req.session_timestamp,  # positional arg 6 — ISO date for event_at resolution
                 job_timeout=300,  # RQ param: 5 minute timeout
                 result_ttl=3600,  # RQ param: Keep results for 1 hour
             )
