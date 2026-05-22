@@ -30,7 +30,30 @@ logger = logging.getLogger("zerolatency.worker")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from extraction import extract_memories
-from storage_multitenant import store_memories, track_api_usage
+from storage_multitenant import store_memories, track_api_usage, _db_execute_rows
+
+
+def _load_existing_context(agent_id: str, tenant_id: str) -> str:
+    """Fetch recent memories (ID + headline) for contradiction-target lookup.
+
+    Matches the format used by the sync extract_endpoint so the LLM can emit
+    `contradicts_id` referencing a real DB row.
+    """
+    try:
+        rows = _db_execute_rows(
+            """
+            SELECT id::text, headline FROM memory_service.memories
+            WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
+            ORDER BY created_at DESC LIMIT 30
+            """,
+            (agent_id, tenant_id),
+            tenant_id=tenant_id,
+        )
+        if rows:
+            return "\n".join(f"[id={r[0]}] {r[1]}" for r in rows)
+    except Exception as e:
+        logger.warning(f"Failed to load existing context for dedup: {e}")
+    return ""
 
 # Redis connection
 redis_conn = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
@@ -87,12 +110,16 @@ def process_extraction_job(job_id: str, content: str, agent_id: str,
         # Split content into human/assistant roles for proper extraction
         human_msg, agent_msg = _split_content_roles(content)
 
+        # Load existing memories for dedup + contradiction targeting
+        existing_context = _load_existing_context(agent_id, tenant_id)
+
         # Extract memories from content (set source=api_extract for proper source_type tracking)
         memories, raw_turn_id = extract_memories(
             human_message=human_msg,
             agent_message=agent_msg,
             agent_id=agent_id,
             session_key=session_key,
+            existing_context=existing_context,
             tenant_id=tenant_id,
             source="api_extract",  # Track as API extraction, not conversation
             session_timestamp=session_timestamp,

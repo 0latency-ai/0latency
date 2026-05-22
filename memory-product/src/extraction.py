@@ -42,6 +42,13 @@ Extract ONLY information that would be useful in future conversations. Skip:
 - Sarcastic or joking statements — do NOT store jokes as facts
 - Speculative future plans that haven't been committed to
 
+DO NOT SKIP: Any statement that contains a SPECIFIC FACTUAL VALUE about the user's life — a dollar amount, a count, a date, a duration, a measurement, a proper name (person/place/organization/brand), a phone/address, or a role/title — must always be extracted as a `fact` (or `identity` for permanent attributes) memory, EVEN IF:
+- It's a "passing mention" embedded in an unrelated conversation topic (e.g. the user mentions "$400,000 pre-approval" while chatting about cable TV — still extract the $400,000 fact)
+- It's not the main topic of the current exchange
+- It seems trivial or minor at first glance
+- The conversation is mostly about something else
+These passing-mention specific facts are EXACTLY the ones future queries will ask about — losing them is the worst failure mode. Assign importance ≥ 0.5 to any such fact (NOT 0.1-0.3) so it doesn't get treated as filler downstream.
+
 SPECIFIC VALUE PRESERVATION: When the user states a specific value (dollar amount, count, date, time, address, phone number, name, or an entity→value mapping like "Admon works Sunday 8am-4pm"), preserve the EXACT value verbatim in headline and context. Do not round, paraphrase, or summarize numbers. For tabular/mapping data (e.g. a shift schedule, a price list, a roster), preserve each entity→value pair in full_content — do NOT collapse them into a generic summary like "team has 7 agents".
 
 For each extracted memory, provide:
@@ -91,10 +98,12 @@ MULTI-TURN INFERENCE: You are given the CURRENT exchange plus RECENT CONTEXT (pr
 - Extract memories that only become clear when multiple turns are considered together
 Do NOT re-extract memories from the recent context turns — only extract NEW memories from the current exchange, informed by the context.
 
-CONTRADICTION CHECK: Before extracting, compare against the existing memory context below. If a new statement CONTRADICTS an existing memory:
+CONTRADICTION CHECK: Before extracting, compare against the existing memory context below. The context lines are formatted as `[id=<UUID>] <headline>`. If the current exchange CONTRADICTS or UPDATES the value in an existing memory (e.g. "$350K" → "$400K", "30 min commute" → "1 hour commute", "lives in suburbs" → "lives in Chicago"):
 - Mark the new memory as type "correction"
 - Include BOTH the old fact and new fact in full_content
 - Set the field "contradicts" to the headline of the contradicted memory
+- Set the field "contradicts_id" to the UUID of the contradicted memory (copy verbatim from the [id=...] tag in EXISTING MEMORY CONTEXT)
+A SPECIFIC-VALUE MISMATCH (different number, date, name, or quantitative fact about the same entity) is ALWAYS a contradiction even if the topic of the conversation is different.
 
 If nothing worth extracting, return an empty array [].
 
@@ -490,11 +499,19 @@ def extract_memories(
         if temporal_type == "ephemeral":
             ttl_hours = int(mem.get("ttl_hours", 12))
         
-        # Build metadata with new fields
+        # Build metadata with new fields. contradicts_id is the UUID of the memory
+        # this new fact supersedes — passed through to _handle_correction for direct
+        # ID-based supersession (no embedding fallback needed when present).
+        contradicts_id_raw = (mem.get("contradicts_id") or "").strip()
+        # Basic UUID-shape validation to reject hallucinated IDs.
+        contradicts_id_val = contradicts_id_raw if (
+            len(contradicts_id_raw) == 36 and contradicts_id_raw.count("-") == 4
+        ) else None
         atom_metadata = {
             "parent_memory_ids": [str(raw_turn_id)] if raw_turn_id else [],
             "temporal_type": temporal_type,
             "contradicts": mem.get("contradicts"),
+            "contradicts_id": contradicts_id_val,
         }
 
         # Validate event_at: ISO date string (YYYY-MM-DD) within sensible range

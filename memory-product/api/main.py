@@ -620,16 +620,19 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
         if current_count >= tenant["memory_limit"]:
             raise_memory_limit(tenant[memory_limit])
         
-        # Fetch recent headlines for dedup context
+        # Fetch recent memories for dedup + contradiction-targeting. Format includes
+        # the memory ID so the extractor can emit `contradicts_id` when it detects
+        # a fact-change ("$350K Wells Fargo" → "$400K Wells Fargo"). _handle_correction
+        # supersedes by ID directly, no embedding search needed.
         existing_context = ""
         try:
             recent = _db_execute_rows("""
-                SELECT headline FROM memory_service.memories
+                SELECT id::text, headline FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s::UUID AND superseded_at IS NULL
-                ORDER BY created_at DESC LIMIT 20
+                ORDER BY created_at DESC LIMIT 30
             """, (agent_id, tenant["id"]), tenant_id=tenant["id"])
             if recent:
-                existing_context = "\n".join(f"- {row[0]}" for row in recent)
+                existing_context = "\n".join(f"[id={row[0]}] {row[1]}" for row in recent)
         except Exception as e:
             logger.warning(f"Failed to load existing context for dedup: {e}")
         
