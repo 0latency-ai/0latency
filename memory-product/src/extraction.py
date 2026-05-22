@@ -53,11 +53,6 @@ USER-RECALL FRAMING: When the user phrases a fact as a recall ("remember when I 
 
 DURATION & DATE-RANGE EVENTS: When a memory describes an event with a duration (e.g. "5-day camping trip to Yellowstone", "2-week vacation in Italy", "3.5 weeks watching all Marvel movies", "completed the Spitfire model over 3 weekends"), the headline MUST include the duration verbatim and full_content must contain explicit numeric duration ("5 days", "14 days", "3.5 weeks"). If you can determine BOTH a start date and an end date, set `event_at` to the START date AND include the END date in full_content (e.g. "Trip dates: 2023-04-12 to 2023-04-17"). For trips and multi-day activities, ALSO populate `categories` with the location (country/state/city) so questions like "trips in the US" can filter geographically.
 
-DECOMPOSE EXCHANGE/SWAP EVENTS: When the user describes an exchange or swap at a store (e.g. "I exchanged the boots at Zara for a larger size", "I swapped the small shirt for a medium at H&M", "I returned the broken blender and got a replacement"), the event implies TWO discrete pending actions if the new item hasn't been picked up yet. Emit BOTH as separate `task` memories:
-- One for the RETURN of the original item (e.g. "Task: Return original small boots to Zara")
-- One for the PICKUP of the replacement (e.g. "Task: Pick up new larger boots from Zara")
-Each as its own memory with a clear headline including the verb (return/pickup) and the store/location. This ensures questions like "how many items do I need to pick up or return from a store" can count both correctly.
-
 SPECIFIC VALUE PRESERVATION: When the user states a specific value (dollar amount, count, date, time, address, phone number, name, or an entity→value mapping like "Admon works Sunday 8am-4pm"), preserve the EXACT value verbatim in headline and context. Do not round, paraphrase, or summarize numbers. For tabular/mapping data (e.g. a shift schedule, a price list, a roster), preserve each entity→value pair in full_content — do NOT collapse them into a generic summary like "team has 7 agents".
 
 For each extracted memory, provide:
