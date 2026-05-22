@@ -98,12 +98,20 @@ MULTI-TURN INFERENCE: You are given the CURRENT exchange plus RECENT CONTEXT (pr
 - Extract memories that only become clear when multiple turns are considered together
 Do NOT re-extract memories from the recent context turns — only extract NEW memories from the current exchange, informed by the context.
 
-CONTRADICTION CHECK: Before extracting, compare against the existing memory context below. The context lines are formatted as `[id=<UUID>] <headline>`. If the current exchange CONTRADICTS or UPDATES the value in an existing memory (e.g. "$350K" → "$400K", "30 min commute" → "1 hour commute", "lives in suburbs" → "lives in Chicago"):
-- Mark the new memory as type "correction"
+CONTRADICTION CHECK: Before extracting, compare against the existing memory context below. The context lines are formatted as `[id=<UUID>] <headline>`. Only mark a new memory as "correction" when ALL THREE of the following are true:
+1. There is an EXISTING memory in the context above about the same specific entity (same person, same property, same numeric attribute) — not just a related topic.
+2. The current exchange provides a DIFFERENT VALUE for that exact attribute (e.g. previously "$350K Wells Fargo pre-approval" → now "$400K Wells Fargo pre-approval"; previously "commute 30 min" → now "commute 45 min each way").
+3. You can COPY THE EXACT UUID of the contradicted memory from its `[id=<UUID>]` tag above — do NOT invent a UUID, do NOT guess.
+
+If all three are satisfied:
+- Set `memory_type` to "correction"
 - Include BOTH the old fact and new fact in full_content
-- Set the field "contradicts" to the headline of the contradicted memory
-- Set the field "contradicts_id" to the UUID of the contradicted memory (copy verbatim from the [id=...] tag in EXISTING MEMORY CONTEXT)
-A SPECIFIC-VALUE MISMATCH (different number, date, name, or quantitative fact about the same entity) is ALWAYS a contradiction even if the topic of the conversation is different.
+- Set `contradicts` to the headline of the contradicted memory
+- Set `contradicts_id` to the EXACT UUID from the `[id=<UUID>]` tag (verbatim, no editing)
+
+If you cannot satisfy all three (especially #3 — having the exact UUID), do NOT use type "correction". Extract the new value as a regular `fact` memory instead. A correction without `contradicts_id` is treated as a regular fact and does NOT supersede anything — it must have the UUID to take effect.
+
+A merely related or topically-similar memory is NOT a contradiction. Two different aspects of the same person (e.g. "Rachel lives in Chicago" and "Rachel works as a teacher") are both facts, not a correction of each other.
 
 If nothing worth extracting, return an empty array [].
 
@@ -570,7 +578,11 @@ def extract_memories(
     # doubles extraction cost per turn and pollutes the index with generic
     # "10 tips for X" memories that outrank specific facts in recall.
     # ========================================================================
-    _assistant_pass_enabled = os.environ.get("EXTRACTION_ASSISTANT_PASS", "0").lower() in ("1", "true", "yes")
+    # Default ON: the generic-advice penalty in recall.py composite scoring (recall.py:1098)
+    # suppresses the "10 tips for X" noise this used to introduce, while letting specific
+    # assistant-stated facts (book colors, recommendations, plan details) reach the index.
+    # Set EXTRACTION_ASSISTANT_PASS=0 to disable for cost reasons.
+    _assistant_pass_enabled = os.environ.get("EXTRACTION_ASSISTANT_PASS", "1").lower() in ("1", "true", "yes")
     if _assistant_pass_enabled and agent_message and len(agent_message.strip()) >= 50:
         try:
             assistant_prompt = ASSISTANT_EXTRACTION_PROMPT.format(

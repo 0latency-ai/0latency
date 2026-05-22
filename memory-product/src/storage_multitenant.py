@@ -559,44 +559,33 @@ def _check_contradiction(agent_id: str, headline: str, embedding: list[float], t
 
 def _handle_correction(memory: dict, correction_id: str, tenant_id: str):
     """Handle correction by superseding old facts within the tenant.
+
     Snapshots the old memory's state to memory_versions before superseding.
 
-    F3a: When contradicts_id is known (from _check_contradiction), supersede
-    that specific memory directly instead of doing a fuzzy embedding search.
+    Only supersedes when `metadata.contradicts_id` is set — i.e. the extraction
+    LLM explicitly identified the prior memory it's superseding. The previous
+    embedding-fuzzy-search fallback caused 500+ wrong supersedes per benchmark
+    run (corrections vague-matched against unrelated memories like book
+    descriptions and trip plans). Without a known target the correction memory
+    is stored as a regular row and ranked alongside everything else — no
+    silent destruction.
     """
     metadata = memory.get('metadata', {})
     contradicts_id = metadata.get('contradicts_id')
 
-    if contradicts_id:
-        # F3a: Direct supersession — target the known contradicted memory
-        rows = _db_execute_rows(
-            "SELECT id, headline FROM memory_service.memories "
-            "WHERE id = %s AND superseded_at IS NULL",
-            (contradicts_id,), tenant_id=tenant_id,
-        )
-        if rows:
-            old_id, old_headline = rows[0]
-            _supersede_memory(old_id, old_headline, correction_id, memory, tenant_id)
+    if not contradicts_id:
+        # No explicit target — leave the correction as a standalone memory.
+        # Recall will rank it normally; if it's a genuine update, recency-tiebreak
+        # via event_at lets the new fact win without nuking the old one.
         return
 
-    # Fallback: embedding search for corrections without a known target
-    embed_text = f"{memory['headline']}. {memory['context']}"
-    embedding = _embed_text(embed_text)
-
-    query = """
-        SELECT id, headline, agent_id
-        FROM memory_service.memories
-        WHERE memory_type != 'correction'
-          AND superseded_at IS NULL
-          AND id != %s
-        ORDER BY embedding <=> %s::vector
-        LIMIT 5
-    """
-
-    rows = _db_execute_rows(query, (correction_id, embedding), tenant_id=tenant_id)
-
+    rows = _db_execute_rows(
+        "SELECT id, headline FROM memory_service.memories "
+        "WHERE id = %s AND superseded_at IS NULL",
+        (contradicts_id,), tenant_id=tenant_id,
+    )
     if rows:
-        old_id, old_headline = rows[0][0], rows[0][1]
+        old_id, old_headline = rows[0]
         _supersede_memory(old_id, old_headline, correction_id, memory, tenant_id)
 
 

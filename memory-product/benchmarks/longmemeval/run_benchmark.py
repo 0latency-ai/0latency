@@ -430,8 +430,17 @@ class LongMemEvalRunner:
                 comp_fmt = f"{float(comp):.2f}"
             except (TypeError, ValueError):
                 comp_fmt = str(comp)
-            event_at = mem.get("event_at") or mem.get("created_at") or ""
-            date_tag = f" | date={event_at[:10]}" if event_at else ""
+            # Label dates explicitly: `event` is when the fact occurred (the date
+            # to anchor temporal reasoning on); `logged` is just when the memory
+            # was recorded and should be ignored for date arithmetic.
+            event_at = (mem.get("event_at") or "").strip()
+            created_at = (mem.get("created_at") or "").strip()
+            date_parts = []
+            if event_at:
+                date_parts.append(f"event={event_at[:10]}")
+            if created_at:
+                date_parts.append(f"logged={created_at[:10]}")
+            date_tag = f" | {' '.join(date_parts)}" if date_parts else ""
             snippets.append(f"[Memory {i} | type={mtype} | score={comp_fmt}{date_tag}]\n{body}")
 
         if not snippets:
@@ -446,9 +455,9 @@ You will be given a question and a set of memories retrieved from a persistent s
 
 Rules:
 1. If the answer is stated directly in a memory, quote or paraphrase it.
-2. If two memories conflict on the same fact, prefer memories with type=correction over type=fact, and prefer the most recent (highest date) when types tie. Do NOT hedge with "conflicting records" — pick the authoritative value and state it plainly.
-3. For counting/aggregation questions ("how many X"), scan ALL memories provided for distinct instances of X — do not just rely on the top-ranked memory. List the instances you found, then state the count.
-4. For date-difference questions ("how many days/weeks/months between/since X"), use the date= tag on each memory plus today's date. If one event lacks a date, infer from context (e.g. "last Sunday", "two weeks ago", "in February") relative to today's date.
+2. If two memories conflict on the same fact, prefer memories with type=correction over type=fact, and prefer the most recent `event=` date when types tie. Do NOT hedge with "conflicting records" — pick the authoritative value and state it plainly.
+3. For counting/aggregation questions ("how many X have I done"), count ONLY memories that explicitly state the user did, owned, led, completed, or directly experienced an instance of X. Do NOT count memories that merely discuss X in general (e.g. "tips for X", "how to X", "plans about X") or list X as an option/recommendation. Show your selected instances briefly before stating the count.
+4. For date-difference questions ("how many days/weeks/months between/since X"), anchor on the `event=` tag on each memory (NOT the `logged=` tag, which is when the memory was recorded and is unrelated to when the fact occurred). Today is given above. If an event lacks an event date, infer from in-text phrasing ("last Sunday", "two weeks ago", "in February") relative to today's date.
 5. For preference/recommendation questions ("can you suggest/recommend X for me"), tailor the answer to user-specific facts in the memories (brand preferences, prior choices, stated requirements) rather than giving generic advice.
 6. If the answer is genuinely not derivable, say "I don't have enough information to answer that." — but only after exhausting rules 2-5.
 7. Do not invent facts not present in the memories.
