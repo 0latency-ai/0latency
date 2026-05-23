@@ -483,12 +483,17 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
 #   - ISO dates: 2023-01-15
 #   - Times (HH:MM): 25:50, 8:30, 14:00
 #   - Durations: "45 minutes", "1 hour", "3.5 weeks", "8 days", "2 years"
-# All whole-token matches — bare integers don't independently match.
+#   - Counts with nouns: "three restaurants", "4 kits", "five items"
+#     — number-word or digit followed by a count noun (≥4 chars to exclude
+#     short prepositions). Catches the Q2 case where "three Korean restaurants"
+#     merged into "four Korean restaurants".
+# All whole-token matches — bare integers in isolation don't independently match.
 _VALUE_TOKEN_RE = __import__("re").compile(
     r"(\$[\d,]+(?:\.\d+)?[KMB]?"
     r"|\d{4}-\d{2}-\d{2}"
     r"|\b\d{1,2}:\d{2}\b"
-    r"|\b\d+(?:\.\d+)?\s*(?:min(?:ute)?s?|hours?|hrs?|days?|weeks?|months?|years?)\b)",
+    r"|\b\d+(?:\.\d+)?\s*(?:min(?:ute)?s?|hours?|hrs?|days?|weeks?|months?|years?)\b"
+    r"|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\d+)\s+[A-Za-z]{4,}\b)",
     __import__("re").IGNORECASE,
 )
 
