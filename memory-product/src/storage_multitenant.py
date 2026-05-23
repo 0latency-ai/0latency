@@ -477,10 +477,19 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
     return {"id": mem_id, "deduplicated": False}
 
 
-# Narrow regex: ONLY dollar amounts and ISO dates. Deliberately excludes bare integers
-# (which previously matched "25:50" / "27:12" and caused noise). Times don't match $-amounts.
+# Narrow regex for specific-value tokens that should trigger the dedup escape.
+# Matches:
+#   - Dollar amounts: $400, $400K, $400,000.00, $1.2M
+#   - ISO dates: 2023-01-15
+#   - Times (HH:MM): 25:50, 8:30, 14:00
+#   - Durations: "45 minutes", "1 hour", "3.5 weeks", "8 days", "2 years"
+# All whole-token matches — bare integers don't independently match.
 _VALUE_TOKEN_RE = __import__("re").compile(
-    r"(\$[\d,]+(?:\.\d+)?[KMB]?|\d{4}-\d{2}-\d{2})"
+    r"(\$[\d,]+(?:\.\d+)?[KMB]?"
+    r"|\d{4}-\d{2}-\d{2}"
+    r"|\b\d{1,2}:\d{2}\b"
+    r"|\b\d+(?:\.\d+)?\s*(?:min(?:ute)?s?|hours?|hrs?|days?|weeks?|months?|years?)\b)",
+    __import__("re").IGNORECASE,
 )
 
 

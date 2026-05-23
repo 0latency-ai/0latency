@@ -434,10 +434,11 @@ class LongMemEvalRunner:
         _is_aggregation = bool(re.search(r"\bhow many\b|\bcount\b|\btotal\b|\ball of\b|\bevery\b|\beach\b|\blist\b", _q_lower))
         _is_temporal = bool(re.search(r"\bhow many (days|weeks|months|years)\b|\bbetween\b|\bsince\b|\bafter\b|\bbefore\b|\border\b|\bsequence\b|\bwhen did\b", _q_lower))
         # Aggregation needs a *much* wider window: e.g. "5 model kits" requires
-        # finding 5 specific instances scattered across 50 sessions. 40 wasn't
-        # enough — bumping to 60 surfaces nearly all relevant evidence while still
-        # fitting comfortably in Sonnet's context.
-        slice_cap = 60 if (_is_aggregation or _is_temporal) else 25
+        # finding 5 specific instances scattered across 50 sessions. 80 surfaces
+        # nearly all relevant evidence even when recall ranks specific facts
+        # lower than generic guides, while still fitting comfortably in Sonnet's
+        # context (~80 memories × ~250 tokens each = ~20K tokens).
+        slice_cap = 80 if (_is_aggregation or _is_temporal) else 25
 
         snippets = []
         for i, mem in enumerate(recall_details[:slice_cap], start=1):
