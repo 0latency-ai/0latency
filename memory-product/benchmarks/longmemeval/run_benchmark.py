@@ -484,10 +484,12 @@ Rules:
    - "Evaluating a role/offer for X" → NOT doing X
    - "Considering/thinking about X" → NOT doing X
    - "Planning to do X" → NOT doing X yet
-   - "Taking a class about X" / "Studying X" → NOT doing X
+   - "Taking a class about X" / "Studying X" / "Coursework that includes X as an assignment" → NOT doing X. Specifically: a course curriculum that has "projects" or "case studies" as student assignments does NOT count as the user "leading projects" — those are coursework, not real-world projects led.
    - "Discussing X" / "Researching X" → NOT doing X
    - Memories that only list X as a recommendation, option, or general tip → NOT instances
+   - Community involvement (events attended, groups joined, talks given) is NOT the same as leading a project unless the user explicitly led that activity.
    ALSO: pay attention to scoping qualifiers in the question. If the question asks about "X at/from Y" (e.g. "items at a store", "trips in the US", "books from the library"), exclude instances that don't satisfy Y (e.g. an item lent to a friend is NOT "at a store"; a trip to Mexico is NOT "in the US"). The qualifier is part of the count.
+   SPECIAL CASE — EXCHANGES AT A STORE: An exchange event ("I exchanged X for Y at the store") implicitly counts as TWO items needing action at that store: (a) the original being returned, and (b) the replacement being picked up. Count both as separate items unless the user explicitly states one is already completed (e.g. "I already picked up the new one").
    Show the specific instances you selected (briefly) before stating the count. If the user has fewer instances than you initially listed, REVISE DOWN. It is better to undercount than overcount.
 4. For date-difference questions ("how many days/weeks/months between/since X", "in what order did A, B, C happen"), use this strict 3-step protocol:
    STEP A — Identify EVERY memory whose `event=YYYY-MM-DD` corresponds to an entity named in the question. Output a numbered list sorted chronologically:
