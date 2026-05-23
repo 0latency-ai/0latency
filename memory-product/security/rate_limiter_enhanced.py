@@ -75,8 +75,10 @@ ENDPOINT_LIMITS = {
     "_default": 300,
 }
 
-# Global IP limits (requests per minute, across all tenants)
-GLOBAL_IP_LIMIT_RPM = 600  # 10 req/sec burst tolerance
+# Global IP limits (requests per minute, across all tenants).
+# Override via env var GLOBAL_IP_LIMIT_RPM for high-throughput benchmark traffic
+# (e.g. LongMemEval n=25 with 9 parallel workers needs ~3000+ rpm headroom).
+GLOBAL_IP_LIMIT_RPM = int(os.environ.get("GLOBAL_IP_LIMIT_RPM", "600"))
 
 # Slow request threshold (seconds)
 SLOW_REQUEST_THRESHOLD = 30.0
