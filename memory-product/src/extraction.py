@@ -8,11 +8,26 @@ Uses Anthropic Haiku 4.5 by default, with OpenAI GPT-4o-mini as fallback.
 
 import json
 import os
+import re
 import hashlib
 import time
 from datetime import datetime, timezone
 from typing import Optional
 import requests
+
+# Backstop for the assistant pass: blatant generic-advice headlines that carry no
+# user-specific value and pollute counting/aggregation recall. The prompt is the
+# primary filter; this catches the clearest patterns if the model leaks them.
+# Number words included because the model writes "Four benefits", not "4 benefits".
+_GENERIC_ADVICE_RE = re.compile(
+    r"\bbest practices\b"
+    r"|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+"
+    r"(?:benefits|tips|ways|strategies|steps|reasons|principles|techniques|methods|tactics|guidelines|advantages)\b"
+    r"|\b(?:benefits|advantages|importance|overview)\s+of\b"
+    r"|\bhow to\b|\bguide to\b"
+    r"|\b(?:tips|strategies|guidelines)\s+(?:for|on|to)\b",
+    re.IGNORECASE,
+)
 
 
 # --- Configuration ---
@@ -184,7 +199,12 @@ DO NOT SKIP: Specific factual claims (dollar amounts, dates, names, colors, loca
 
 SPECIFIC VALUE PRESERVATION: Preserve all numeric values, proper names, dates, addresses, and exact phrasings verbatim in headline and context. Do not paraphrase or summarize numbers. For tabular/mapping data (rosters, schedules, price lists, contact directories), preserve every entity→value pair in full_content — do NOT collapse to a generic summary.
 
-AVOID GENERIC GUIDANCE: Do NOT extract memories whose headline would start with "N tips for X" / "N strategies to Y" / "N techniques for Z" / "best practices" — these are assistant-generated lists with no user-specific value. Only extract concrete specifics tied to the user's actual context.
+AVOID GENERIC GUIDANCE — THIS IS CRITICAL: Do NOT extract general advice, tips, best practices, or explanatory knowledge that would apply to ANYONE, even if the user asked for it. These pollute memory and bury the user's actual facts. A memory is generic guidance (DO NOT STORE) if its headline could be a heading in a how-to article rather than a fact about THIS user. Concrete patterns to REJECT:
+- "<topic> best practices" (e.g. "Project timeline best practices", "Painting best practices")
+- "N benefits/tips/ways/strategies/steps/reasons of/to/for X" (e.g. "Four benefits of leading with goals", "5 tips for soldering")
+- "How to X" / "Guide to X" / "Overview of X" / "Importance of X"
+- Technique/process explanations not tied to a specific named thing the user owns or did (e.g. "Low-temperature solder melting point for model building")
+ONLY extract an assistant memory if it states a SPECIFIC fact anchored to the user's own context — a named entity (place, product, person, title the user referenced), a value (number, date, color, address, price), or a concrete recommendation made FOR this user. Test: "Trattoria Vesuvio at 425 Oak St" → KEEP (named place + address). "Plesiosaur has a blue scaly body" → KEEP (specific detail of the user's book). "Benefits of leading with goals" → REJECT (generic advice). When in doubt, REJECT — a missed generic tip costs nothing; a stored one corrupts counting and aggregation queries.
 
 Skip:
 - Information about the user (preferences, identity, personal facts — handled by separate extraction)
@@ -654,6 +674,11 @@ def extract_memories(
                 headline = mem.get("headline", "").strip()
                 if not headline:
                     continue
+                # Fix 1b: drop blatant generic-advice the prompt may have leaked.
+                # These have no user-specific value and pollute counting/aggregation.
+                if _GENERIC_ADVICE_RE.search(headline):
+                    logger.info(f"Assistant extraction: dropped generic-advice memory: {headline[:70]}")
+                    continue
                 a_context = mem.get("context", headline).strip()
                 a_full_content = mem.get("full_content", a_context).strip()
                 a_memory_type = mem.get("memory_type", "fact")
@@ -665,8 +690,14 @@ def extract_memories(
                 a_temporal = mem.get("temporal_type", "current")
                 if a_temporal not in {"permanent", "current", "event", "goal", "ephemeral"}:
                     a_temporal = "current"
-                if a_temporal == "permanent" and a_memory_type == "fact":
-                    a_memory_type = "identity"
+                # Fix 2a: do NOT promote assistant content to `identity`. identity =
+                # a permanent attribute of the USER; assistant-stated content is the
+                # model's output, not a user self-assertion. (This is how generic
+                # advice like "Four benefits of leading with goals" was landing as
+                # identity/L1 and outranking real user facts.)
+                # Fix 2b: cap assistant-memory importance so it can't outrank
+                # user-stated facts in recall.
+                a_importance = min(0.6, max(0.0, float(mem.get("importance", 0.4))))
                 a_ttl = None
                 if a_temporal == "ephemeral":
                     a_ttl = int(mem.get("ttl_hours", 12))
@@ -699,7 +730,7 @@ def extract_memories(
                     "context": a_context,
                     "full_content": a_full_content,
                     "memory_type": a_memory_type,
-                    "importance": max(0.0, min(1.0, float(mem.get("importance", 0.5)))),
+                    "importance": a_importance,
                     "confidence": a_confidence,
                     "entities": mem.get("entities", []),
                     "project": mem.get("project"),

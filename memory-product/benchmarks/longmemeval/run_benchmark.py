@@ -78,6 +78,49 @@ if not ANTHROPIC_API_KEY:
         except (PermissionError, FileNotFoundError, ProcessLookupError):
             continue
 
+# Generic stopwords for answer-coverage scoring. Not benchmark-specific.
+_COVERAGE_STOPWORDS = {
+    "the", "a", "an", "of", "to", "in", "on", "at", "for", "and", "or", "was",
+    "were", "is", "are", "be", "been", "my", "me", "what", "when", "where",
+    "which", "how", "did", "do", "does", "that", "this", "with", "from", "had",
+    "has", "have", "it", "its", "as", "by", "about", "some", "they", "their",
+    "you", "your", "i", "we", "our", "would", "could", "should", "there", "then",
+}
+
+
+def _content_words(text: str) -> set:
+    """Content words (lowercased, length >= 4, minus stopwords) for overlap scoring."""
+    return {w for w in re.findall(r"[a-z0-9]+", (text or "").lower())
+            if len(w) >= 4 and w not in _COVERAGE_STOPWORDS}
+
+
+def _answer_coverage(expected: str, recall_details: list, threshold: float = 0.5):
+    """Token-overlap answer locator. Returns (rank_at_threshold, best_coverage, best_rank).
+
+    Replaces the brittle full-string substring check (which returned None for any
+    multi-fact or paraphrased answer — the metric that produced the false
+    'answer not in recall' read on Q7/Q22). Here we measure the fraction of the
+    expected answer's content words present in each recalled memory:
+      - rank_at_threshold: rank of the first memory covering >= `threshold` of them
+      - best_coverage / best_rank: the single best-covering memory and its rank
+    For multi-memory answers (event ordering, aggregation) best_coverage stays low
+    even when the answer IS fully present across several memories — so read it
+    together with `match`, not in isolation.
+    """
+    exp = _content_words(expected)
+    if not exp:
+        return None, 0.0, None
+    rank_at, best_cov, best_rank = None, 0.0, None
+    for idx, m in enumerate(recall_details, start=1):
+        blob = f"{m.get('full_content') or ''} {m.get('headline') or ''} {m.get('context') or ''}"
+        cov = len(exp & _content_words(blob)) / len(exp)
+        if cov > best_cov:
+            best_cov, best_rank = cov, idx
+        if rank_at is None and cov >= threshold:
+            rank_at = idx
+    return rank_at, round(best_cov, 2), best_rank
+
+
 class LongMemEvalRunner:
     def __init__(self, dataset_path: str, max_questions: int = 5, max_sessions: int = None,
                  smoke_mode: bool = False, max_zero_streak: int = 10, confirm_cost: bool = False,
@@ -101,7 +144,8 @@ class LongMemEvalRunner:
         self.zero_streak = 0
         self.dataset_total_count = 0
         self.consecutive_failures = 0
-        
+        self.focus_ids = []
+
         if self.scorer == "llm":
             if not ANTHROPIC_API_KEY:
                 print("ERROR: --scorer llm requires ANTHROPIC_API_KEY", file=sys.stderr)
@@ -287,8 +331,12 @@ class LongMemEvalRunner:
         
         return turn_count, failed_count
     
-    def extract_sessions(self, sessions: List[List[Dict]], question_id: str, haystack_dates: Optional[List[str]] = None) -> int:
+    def extract_sessions(self, sessions: List[List[Dict]], question_id: str, haystack_dates: Optional[List[str]] = None) -> Tuple[int, int]:
         """Extract haystack sessions with async submission and bounded concurrency.
+
+        Returns (total_turns_succeeded, total_turns_failed). The failed count is the
+        coverage-gap signal: turns whose extraction job never completed (submit/poll
+        failure or timeout), so their memories were never persisted.
 
         haystack_dates: per-session date strings like "2023/04/23 (Sun) 08:57" from the
         LongMemEval dataset. Converted to ISO and forwarded as session_timestamp so the
@@ -334,9 +382,30 @@ class LongMemEvalRunner:
             print(f"\n  {total_turns} turns ({total_failed} failed) in {elapsed:.1f}s | p50={p50:.1f}s p95={p95:.1f}s per session", file=sys.stderr)
         else:
             print(f"\n  {total_turns} turns ({total_failed} failed) in {elapsed:.1f}s", file=sys.stderr)
-        
-        return total_turns
+
+        return total_turns, total_failed
     
+    def count_stored_memories(self, question_id: str) -> int:
+        """True count of persisted (non-superseded) memories in this question's
+        namespace, via GET /agents. This is the coverage ground-truth: a turn's
+        extraction job can 'succeed' yet persist zero memories (empty LLM output,
+        dedup collapse, or a silent storage error). Comparing this against turns
+        extracted reveals coverage gaps like the Q11 Plesiosaur miss. Returns -1 on
+        error so a logging failure never aborts the run.
+        """
+        agent_id = f"longmemeval_{question_id}"
+        try:
+            resp = requests.get(f"{API_BASE_URL}/agents", headers=self.headers, timeout=30)
+            if resp.status_code != 200:
+                return -1
+            for row in resp.json():
+                if row.get("agent_id") == agent_id:
+                    return int(row.get("memory_count", 0))
+            return 0  # namespace has no memories at all
+        except Exception as e:
+            print(f"WARN: count_stored_memories failed: {e}", file=sys.stderr)
+            return -1
+
     def recall(self, question: str, question_id: Optional[str] = None) -> Tuple[str, float, list]:
         """Recall relevant context for question.
 
@@ -628,8 +697,15 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
 
             question_start = time.time()
 
-            num_extracted = self.extract_sessions(haystack_sessions, question_id, haystack_dates)
-            
+            num_extracted, num_failed = self.extract_sessions(haystack_sessions, question_id, haystack_dates)
+
+            # Coverage instrumentation: true persisted memory count vs turns extracted.
+            # A large gap (or stored << extracted) flags sessions that processed but
+            # didn't persist — the Q11 Plesiosaur failure mode.
+            stored_memory_count = self.count_stored_memories(question_id)
+            print(f"  Coverage: {num_extracted} turns extracted, {num_failed} failed, "
+                  f"{stored_memory_count} memories stored", file=sys.stderr)
+
             print(f"  Recalling...", file=sys.stderr, end=" ")
             sys.stderr.flush()
             context, recall_latency_ms, recall_details = self.recall(question, question_id=question_id)
@@ -669,6 +745,9 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
                     "composite": m.get("composite"),
                     "headline": (m.get("headline") or "")[:120],
                 })
+            # Legacy exact-substring rank — UNRELIABLE for multi-fact/paraphrased
+            # answers (returns None even when the answer is present). Kept only for
+            # continuity; use answer_coverage_* below for the real signal.
             expected_lower = str(expected_answer).lower()
             expected_in_recall_rank = None
             for idx, m in enumerate(recall_details, start=1):
@@ -677,6 +756,9 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
                 if expected_lower in full or expected_lower in ctx:
                     expected_in_recall_rank = idx
                     break
+
+            # Token-overlap answer locator — meaningful per-failure rank signal.
+            cov_rank, cov_best, cov_best_rank = _answer_coverage(str(expected_answer), recall_details)
 
             results.append({
                 "question_id": question_id,
@@ -689,12 +771,17 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
                 "scorer": self.scorer,
                 "recall_latency_ms": int(recall_latency_ms),
                 "num_turns_extracted": num_extracted,
+                "num_turns_failed": num_failed,
+                "stored_memory_count": stored_memory_count,
                 "num_sessions_total": len(haystack_sessions),
                 "wall_clock_seconds": round(question_elapsed, 1),
                 "total_recalled": len(recall_details),
                 "top_memories": top_diagnostics,
                 "expected_answer_in_recall": expected_in_recall_rank is not None,
                 "expected_answer_rank": expected_in_recall_rank,
+                "answer_coverage_rank": cov_rank,
+                "answer_coverage_best": cov_best,
+                "answer_coverage_best_rank": cov_best_rank,
                 "synthesized_answer": synthesized_answer[:800],
             })
             
@@ -762,6 +849,17 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
         for qt, bucket in by_question_type.items():
             bucket["accuracy"] = round(100.0 * bucket["passed"] / bucket["total"], 1) if bucket["total"] else 0.0
 
+        # Coverage roll-up: surface sessions that processed but didn't persist.
+        # A failed turn, or a namespace with zero stored memories, is a coverage gap
+        # that can silently suppress accuracy independent of model quality.
+        total_turns_failed = sum(r.get("num_turns_failed", 0) for r in results)
+        coverage_flags = [
+            {"question_id": r["question_id"], "extracted": r.get("num_turns_extracted", 0),
+             "failed": r.get("num_turns_failed", 0), "stored": r.get("stored_memory_count", -1)}
+            for r in results
+            if r.get("num_turns_failed", 0) > 0 or r.get("stored_memory_count", -1) == 0
+        ]
+
         output_data = {
             "metadata": {
                 "timestamp": timestamp,
@@ -782,6 +880,8 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
                 "total_extraction_tokens": self.total_extraction_tokens,
                 "total_recall_tokens": self.total_recall_tokens,
                 "by_question_type": by_question_type,
+                "total_turns_failed": total_turns_failed,
+                "coverage_flags": coverage_flags,
             },
             "results": results
         }
@@ -805,6 +905,34 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
                 b = by_question_type[qt]
                 print(f"  {qt:<32} {b['passed']:>3}/{b['total']:<3} ({b['accuracy']:>5.1f}%)", file=sys.stderr)
 
+        # Coverage summary — the reliability signal behind the accuracy number
+        print(f"\nCoverage: {total_turns_failed} turns failed across run", file=sys.stderr)
+        if coverage_flags:
+            print(f"  {len(coverage_flags)} question(s) flagged (failed turns or zero stored memories):", file=sys.stderr)
+            for cf in coverage_flags:
+                print(f"    {cf['question_id']:<24} extracted={cf['extracted']:>3} "
+                      f"failed={cf['failed']:>3} stored={cf['stored']:>4}", file=sys.stderr)
+        else:
+            print("  No coverage gaps detected — all namespaces persisted memories.", file=sys.stderr)
+
+        # Focused per-failure breakdown — individual signal for specific question_ids
+        # (e.g. the prior failures Q7/Q11/Q15/Q22) so we can see which the fix cleared
+        # and which survive, instead of only the aggregate.
+        if self.focus_ids:
+            by_id = {r["question_id"]: r for r in results}
+            print("\nFocus questions (cleared = match True):", file=sys.stderr)
+            for qid in self.focus_ids:
+                r = by_id.get(qid)
+                if not r:
+                    print(f"  {qid:<24} (not in this run)", file=sys.stderr)
+                    continue
+                verdict = "CLEARED" if r["match"] else "SURVIVES"
+                print(f"  {qid:<16} {verdict:<9} match={str(r['match']):<5} "
+                      f"stored={r.get('stored_memory_count'):>4} "
+                      f"answer_cov={r.get('answer_coverage_best')} @rank {r.get('answer_coverage_best_rank')} "
+                      f"(>=0.5 @rank {r.get('answer_coverage_rank')}) "
+                      f"recalled={r.get('total_recalled')}", file=sys.stderr)
+
         return output_data
 
 if __name__ == "__main__":
@@ -821,6 +949,7 @@ if __name__ == "__main__":
     parser.add_argument("--scorer", choices=["substring", "llm"], default="substring",
                         help="Scoring method: substring (exact match) or llm (Claude Sonnet judge)")
     parser.add_argument("--max-workers", type=int, default=8, help="Max concurrent sessions for extraction")
+    parser.add_argument("--focus-ids", default="", help="Comma-separated question_ids to print an individual per-failure breakdown for (match + coverage rank + stored count)")
 
     args = parser.parse_args()
 
@@ -840,5 +969,6 @@ if __name__ == "__main__":
         scorer=args.scorer,
         max_workers=args.max_workers,
     )
-    
+    runner.focus_ids = [x.strip() for x in args.focus_ids.split(",") if x.strip()]
+
     runner.run(output_path=args.output)
