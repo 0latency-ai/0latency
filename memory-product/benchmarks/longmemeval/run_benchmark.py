@@ -741,6 +741,7 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
                 top_diagnostics.append({
                     "id": m.get("id"),
                     "memory_type": m.get("memory_type"),
+                    "source_type": m.get("source_type"),
                     "tier": m.get("tier"),
                     "composite": m.get("composite"),
                     "headline": (m.get("headline") or "")[:120],

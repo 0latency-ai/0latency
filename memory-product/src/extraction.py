@@ -29,6 +29,18 @@ _GENERIC_ADVICE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Activity/achievement verbs. A headline describing something the user DID is a
+# fact/event, never an `identity` (which is a stable attribute of who they ARE).
+# Used to block the permanent+fact -> identity auto-promotion for activities, so
+# e.g. "Led data analysis team in Marketing Research class project" stays a fact
+# instead of becoming an identity that out-ranks real facts on counting questions.
+_ACTIVITY_VERB = re.compile(
+    r"\b(led|completed|attended|participated|organized|won|presented|launched|"
+    r"finished|joined|volunteered|coached|taught|graduated|hosted|ran|built|"
+    r"founded|created|delivered|earned|achieved)\b",
+    re.IGNORECASE,
+)
+
 
 # --- Configuration ---
 
@@ -91,7 +103,7 @@ For each extracted memory, provide:
    - "task": Something that needs to be done. Action items, todos, follow-ups, deadlines.
    - "correction": ONLY when a previously held belief/fact is EXPLICITLY stated to be wrong and replaced with a new fact. Both the old and new fact must be clearly present in the conversation. Someone adding new information is NOT a correction — it's a fact. An agent status update is NOT a correction. Only use correction when the conversation explicitly says "X was wrong, it's actually Y" or "not X, it's Y."
    - "relationship": A connection between people, organizations, or concepts.
-   - "identity": Core identity information — names (people, pets, places), roles, permanent attributes. These NEVER decay.
+   - "identity": Stable attributes of WHO the user (or an entity) IS — names (people, pets, places), role/title, profession, location, relationships, permanent personal traits. These NEVER decay. IMPORTANT: `identity` is NOT for things the user DID or accomplished. Activities, projects, coursework, events, and achievements ("led a project", "completed a course", "attended a conference", "won an award") are `fact` or `event`, NEVER `identity`, even if they are permanent/unchanging in hindsight.
 5. **decision_text**: (REQUIRED if memory_type=decision) Concise statement of what was decided (1-2 sentences)
 6. **rationale**: (REQUIRED if memory_type=decision) Why this decision was made, what alternatives were considered (2-4 sentences)
 7. **importance**: 0.0-1.0. How important is this for future interactions?
@@ -115,7 +127,7 @@ For each extracted memory, provide:
     A memory about scientific journals the user reads should include both the domain ("research") and topic tags relevant to the subject. A memory about a camera-brand preference should include "photography", "cameras", and the brand. DO NOT use vague tags like "general", "info", "note", "user" — those are useless for retrieval.
 12. **scope**: Hierarchical path like /project/subarea (e.g., /pfl-academy/oklahoma, /personal/preferences)
 13. **temporal_type**: How does this fact relate to time?
-    - "permanent": Always true (names, identities, preferences) — should never decay
+    - "permanent": Always true (names, identities, preferences) — should never decay. NOTE: a one-time activity or accomplishment is an `event`, NOT `permanent`, even though it happened in the past and won't change (e.g. "led the Q3 migration" is an event, not a permanent attribute).
     - "current": True now but could change (current projects, current status)
     - "event": Something that happened at a specific time (dinner tonight, meeting yesterday)
     - "ephemeral": Only relevant for a few hours (current location, what they're doing right now). Set ttl_hours.
@@ -553,8 +565,14 @@ def extract_memories(
         if temporal_type not in {"permanent", "current", "event", "goal", "ephemeral"}:
             temporal_type = "current"
         
-        # Auto-upgrade to identity type for permanent personal facts
-        if temporal_type == "permanent" and memory_type == "fact":
+        # Auto-upgrade to identity type for permanent personal facts.
+        # Guard: never promote ACTIVITIES/achievements to identity. identity = a
+        # stable attribute of WHO the user is (name, role, location); a thing the
+        # user DID (led/completed/attended a project, course, event) is a fact/event,
+        # not an identity — even if permanent. Mislabeled activities promoted to
+        # identity get the recall identity-boost and rank #1, biasing counts.
+        if temporal_type == "permanent" and memory_type == "fact" \
+                and not _ACTIVITY_VERB.search(headline or ""):
             memory_type = "identity"
         
         # Calculate TTL for ephemeral memories

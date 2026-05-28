@@ -32,6 +32,15 @@ RECALL_ENTITY_STRATEGY_ENABLED = os.getenv("RECALL_ENTITY_STRATEGY_ENABLED", "fa
 # F4: Entity-aware type bonus tuning (flag-gated)
 RECALL_TYPE_BONUS_ENTITY_AWARE = os.getenv("RECALL_TYPE_BONUS_ENTITY_AWARE", "false").lower() in ("true", "1", "yes")
 
+# F5: Provenance-aware down-weight. Assistant-stated content is lower-trust than
+# user-stated facts; when the assistant pass floods a namespace with topic-adjacent
+# memories, they out-rank the user's actual answer facts. This gently demotes
+# assistant-sourced memories so user facts rank above them. Gentle + reversible:
+# on-topic assistant answers can still recover via the preference/topic boosts that
+# run AFTER this in the scoring loop. Default OFF to keep isolation tests clean.
+RECALL_ASSISTANT_DOWNWEIGHT_ENABLED = os.getenv("RECALL_ASSISTANT_DOWNWEIGHT_ENABLED", "false").lower() in ("true", "1", "yes")
+RECALL_ASSISTANT_DOWNWEIGHT = float(os.getenv("RECALL_ASSISTANT_DOWNWEIGHT", "0.75"))
+
 
 
 # --- Adaptive Composite Scoring (recall hardening) ---
@@ -577,7 +586,8 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                        importance, access_count, reinforcement_count,
                        created_at, event_at, superseded_at, categories,
                        0.4 as similarity,
-                       'entity' as strategy
+                       'entity' as strategy,
+                       source_type
                 FROM memory_service.memories
                 WHERE (agent_id = %s OR memory_type = 'synthesis') AND tenant_id = %s::UUID
                   AND superseded_at IS NULL
@@ -619,7 +629,8 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                        importance, access_count, reinforcement_count,
                        created_at, event_at, superseded_at, categories,
                        1 - ({_emb_col} <=> %s::vector) as similarity,
-                       'vector' as strategy
+                       'vector' as strategy,
+                       source_type
                 FROM memory_service.memories
                 WHERE (agent_id = %s OR memory_type = 'synthesis') AND tenant_id = %s::UUID
                   AND superseded_at IS NULL
@@ -636,7 +647,8 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                        importance, access_count, reinforcement_count,
                        created_at, event_at, superseded_at, categories,
                        0.5 as similarity,
-                       'importance' as strategy
+                       'importance' as strategy,
+                       source_type
                 FROM memory_service.memories
                 WHERE (agent_id = %s OR memory_type = 'synthesis') AND tenant_id = %s::UUID
                   AND superseded_at IS NULL
@@ -654,7 +666,8 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                        importance, access_count, reinforcement_count,
                        created_at, event_at, superseded_at, categories,
                        0.35 as similarity,
-                       'keyword' as strategy
+                       'keyword' as strategy,
+                       source_type
                 FROM memory_service.memories
                 WHERE (agent_id = %s OR memory_type = 'synthesis') AND tenant_id = %s::UUID
                   AND superseded_at IS NULL
@@ -685,7 +698,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
 
         logger.info(f"✅ Consolidated query returned {len(rows) if rows else 0} rows")
         for row in rows:
-            if len(row) >= 14:  # 14 columns now: 0-10 base, 11 categories, 12 similarity, 13 strategy
+            if len(row) >= 15:  # 15 cols: 0-10 base, 11 categories, 12 similarity, 13 strategy, 14 source_type
                 mem_id = str(row[0])
                 strategy = row[13]
 
@@ -743,6 +756,8 @@ def _parse_candidate_row(row: tuple) -> dict:
         "superseded_at": row[10],
         "categories": list(row[11]) if row[11] else [],  # text[] column from memories table
         "similarity": float(row[12]) if row[12] is not None else 0,
+        # row[13] = strategy (read at call site, not needed in candidate dict)
+        "source_type": row[14] if len(row) > 14 else None,  # 'assistant' | 'conversation' | ...
     }
 
 
@@ -1147,6 +1162,18 @@ def recall_fixed(
             if _GENERIC_ADVICE_RE.match(c.get("headline") or ""):
                 composite *= 0.65
 
+            # F5: Provenance down-weight. Assistant-stated content is lower-trust
+            # than user-stated facts. When the assistant pass floods a namespace
+            # with topic-adjacent memories, they out-rank the user's actual answer
+            # facts (pushing real answers to rank 39-114, outside the reasoner slice).
+            # Applied AFTER the generic-advice penalty but BEFORE the preference/topic
+            # boosts below, so a genuinely on-topic assistant answer (e.g. a detail
+            # only the assistant stated) can still recover via those boosts.
+            _assistant_downweighted = False
+            if RECALL_ASSISTANT_DOWNWEIGHT_ENABLED and c.get("source_type") == "assistant":
+                composite *= RECALL_ASSISTANT_DOWNWEIGHT
+                _assistant_downweighted = True
+
             # Preference-query boost: when the user explicitly asks "recommend X
             # for me" / "suggest X" / "what should I", strongly favor user-specific
             # preference and identity memories over high-importance generic facts.
@@ -1180,6 +1207,7 @@ def recall_fixed(
                     "access": round(a_access_w * access_freq, 4),
                     "keyword": round(keyword_match_weight * kw_score, 4),
                     "type_multiplier": round(dampened_mult, 4),
+                    "assistant_downweight": RECALL_ASSISTANT_DOWNWEIGHT if _assistant_downweighted else 1.0,
                     "raw_semantic": round(semantic_sim, 4),
                     "raw_recency": round(recency, 4),
                     "recency_spread": round(recency_spread, 4),
@@ -1230,6 +1258,7 @@ def recall_fixed(
                 "created_at": candidate.get("created_at"),
                 "_score_components": candidate.get("_score_components"),
                 "metadata": candidate.get("metadata", {}),
+                "source_type": candidate.get("source_type"),
             })
             tokens_used += tokens
 
@@ -1258,6 +1287,7 @@ def recall_fixed(
                 "tier": s["tier"],
                 "composite": s["composite"],
                 "memory_type": s.get("memory_type", "fact"),
+                "source_type": s.get("source_type"),
                 "event_at": s.get("event_at").isoformat() if s.get("event_at") else None,
                 "created_at": s.get("created_at").isoformat() if s.get("created_at") else None,
                 "metadata": s.get("metadata", {}),
