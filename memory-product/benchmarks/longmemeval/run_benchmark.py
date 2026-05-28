@@ -145,6 +145,7 @@ class LongMemEvalRunner:
         self.dataset_total_count = 0
         self.consecutive_failures = 0
         self.focus_ids = []
+        self.skip_extraction = False
 
         if self.scorer == "llm":
             if not ANTHROPIC_API_KEY:
@@ -697,7 +698,14 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
 
             question_start = time.time()
 
-            num_extracted, num_failed = self.extract_sessions(haystack_sessions, question_id, haystack_dates)
+            if self.skip_extraction:
+                # Recall-only mode: reuse the already-extracted namespace (no re-ingest).
+                # Lets us A/B a recall-side change (e.g. provenance down-weight) against
+                # an identical stored corpus without paying extraction cost.
+                num_extracted, num_failed = 0, 0
+                print("  [skip-extraction] reusing existing namespace", file=sys.stderr)
+            else:
+                num_extracted, num_failed = self.extract_sessions(haystack_sessions, question_id, haystack_dates)
 
             # Coverage instrumentation: true persisted memory count vs turns extracted.
             # A large gap (or stored << extracted) flags sessions that processed but
@@ -951,6 +959,7 @@ if __name__ == "__main__":
                         help="Scoring method: substring (exact match) or llm (Claude Sonnet judge)")
     parser.add_argument("--max-workers", type=int, default=8, help="Max concurrent sessions for extraction")
     parser.add_argument("--focus-ids", default="", help="Comma-separated question_ids to print an individual per-failure breakdown for (match + coverage rank + stored count)")
+    parser.add_argument("--skip-extraction", action="store_true", help="Recall-only: reuse the already-extracted namespace instead of re-ingesting (A/B a recall-side change without extraction cost)")
 
     args = parser.parse_args()
 
@@ -971,5 +980,6 @@ if __name__ == "__main__":
         max_workers=args.max_workers,
     )
     runner.focus_ids = [x.strip() for x in args.focus_ids.split(",") if x.strip()]
+    runner.skip_extraction = args.skip_extraction
 
     runner.run(output_path=args.output)
