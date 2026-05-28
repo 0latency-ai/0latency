@@ -503,12 +503,14 @@ class LongMemEvalRunner:
         _q_lower = question.lower()
         _is_aggregation = bool(re.search(r"\bhow many\b|\bcount\b|\btotal\b|\ball of\b|\bevery\b|\beach\b|\blist\b", _q_lower))
         _is_temporal = bool(re.search(r"\bhow many (days|weeks|months|years)\b|\bbetween\b|\bsince\b|\bafter\b|\bbefore\b|\border\b|\bsequence\b|\bwhen did\b", _q_lower))
-        # Aggregation needs a *much* wider window: e.g. "5 model kits" requires
-        # finding 5 specific instances scattered across 50 sessions. 80 surfaces
-        # nearly all relevant evidence even when recall ranks specific facts
-        # lower than generic guides, while still fitting comfortably in Sonnet's
-        # context (~80 memories × ~250 tokens each = ~20K tokens).
-        slice_cap = 80 if (_is_aggregation or _is_temporal) else 25
+        # Reasoner evidence window. Bumped from 25/80 to 150: the answer is often
+        # RETRIEVED but ranked below the old cap (e.g. rank 81-114), so it was being
+        # truncated out before the reasoner ever saw it. 150 covers the recall pool's
+        # relevant range and still fits Sonnet's context (~150 × 250 ≈ 37K tokens).
+        # Env-overridable to tune cost/latency vs coverage. Aggregation/temporal kept
+        # at least as wide as the default.
+        _base_cap = int(os.environ.get("REASONER_SLICE_CAP", "150"))
+        slice_cap = max(_base_cap, 120) if (_is_aggregation or _is_temporal) else _base_cap
 
         snippets = []
         for i, mem in enumerate(recall_details[:slice_cap], start=1):
