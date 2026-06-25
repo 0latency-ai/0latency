@@ -31,7 +31,7 @@ from typing import Optional, List
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, Query, BackgroundTasks
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from api.analytics import track_posthog_event, is_first_api_call, is_first_memory_stored, is_first_memory_recalled, check_activation_milestone
-from api.errors import (raise_invalid_api_key, raise_memory_limit, raise_rate_limit, raise_extraction_failed, raise_recall_failed, raise_not_found, raise_validation_error, raise_forbidden, raise_service_unavailable)
+from api.errors import (raise_invalid_api_key, raise_memory_limit, raise_rate_limit, raise_extraction_failed, raise_recall_failed, raise_not_found, raise_validation_error, raise_forbidden, raise_service_unavailable, raise_api_error, VALIDATION_ERROR)
 from api.onboarding_helpers import should_show_recall_prompt, create_next_action_response, extract_keywords_from_headline
 from api.email_service import email_service
 from fastapi.middleware.cors import CORSMiddleware
@@ -407,6 +407,30 @@ def _check_cache_bust():
                         del _tenant_cache[key]
     except Exception as e:
         logger.debug(f"Redis cache-bust check failed: {e}")
+
+def resolve_agent_id(tenant_id: str, provided_agent_id: Optional[str] = None) -> str:
+    """Resolve agent_id for read/recall paths (CP-RECALL).
+
+    If an agent_id is provided, use it. Otherwise resolve the tenant's configured
+    default_agent_id (memory_service.tenants.default_agent_id). If the tenant has no
+    default configured, raise 422 — we never silently fall back to the shared
+    'default' agent, which historically cohabited LongMemEval fixtures/demo data with
+    real memories and polluted unscoped recalls.
+    """
+    if provided_agent_id:
+        return provided_agent_id
+
+    rows = _db_execute_rows(
+        "SELECT default_agent_id FROM memory_service.tenants WHERE id = %s",
+        (tenant_id,), tenant_id=tenant_id)
+
+    if rows and rows[0][0]:
+        return rows[0][0]
+
+    raise_api_error(
+        VALIDATION_ERROR, 422,
+        details="No agent_id provided and no default_agent_id configured for this tenant.")
+
 
 def auto_resolve_agent_id(tenant_id: str, provided_agent_id: Optional[str] = None) -> str:
     """Auto-resolve agent_id when not provided. Returns the agent with the highest memory count."""
@@ -1664,7 +1688,7 @@ async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api
     try:
         # Auto-resolve agent_id if not provided
         _t0 = time.time()
-        agent_id = auto_resolve_agent_id(tenant["id"], req.agent_id)
+        agent_id = resolve_agent_id(tenant["id"], req.agent_id)
         _t1 = time.time()
 
         # Choose recall strategy based on cross_agent parameter
@@ -1773,6 +1797,8 @@ VALUES
         _phases["path"] = _inner.get("path", "unknown")
         logger.info(f"[RECALL PHASES] agent_resolve={_phases['agent_resolve_ms']:.0f}ms recall_exec={_phases['recall_exec_ms']:.0f}ms bm25={_phases['bm25_ms']:.0f}ms vector={_phases['vector_ms']:.0f}ms telemetry={_phases['telemetry_ms']:.0f}ms total={_phases['total_ms']:.0f}ms path={_phases['path']}")
         return response
+    except HTTPException:
+        raise
     except Exception as e:
         background_tasks.add_task(track_api_usage, tenant["id"], "/recall", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
         raise_recall_failed()
@@ -1809,8 +1835,8 @@ async def feedback_endpoint(req: FeedbackRequest, tenant: dict = Depends(require
         raise_validation_error("context required for feedback_type=miss")
     
     # Auto-resolve agent_id if not provided
-    agent_id = auto_resolve_agent_id(tenant["id"], req.agent_id)
-    
+    agent_id = resolve_agent_id(tenant["id"], req.agent_id)
+
     try:
         pool = _get_connection_pool()
         conn = pool.getconn()
@@ -1869,7 +1895,7 @@ async def list_memories(
         tenant_id = tenant["id"]
 
         # Auto-resolve agent_id if not provided
-        agent_id = auto_resolve_agent_id(tenant_id, agent_id)
+        agent_id = resolve_agent_id(tenant_id, agent_id)
 
         # Build WHERE clause conditions
         where_conditions = ["agent_id = %s", "tenant_id = %s", "superseded_at IS NULL"]
@@ -1909,6 +1935,8 @@ async def list_memories(
         track_api_usage(tenant["id"], "/memories", response_time_ms=response_time)
         
         return items
+    except HTTPException:
+        raise
     except Exception as e:
         track_api_usage(tenant["id"], "/memories", response_time_ms=int((time.time() - start_time) * 1000), status_code=500)
         raise_service_unavailable("Failed to list memories. Please try again.")
@@ -1924,7 +1952,7 @@ async def search_memories(
     """Search memories by keyword. Tenant-isolated."""
     try:
         # Auto-resolve agent_id if not provided
-        agent_id = auto_resolve_agent_id(tenant["id"], agent_id)
+        agent_id = resolve_agent_id(tenant["id"], agent_id)
 
         pattern = f"%{q}%"
         rows = _db_execute_rows("""
@@ -1947,6 +1975,8 @@ async def search_memories(
                 "context": str(row[5]) if row[5] else "",
             })
         return results
+    except HTTPException:
+        raise
     except Exception:
         raise_service_unavailable("Search failed")
 @app.get("/memories/{memory_id}")
