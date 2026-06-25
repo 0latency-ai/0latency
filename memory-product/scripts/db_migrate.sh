@@ -28,8 +28,9 @@ case "$MODE" in
     echo "=== Step 2: reset staging from prod schema ==="
     bash scripts/staging_reset.sh
 
-    # Capture prod's current revision to stamp staging correctly
-    PROD_REV=$(alembic current | grep -oE '[a-z0-9]{12}' | head -1 || echo "0001_baseline")
+    # Capture prod's current revision to stamp staging correctly.
+    # Revision IDs in this repo are slug-style (e.g. 028_event_at), not 12-hex.
+    PROD_REV=$(alembic current 2>/dev/null | grep -oE '[0-9a-z]+_[0-9a-z_]+' | head -1); PROD_REV=${PROD_REV:-0001_baseline}
     echo "Prod is at revision: $PROD_REV"
 
     echo "=== Step 2b: stamp staging at prod's current revision ==="
