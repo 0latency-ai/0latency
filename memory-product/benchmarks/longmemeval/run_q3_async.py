@@ -100,13 +100,27 @@ def _fuzzy_answer_match(answer_keywords: list, headline: str, threshold: float =
 
 
 # Configuration
+# Load benchmark credentials from .env.benchmark (mirrors run_benchmark.py lines 43-58)
+# so identity comes from the quarantined benchmark tenant, not ambient shell env.
+# CP-RECALL Phase 3 quarantine: prevents this harness from authenticating as Justin's
+# prod tenant and writing 'default'-agent rows into it.
+env_file = Path(__file__).parent / ".env.benchmark"
+if not env_file.exists():
+    print(f"ERROR: {env_file} not found. Run Phase 2 to create tenant.", file=sys.stderr)
+    sys.exit(1)
+
+for line in env_file.read_text().splitlines():
+    if line.strip() and not line.startswith("#") and "=" in line:
+        key, value = line.split("=", 1)
+        os.environ[key.strip()] = value.strip()
+
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8420")
 API_KEY = os.getenv("API_KEY")
 TENANT_ID = os.getenv("TENANT_ID")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not API_KEY or not TENANT_ID:
-    print("ERROR: Set API_KEY and TENANT_ID environment variables", file=sys.stderr)
+    print("ERROR: API_KEY or TENANT_ID missing in .env.benchmark", file=sys.stderr)
     sys.exit(1)
 
 HEADERS = {
@@ -254,6 +268,7 @@ class BenchmarkRunner:
                 turns.append({
                     "session_idx": session_idx,
                     "turn_idx": turn_idx,
+                    "question_id": question_id,
                     "content": f"Human: {user_turn['content']}\\n\\nAssistant: {assistant_turn['content']}",
                     "session_key": f"longmemeval_{question_id}_session_{session_idx}"
                 })
@@ -265,9 +280,14 @@ class BenchmarkRunner:
 
     def submit_job(self, turn: Dict) -> Tuple[str, Dict]:
         """Submit one extraction job. Returns (job_id or None, turn_metadata)."""
+        # CP-RECALL Phase 3 quarantine: always set an explicit benchmark-namespaced
+        # agent_id (mirrors run_benchmark.py's longmemeval_<qid> scheme) so the server's
+        # `or "default"` write fallback (api/main.py:610) is never reached.
+        qid = turn.get("question_id")
         payload = {
             "content": turn["content"],
-            "session_key": turn["session_key"]
+            "session_key": turn["session_key"],
+            "agent_id": f"longmemeval_{qid}" if qid else "longmemeval_q3",
         }
 
         try:
