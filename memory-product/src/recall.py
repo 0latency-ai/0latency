@@ -41,6 +41,15 @@ RECALL_TYPE_BONUS_ENTITY_AWARE = os.getenv("RECALL_TYPE_BONUS_ENTITY_AWARE", "fa
 RECALL_ASSISTANT_DOWNWEIGHT_ENABLED = os.getenv("RECALL_ASSISTANT_DOWNWEIGHT_ENABLED", "false").lower() in ("true", "1", "yes")
 RECALL_ASSISTANT_DOWNWEIGHT = float(os.getenv("RECALL_ASSISTANT_DOWNWEIGHT", "0.75"))
 
+# P3-B2 FIX A: Vector semantic floor. Drop any candidate whose raw cosine
+# similarity is below this floor BEFORE the blended/composite score is computed,
+# so recency can no longer float a non-matching candidate past the L0 gate.
+# Chosen empirically (measure-first, P3-B2): on the agent_id='user-justin' store,
+# genuine on-topic matches band at >=0.53 (Project Explore >=0.59; genuine
+# Waterbar/calendar 0.53-0.83) while cross-topic leak (Snowflake/Luke under a
+# calendar query) bands at <=0.36. 0.50 sits cleanly in the gap (0.44, 0.53].
+RECALL_SEMANTIC_FLOOR = float(os.getenv("RECALL_SEMANTIC_FLOOR", "0.50"))
+
 
 
 # --- Adaptive Composite Scoring (recall hardening) ---
@@ -254,6 +263,7 @@ def _bm25_search(agent_id: str, query: str, tenant_id: str = None, limit: int = 
             WHERE agent_id = %s 
               AND tenant_id = %s::UUID
               AND superseded_at IS NULL
+              AND memory_type != 'raw_turn'
               {_bm25_project_filter}
               AND search_text @@ websearch_to_tsquery('english', %s)
             ORDER BY bm25_score DESC, importance DESC
@@ -434,7 +444,7 @@ def _load_agent_config(agent_id: str, tenant_id: str = None) -> dict:
     }
 
 
-def _build_always_include(agent_id: str, tenant_id: str = None, config: dict = None) -> tuple[str, int]:
+def _build_always_include(agent_id: str, tenant_id: str = None, config: dict = None, query_context: str = None) -> tuple[str, int]:
     """Build the always-included context block (identity, profile, last handoff, active corrections)."""
     # Use provided tenant_id or fall back to global context
     _tid = tenant_id or "00000000-0000-0000-0000-000000000000"
@@ -460,19 +470,50 @@ def _build_always_include(agent_id: str, tenant_id: str = None, config: dict = N
     except Exception:
         pass
     
+    # P3-B3: Query-gate Active Corrections on topical relevance. Each of the up-to-5
+    # most-recent corrections is included only if its cosine similarity to the query
+    # is >= RECALL_SEMANTIC_FLOOR. A correction with no embedding (or when there is no
+    # query to score against) is included unconditionally — fail-safe: never silently
+    # drop a rule we cannot score. Uses the LOCAL embedding (matches local_embedding
+    # column dimension) so gating is consistent regardless of the retrieval model.
     try:
-        rows = _db_execute_rows("""
-            SELECT headline, context FROM memory_service.memories
-            WHERE agent_id = %s AND tenant_id = %s::UUID
-              AND memory_type = 'correction'
-              AND superseded_at IS NULL
-            ORDER BY created_at DESC LIMIT 5
-        """, (agent_id, _tid), tenant_id=_tid)
+        _ac_emb_str = None
+        if query_context and query_context.strip():
+            try:
+                _ac_emb = _embed_text_local(query_context[:2000])
+                if _ac_emb and len(_ac_emb) == 384:
+                    _ac_emb_str = "[" + ",".join(str(v) for v in _ac_emb) + "]"
+            except Exception as _e:
+                logger.warning("Active Corrections gating embed failed (non-fatal, fail-safe include): %s", _e)
+        if _ac_emb_str is not None:
+            rows = _db_execute_rows("""
+                SELECT headline, context,
+                       CASE WHEN local_embedding IS NOT NULL
+                            THEN 1 - (local_embedding <=> %s::vector)
+                            ELSE NULL END AS sim
+                FROM memory_service.memories
+                WHERE agent_id = %s AND tenant_id = %s::UUID
+                  AND memory_type = 'correction'
+                  AND superseded_at IS NULL
+                ORDER BY created_at DESC LIMIT 5
+            """, (_ac_emb_str, agent_id, _tid), tenant_id=_tid)
+        else:
+            rows = _db_execute_rows("""
+                SELECT headline, context, NULL AS sim FROM memory_service.memories
+                WHERE agent_id = %s AND tenant_id = %s::UUID
+                  AND memory_type = 'correction'
+                  AND superseded_at IS NULL
+                ORDER BY created_at DESC LIMIT 5
+            """, (agent_id, _tid), tenant_id=_tid)
         if rows:
             corrections = []
             for row in rows:
+                _sim = row[2] if len(row) > 2 else None
+                if _sim is not None and float(_sim) < RECALL_SEMANTIC_FLOOR:
+                    continue  # gated out — not topically relevant to this query
                 corrections.append(f"- ⚠️ {row[0]}: {row[1] if len(row) > 1 else ''}")
-            blocks.append(f"### Active Corrections\n" + "\n".join(corrections))
+            if corrections:
+                blocks.append(f"### Active Corrections\n" + "\n".join(corrections))
     except Exception:
         pass
     
@@ -846,7 +887,7 @@ def recall_fixed(
     
     # Step 2: Always-include block
     _always_t0 = _time.time()
-    always_block, always_tokens = _build_always_include(agent_id, tenant_id=_tid, config=config)
+    always_block, always_tokens = _build_always_include(agent_id, tenant_id=_tid, config=config, query_context=conversation_context)
     _always_t1 = _time.time()
     _always_ms = (_always_t1 - _always_t0) * 1000
     remaining_budget = budget_tokens - always_tokens
@@ -1082,6 +1123,12 @@ def recall_fixed(
     for idx_c, c in enumerate(candidates):
         try:
             semantic_sim = c["similarity"]
+            # P3-B2 FIX A: enforce raw-cosine floor before blending. By this point
+            # non-vector (S2/S3) candidates have had real cosine recomputed above,
+            # so this gate is a true semantic floor — recency can no longer rescue
+            # a sub-floor candidate past the L0 gate.
+            if semantic_sim < RECALL_SEMANTIC_FLOOR:
+                continue
             recency = raw_recencies[idx_c]
             temporal_ref = c.get("event_at") or c["created_at"]
             days_since = (now - temporal_ref).total_seconds() / 86400
@@ -1563,7 +1610,7 @@ def recall_cross_agent(
     half_life_days = config.get("recency_half_life_days", 3)
     
     # Step 2: Always-include block (primary agent's identity/profile)
-    always_block, always_tokens = _build_always_include(primary_agent_id, tenant_id=_tid, config=config)
+    always_block, always_tokens = _build_always_include(primary_agent_id, tenant_id=_tid, config=config, query_context=conversation_context)
     remaining_budget = budget_tokens - always_tokens
     
     if remaining_budget <= 0:
