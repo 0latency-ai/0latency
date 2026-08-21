@@ -50,6 +50,22 @@ RECALL_ASSISTANT_DOWNWEIGHT = float(os.getenv("RECALL_ASSISTANT_DOWNWEIGHT", "0.
 # calendar query) bands at <=0.36. 0.50 sits cleanly in the gap (0.44, 0.53].
 RECALL_SEMANTIC_FLOOR = float(os.getenv("RECALL_SEMANTIC_FLOOR", "0.50"))
 
+# Supersession recall filter. A superseded memory is stale by definition: it was
+# explicitly replaced by a newer memory via _supersede_memory(). Returning it from
+# default recall puts the stale fact back in front of the model next to the fact
+# that replaced it, which is the whole failure supersession exists to prevent.
+#
+# Configurable, default EXCLUDE. Turning it off is an inspection tool (see the
+# pre-supersession state without a code change), not a supported serving mode.
+#
+# This flag governs RECALL ONLY. Superseded rows are never deleted and stay fully
+# retrievable by explicit lineage query — GET /memories/{id}?include_superseded=true
+# — regardless of this setting. That is the audit trail; it does not run through
+# here.
+RECALL_EXCLUDE_SUPERSEDED = os.getenv("RECALL_EXCLUDE_SUPERSEDED", "true").lower() in ("true", "1", "yes")
+_SUPERSEDED_FILTER = "AND superseded_at IS NULL" if RECALL_EXCLUDE_SUPERSEDED else ""
+
+
 
 
 # --- Adaptive Composite Scoring (recall hardening) ---
@@ -262,7 +278,7 @@ def _bm25_search(agent_id: str, query: str, tenant_id: str = None, limit: int = 
             FROM memory_service.memories
             WHERE agent_id = %s 
               AND tenant_id = %s::UUID
-              AND superseded_at IS NULL
+              {_SUPERSEDED_FILTER}
               AND memory_type != 'raw_turn'
               {_bm25_project_filter}
               AND search_text @@ websearch_to_tsquery('english', %s)
@@ -486,7 +502,7 @@ def _build_always_include(agent_id: str, tenant_id: str = None, config: dict = N
             except Exception as _e:
                 logger.warning("Active Corrections gating embed failed (non-fatal, fail-safe include): %s", _e)
         if _ac_emb_str is not None:
-            rows = _db_execute_rows("""
+            rows = _db_execute_rows(f"""
                 SELECT headline, context,
                        CASE WHEN local_embedding IS NOT NULL
                             THEN 1 - (local_embedding <=> %s::vector)
@@ -494,15 +510,15 @@ def _build_always_include(agent_id: str, tenant_id: str = None, config: dict = N
                 FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s::UUID
                   AND memory_type = 'correction'
-                  AND superseded_at IS NULL
+                  {_SUPERSEDED_FILTER}
                 ORDER BY created_at DESC LIMIT 5
             """, (_ac_emb_str, agent_id, _tid), tenant_id=_tid)
         else:
-            rows = _db_execute_rows("""
+            rows = _db_execute_rows(f"""
                 SELECT headline, context, NULL AS sim FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s::UUID
                   AND memory_type = 'correction'
-                  AND superseded_at IS NULL
+                  {_SUPERSEDED_FILTER}
                 ORDER BY created_at DESC LIMIT 5
             """, (agent_id, _tid), tenant_id=_tid)
         if rows:
@@ -631,7 +647,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                        source_type
                 FROM memory_service.memories
                 WHERE (agent_id = %s OR memory_type = 'synthesis') AND tenant_id = %s::UUID
-                  AND superseded_at IS NULL
+                  {_SUPERSEDED_FILTER}
                   AND (headline ~* %s OR context ~* %s)
                   {_raw_turn_filter}
                   {_synthesis_filter}
@@ -674,7 +690,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                        source_type
                 FROM memory_service.memories
                 WHERE (agent_id = %s OR memory_type = 'synthesis') AND tenant_id = %s::UUID
-                  AND superseded_at IS NULL
+                  {_SUPERSEDED_FILTER}
                   AND {_emb_col} IS NOT NULL
                   {_raw_turn_filter}
                   {_synthesis_filter}
@@ -692,7 +708,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                        source_type
                 FROM memory_service.memories
                 WHERE (agent_id = %s OR memory_type = 'synthesis') AND tenant_id = %s::UUID
-                  AND superseded_at IS NULL
+                  {_SUPERSEDED_FILTER}
                   AND importance > 0.8
                   {_raw_turn_filter}
                   {_synthesis_filter}
@@ -711,7 +727,7 @@ def _retrieve_candidates(agent_id: str, query_embedding: list[float], context_te
                        source_type
                 FROM memory_service.memories
                 WHERE (agent_id = %s OR memory_type = 'synthesis') AND tenant_id = %s::UUID
-                  AND superseded_at IS NULL
+                  {_SUPERSEDED_FILTER}
                   AND search_text @@ websearch_to_tsquery('english', %s)
                   {_raw_turn_filter}
                   {_synthesis_filter}
@@ -931,7 +947,7 @@ def recall_fixed(
             _cov_rows = _db_execute_rows(
                 "SELECT COUNT(embedding_voyage), COUNT(*) "
                 "FROM memory_service.memories "
-                "WHERE tenant_id = %s::UUID AND superseded_at IS NULL "
+                f"WHERE tenant_id = %s::UUID {_SUPERSEDED_FILTER} "
                 "AND (agent_id = %s OR memory_type = 'synthesis')",
                 (_tid, agent_id), tenant_id=_tid
             )
@@ -1397,6 +1413,7 @@ def recall_fixed(
                         FROM memory_service.memories
                         WHERE id = ANY(%s::uuid[])
                           AND tenant_id = %s
+                          {_SUPERSEDED_FILTER}
                     """
                     parent_rows = _st_evidence._db_execute_rows(parent_query, (all_parent_ids, _tid), tenant_id=_tid)
                     
@@ -1437,12 +1454,13 @@ def recall_fixed(
                 
                 if cluster_ids:
                     import storage_multitenant as _st_evidence
-                    cluster_query = """
+                    cluster_query = f"""
                         SELECT id, headline, context, full_content, memory_type, importance, metadata->>'cluster_id' as cluster_id
                         FROM memory_service.memories
                         WHERE metadata->>'cluster_id' = ANY(%s::text[])
                           AND tenant_id = %s
                           AND agent_id = %s
+                          {_SUPERSEDED_FILTER}
                     """
                     cluster_rows = _db_execute_rows(cluster_query, (cluster_ids, _tid, agent_id), tenant_id=_tid)
                     
@@ -1536,7 +1554,7 @@ def _retrieve_candidates_cross_agent(
                        1 - ({_emb_col} <=> %s::vector) as similarity
                 FROM memory_service.memories
                 WHERE agent_id = %s AND tenant_id = %s::UUID
-                  AND superseded_at IS NULL
+                  {_SUPERSEDED_FILTER}
                   AND {_emb_col} IS NOT NULL
                 ORDER BY {_emb_col} <=> %s::vector
                 LIMIT 10
