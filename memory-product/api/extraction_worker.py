@@ -4,6 +4,7 @@ This module defines the job function that gets executed by RQ workers.
 """
 import os
 import sys
+import time
 import logging
 from datetime import datetime, timezone
 import redis
@@ -145,6 +146,7 @@ def process_extraction_job(job_id: str, content: str, agent_id: str,
         tenant_id: Tenant identifier
         session_timestamp: ISO 8601 date of this conversation (for event_at resolution)
     """
+    started = time.perf_counter()
     try:
         logger.info(f"Starting extraction job {job_id} for tenant {tenant_id}")
 
@@ -195,9 +197,15 @@ def process_extraction_job(job_id: str, content: str, agent_id: str,
             })
             logger.info(f"Job {job_id} completed: no memories extracted")
         
-        # Track API usage
-        track_api_usage(tenant_id, "/memories/extract", 
-                       tokens_used=len(content), response_time_ms=0)
+        # Track API usage.
+        # response_time_ms is worker-side processing time (context load + both LLM
+        # extraction passes + store), NOT the caller's wait -- the endpoint returns
+        # 202 immediately. Previously hardcoded to 0, which poisoned every
+        # /memories/extract usage row and made extraction latency unobservable.
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        track_api_usage(tenant_id, "/memories/extract",
+                       tokens_used=len(content), response_time_ms=elapsed_ms)
+        logger.info(f"Job {job_id} worker processing time: {elapsed_ms} ms")
         
         # Set expiration on job data (24 hours)
         redis_conn.expire(f"extract_job:{job_id}", 86400)
