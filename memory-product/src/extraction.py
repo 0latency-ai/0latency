@@ -397,11 +397,24 @@ def extract_memories(
     Returns:
         tuple[list[dict], Optional[str]]: A tuple containing:
             - memories: List of extracted memory dictionaries
-            - raw_turn_id: String identifier (None if extraction succeeded, UUID if fallback stored)
-        
+            - raw_turn_id: UUID of the stored raw_turn, or None if no raw_turn was
+              written (no tenant_id, sub-threshold turn, or the store failed)
+
         IMPORTANT: Both elements of tuple are required for all callers.
-        raw_turn is stored ONLY when len(memories) == 0 (fallback/audit preservation).
-        When extraction succeeds (≥1 memory), raw_turn is skipped to avoid namespace bloat.
+        raw_turn is stored UNCONDITIONALLY, up front, whenever tenant_id is set and
+        the turn clears the length threshold -- before extraction runs and regardless
+        of how many memories come back. It is verbatim-preservation storage, not a
+        zero-extraction fallback.
+
+        Corollary for anyone reading the DB: the presence of a raw_turn row says
+        NOTHING about whether extraction produced atoms. Lineage lives in the child
+        atoms' metadata->'parent_memory_ids'; that is the only way to tell.
+
+        (The docstring previously claimed the inverse -- "stored ONLY when
+        len(memories) == 0" -- which was left over from the pre-2026-05 design and
+        was the source of the "raw turn present => extraction produced nothing"
+        inference. Corrected 2026-08-21.)
+
         Tuple signature restored 2026-05-10 after ed6343d regression.
         Do not change this return signature without updating all 18+ call sites.
     """
@@ -774,49 +787,11 @@ def extract_memories(
         except Exception as e:
             logger.warning(f"Assistant extraction failed (non-fatal): {e}")
 
-    # ========================================================================
-    # Task 8b (revised): Write raw_turn ONLY when extraction returns zero memories
-    # Rationale: When extraction succeeds, extracted facts already preserve signal.
-    # Raw turn is fallback/audit storage, not user-facing memory.
-    # ========================================================================
-    if len(validated) == 0 and not raw_turn_id and tenant_id:
-        from storage_multitenant import store_memory
-        full_content = f"Human: {human_message}\n\nAgent: {agent_message}"
-        context_text = full_content[:500] + ("..." if len(full_content) > 500 else "")
-        timestamp_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-        headline_text = f"Raw turn — {timestamp_str}"
-        
-        raw_turn_memory = {
-            "agent_id": agent_id,
-            "headline": headline_text,
-            "context": context_text,
-            "full_content": full_content,
-            "memory_type": "raw_turn",
-            "importance": 0.3,
-            "confidence": 1.0,
-            "entities": [],
-            "categories": ["raw_turn"],
-            "scope": "/",
-            "source_session": session_key,
-            "source_turn": turn_id,
-            "source_type": source,
-            "metadata": {
-                "source": source,
-                "thread_id": metadata.get("thread_id"),
-                "project_id": metadata.get("project_id"),
-                "turn_number": metadata.get("turn_number"),
-            },
-        }
-        
-        try:
-            result = store_memory(raw_turn_memory, tenant_id=tenant_id)
-            raw_turn_id = result["id"]
-            print(f"  Stored raw_turn (fallback): {raw_turn_id}")
-            metadata["raw_turn_id"] = raw_turn_id
-        except Exception as e:
-            print(f"  Warning: Failed to store raw_turn (non-fatal): {e}")
-            raw_turn_id = None
-    
+    # Task 8b: the raw_turn was already written unconditionally at the top of this
+    # function (see the "Write raw_turn FIRST" block). A second, zero-memory
+    # fallback store used to live here; it was reachable only when that first store
+    # had just raised AND extraction returned nothing -- an unlabelled, backoff-free
+    # retry of an operation that had failed seconds earlier. Removed 2026-08-21.
     return (validated, raw_turn_id)
 
 
