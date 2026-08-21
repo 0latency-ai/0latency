@@ -1980,25 +1980,50 @@ async def search_memories(
     except Exception:
         raise_service_unavailable("Search failed")
 @app.get("/memories/{memory_id}")
-async def get_memory(memory_id: str, tenant: dict = Depends(require_api_key)):
-    """Get full details for a specific memory including lineage data."""
+async def get_memory(memory_id: str, include_superseded: bool = False,
+                     tenant: dict = Depends(require_api_key)):
+    """Get full details for a specific memory including lineage data.
+
+    Default recall excludes superseded memories (RECALL_EXCLUDE_SUPERSEDED), but
+    superseded rows are never destroyed and must stay auditable. This endpoint is
+    that audit path: pass ?include_superseded=true to fetch a memory that has been
+    replaced. Lineage edges (superseded_at, superseded_by, supersedes[]) are always
+    reported so a caller can walk the chain in both directions.
+    """
     try:
         uuid.UUID(memory_id)
     except ValueError:
         raise_validation_error("memory_id must be a valid UUID")
-    
-    rows = _db_execute_rows("""
-        SELECT id, headline, full_content, context, memory_type, importance, 
-               source_type, source_memory_ids, created_at, project_id, thread_id, 
-               thread_title, metadata
+
+    _live_only = "" if include_superseded else "AND superseded_at IS NULL"
+    rows = _db_execute_rows(f"""
+        SELECT id, headline, full_content, context, memory_type, importance,
+               source_type, source_memory_ids, created_at, project_id, thread_id,
+               thread_title, metadata, superseded_at, superseded_by
         FROM memory_service.memories
-        WHERE id = %s::UUID AND tenant_id = %s::UUID AND superseded_at IS NULL
+        WHERE id = %s::UUID AND tenant_id = %s::UUID {_live_only}
     """, (memory_id, tenant["id"]), tenant_id=tenant["id"])
-    
+
     if not rows:
+        # Distinguish "gone" from "superseded, ask for it explicitly". A bare 404
+        # on a superseded row is what made the audit trail unreachable.
+        _exists = _db_execute_rows("""
+            SELECT superseded_at FROM memory_service.memories
+            WHERE id = %s::UUID AND tenant_id = %s::UUID
+        """, (memory_id, tenant["id"]), tenant_id=tenant["id"])
+        if _exists and _exists[0][0] is not None:
+            raise_not_found("Memory is superseded; retry with ?include_superseded=true")
         raise_not_found("Memory")
-    
+
     row = rows[0]
+
+    # Reverse edge: which memories THIS one superseded.
+    _supersedes = _db_execute_rows("""
+        SELECT id::text FROM memory_service.memories
+        WHERE superseded_by = %s::UUID AND tenant_id = %s::UUID
+        ORDER BY superseded_at
+    """, (memory_id, tenant["id"]), tenant_id=tenant["id"])
+
     return {
         "id": str(row[0]),
         "headline": str(row[1]),
@@ -2013,6 +2038,10 @@ async def get_memory(memory_id: str, tenant: dict = Depends(require_api_key)):
         "thread_id": str(row[10]) if row[10] else None,
         "thread_title": str(row[11]) if row[11] else None,
         "metadata": row[12] if row[12] else {},
+        "superseded_at": str(row[13]) if row[13] else None,
+        "superseded_by": str(row[14]) if row[14] else None,
+        "supersedes": [r[0] for r in (_supersedes or [])],
+        "is_superseded": row[13] is not None,
     }
 
 
