@@ -1883,6 +1883,26 @@ async def feedback_endpoint(req: FeedbackRequest, tenant: dict = Depends(require
             conn.commit()
             cur.close()
             
+            # 2026-08-12: apply the feedback to the memory itself, not just the log.
+            # record_recall_usage() has existed in src/feedback.py since Phase 3 and
+            # had zero callers, which is why all 2,350 Thomas memories still read
+            # recall_count = 0 while src/recall.py ranks on access_count. Writing a
+            # recall_feedback row was never enough on its own: the ranker reads a
+            # counter that nothing incremented. Scoped to the calling tenant, and
+            # non-fatal — a reinforcement failure must not fail the request.
+            if req.feedback_type in ("used", "ignored") and req.memory_id:
+                try:
+                    from src.feedback import record_recall_usage
+                    record_recall_usage(
+                        [req.memory_id],
+                        [req.memory_id] if req.feedback_type == "used" else [],
+                        tenant_id=tenant["id"],
+                    )
+                except Exception as reinforce_error:
+                    logger.warning(
+                        f"record_recall_usage failed for memory={req.memory_id}: {reinforce_error}"
+                    )
+
             # Track usage analytics
             track_api_usage(tenant["id"], "feedback")
             

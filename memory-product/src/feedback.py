@@ -15,35 +15,45 @@ sys.path.insert(0, os.path.dirname(__file__))
 from db import execute, execute_one, execute_scalar, execute_modify
 
 
-def record_recall_usage(memory_ids_surfaced: list[str], memory_ids_used: list[str]):
+def record_recall_usage(memory_ids_surfaced: list[str], memory_ids_used: list[str],
+                        tenant_id: str = None):
     """
     After a response is generated, compare which recalled memories were
     actually referenced in the response vs. ignored.
+
+    tenant_id (2026-08-12): when supplied, every UPDATE is scoped to that tenant.
+    This function became reachable from the /feedback endpoint on this date, so a
+    memory id supplied by one tenant must not be able to move another tenant's
+    counters. Callers that know their tenant are expected to pass it.
     """
     used_set = set(memory_ids_used)
+
+    tenant_clause = " AND tenant_id = %s::uuid" if tenant_id else ""
 
     for mid in memory_ids_surfaced:
         mid = mid.strip()
         if not mid:
             continue
 
+        args = (mid, tenant_id) if tenant_id else (mid,)
+
         if mid in used_set:
-            execute_modify("""
+            execute_modify(f"""
                 UPDATE memory_service.memories
                 SET recall_count = recall_count + 1,
                     recall_used_count = recall_used_count + 1,
                     relevance_score = LEAST(1.0, relevance_score + 0.05),
                     last_accessed = now()
-                WHERE id = %s
-            """, (mid,))
+                WHERE id = %s{tenant_clause}
+            """, args)
         else:
-            execute_modify("""
+            execute_modify(f"""
                 UPDATE memory_service.memories
                 SET recall_count = recall_count + 1,
                     recall_ignored_count = recall_ignored_count + 1,
                     relevance_score = GREATEST(0.05, relevance_score - 0.02)
-                WHERE id = %s
-            """, (mid,))
+                WHERE id = %s{tenant_clause}
+            """, args)
 
 
 def get_recall_stats(agent_id: str) -> dict:
