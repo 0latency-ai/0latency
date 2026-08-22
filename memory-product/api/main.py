@@ -556,6 +556,12 @@ class ExtractResponse(BaseModel):
 class RecallRequest(BaseModel):
     agent_id: Optional[str] = Field(None, min_length=1, max_length=128)
     conversation_context: str = Field(..., min_length=1, max_length=50000)
+    query: Optional[str] = Field(
+        None, max_length=50000,
+        description="The actual question being asked. conversation_context is the "
+                    "surrounding dialogue; query is the information need. When both "
+                    "are given, retrieval runs over query + conversation_context."
+    )
     budget_tokens: int = Field(default=4000, ge=500, le=16000)
     cross_agent: bool = Field(default=False, description="Enable cross-agent namespace search")
     confidence_threshold: float = Field(default=0.6, ge=0.0, le=1.0, description="Min confidence before cross-agent fallback")
@@ -1691,12 +1697,23 @@ async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api
         agent_id = resolve_agent_id(tenant["id"], req.agent_id)
         _t1 = time.time()
 
+        # 2026-08-21 (Q08): callers were sending {"query": ..., "conversation_context": ...}
+        # and the query was being silently discarded — RecallRequest had no `query`
+        # field, so pydantic dropped it and every downstream stage (embedding, BM25
+        # classify_query, entity extraction) saw only the surrounding dialogue. The
+        # actual question never reached retrieval. Fold it in here, once, so all
+        # strategies see the same text. No-op when `query` is absent, which is every
+        # existing caller.
+        _retrieval_context = req.conversation_context
+        if req.query and req.query.strip():
+            _retrieval_context = f"{req.query.strip()}\n\n{req.conversation_context}"
+
         # Choose recall strategy based on cross_agent parameter
         if req.cross_agent:
             # Use recall_with_fallback for automatic cross-agent search
             result = recall_with_fallback(
                 agent_id=agent_id,
-                conversation_context=req.conversation_context,
+                conversation_context=_retrieval_context,
                 budget_tokens=req.budget_tokens,
                 confidence_threshold=req.confidence_threshold,
                 tenant_id=tenant["id"],
@@ -1706,7 +1723,7 @@ async def recall_endpoint(req: RecallRequest, tenant: dict = Depends(require_api
             # Standard single-agent recall
             result = recall_hybrid(
                 agent_id=agent_id,
-                conversation_context=req.conversation_context,
+                conversation_context=_retrieval_context,
                 budget_tokens=req.budget_tokens,
                 tenant_id=tenant["id"],
                 include_synthesis=req.include_synthesis,
