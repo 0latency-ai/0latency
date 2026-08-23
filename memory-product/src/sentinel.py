@@ -157,7 +157,16 @@ SENTINEL_PATTERNS: list[tuple[str, str, str, str, Confidence]] = [
     # its own reached storage unflagged. Issued keys are zl_live_ + 32 chars
     # (src/auth.py); the bound is loosened to 16 so truncated or test-shaped
     # values are caught too.
-    ("0Latency Key", "api_key", r'\bzl_(?:live|test)_[A-Za-z0-9]{16,}\b', "0Latency API key", Confidence.HIGH),
+    #
+    # The body charset is urlsafe-base64, NOT plain alnum. The original
+    # [A-Za-z0-9] form silently failed closed on every key containing '-' or
+    # '_' — which is most of them — so a live key sitting in stored text
+    # matched nothing and a tenant-wide regex proof reported 0 rows while the
+    # secret was still there. The prefix is matched case-insensitively because
+    # summarised turns reproduce it mangled ("zl_Live_", "zL_Live_"); those
+    # copies are one lowercasing away from usable. Bounded at 64 so a greedy
+    # body cannot run on through underscored prose.
+    ("0Latency Key", "api_key", r'\b(?i:zl_(?:live|test)_)[A-Za-z0-9_-]{16,64}', "0Latency API key", Confidence.HIGH),
     
     # ── Tokens (HIGH confidence) ──────────────────────────────────────────
     ("JWT", "token", r'\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b', "JSON Web Token", Confidence.HIGH),
