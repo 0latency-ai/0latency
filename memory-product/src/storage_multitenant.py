@@ -11,6 +11,7 @@ import numpy as np
 import requests
 import psycopg2
 import psycopg2.pool
+import psycopg2.extensions
 from datetime import datetime, timezone
 from typing import Optional
 import threading
@@ -74,6 +75,33 @@ def _get_connection_pool():
                     dsn=_get_db_conn()
                 )
     return _connection_pool
+
+
+def release_connection(pool, conn):
+    """
+    Return a borrowed connection to the pool, guaranteeing it goes back clean.
+
+    psycopg2's own pool sanitiser (psycopg2/pool.py::_putconn) decides whether
+    to roll a connection back by reading the *backend* transaction status. A
+    connection abandoned mid-transaction can report backend IDLE while
+    psycopg2's *client-side* conn.status is still STATUS_BEGIN; putconn() then
+    re-pools it untouched, and the next borrower dies on `conn.autocommit = ...`
+    with "set_session cannot be used inside a transaction". Out of a 5-slot
+    pool that one connection then 500s unrelated requests, require_api_key
+    included.
+
+    Roll back explicitly so both halves resynchronise, and discard rather than
+    re-pool anything we could not clean.
+    """
+    if conn is None:
+        return
+    try:
+        if not conn.closed and conn.status != psycopg2.extensions.STATUS_READY:
+            conn.rollback()
+    except Exception:
+        pass
+    dirty = conn.closed or conn.status != psycopg2.extensions.STATUS_READY
+    pool.putconn(conn, close=bool(dirty))
 
 
 def set_tenant_context(tenant_id: str):
@@ -245,6 +273,26 @@ def _db_execute_rows(query: str, params: tuple = None, tenant_id: str = None, fe
         cur = None
         try:
             conn = pool.getconn()
+
+            # 2026-08-22: resynchronise before touching autocommit.
+            #
+            # A pooled connection can come back with psycopg2's *client-side*
+            # status stuck at STATUS_BEGIN while the *backend* reports
+            # TRANSACTION_STATUS_IDLE. psycopg2's own putconn() sanitiser only
+            # inspects the backend status (pool.py appends the connection
+            # untouched whenever the backend says IDLE), so a connection whose
+            # client-side half is still BEGIN goes back into the idle list
+            # without a rollback. The autocommit setter below is the one
+            # operation that reads the client-side status, which is why the
+            # divergence surfaces here as:
+            #     set_session cannot be used inside a transaction
+            #
+            # With maxconn=5 that poisoned connection is handed straight to the
+            # next borrower, so the failure cascades into unrelated requests
+            # including require_api_key. rollback() resets both halves.
+            if conn.status != psycopg2.extensions.STATUS_READY:
+                conn.rollback()
+
             conn.autocommit = True  # CP6: Enable autocommit to eliminate BEGIN/COMMIT round trips
             cur = conn.cursor()
             
@@ -276,7 +324,7 @@ def _db_execute_rows(query: str, params: tuple = None, tenant_id: str = None, fe
             if cur:
                 cur.close()
             if conn:
-                pool.putconn(conn)
+                release_connection(pool, conn)
     
     return []
 

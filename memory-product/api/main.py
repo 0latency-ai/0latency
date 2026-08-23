@@ -1911,7 +1911,12 @@ async def feedback_endpoint(req: FeedbackRequest, tenant: dict = Depends(require
             return FeedbackResponse(status="ok")
             
         finally:
-            pool.putconn(conn)
+            # release_connection(), not putconn(): an exception between getconn()
+            # and commit() leaves this connection mid-transaction, and psycopg2's
+            # pool re-pools it without a rollback whenever the backend happens to
+            # report IDLE. The next borrower then 500s on set_session.
+            from storage_multitenant import release_connection
+            release_connection(pool, conn)
             
     except Exception as e:
         logger.error(f"Feedback endpoint failed: {e}")
@@ -3076,7 +3081,11 @@ async def redact_memory(
             }
             
         finally:
-            pool.putconn(conn)
+            # See the note on the feedback endpoint: raise_not_found() and
+            # transition_source_state() can both abandon this connection with a
+            # transaction still open.
+            from src.storage_multitenant import release_connection
+            release_connection(pool, conn)
             
     except HTTPException:
         raise
