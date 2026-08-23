@@ -648,7 +648,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
         """, (tenant["id"],), tenant_id=tenant["id"])
         current_count = int(count_rows[0][0]) if count_rows else 0
         if current_count >= tenant["memory_limit"]:
-            raise_memory_limit(tenant[memory_limit])
+            raise_memory_limit(tenant["memory_limit"])
         
         # Fetch recent memories for dedup + contradiction-targeting. Format includes
         # the memory ID so the extractor can emit `contradicts_id` when it detects
@@ -799,9 +799,9 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
         current_count = int(count_rows[0][0]) if count_rows else 0
         remaining = tenant["memory_limit"] - current_count
         if remaining <= 0:
-            raise_memory_limit(tenant[memory_limit])
+            raise_memory_limit(tenant["memory_limit"])
         if len(req.facts) > remaining:
-            raise_memory_limit(tenant[memory_limit], current=tenant[memory_limit] - remaining)
+            raise_memory_limit(tenant["memory_limit"], current=tenant["memory_limit"] - remaining)
 
         # Build memory dicts from facts and store them
         memories = []
@@ -2277,7 +2277,7 @@ async def bulk_import_endpoint(req: BulkImportRequest, tenant: dict = Depends(re
     """, (tenant["id"],), tenant_id=tenant["id"])
     current_count = int(count_rows[0][0]) if count_rows else 0
     if current_count >= tenant["memory_limit"]:
-        raise_memory_limit(tenant[memory_limit])
+        raise_memory_limit(tenant["memory_limit"])
     
     # Chunk the content
     chunks = _chunk_text(req.content)
@@ -2358,7 +2358,7 @@ async def thread_import_endpoint(req: ThreadImportRequest, tenant: dict = Depend
     """, (tenant["id"],), tenant_id=tenant["id"])
     current_count = int(count_rows[0][0]) if count_rows else 0
     if current_count >= tenant["memory_limit"]:
-        raise_memory_limit(tenant[memory_limit])
+        raise_memory_limit(tenant["memory_limit"])
     
     # Pair human+assistant turns
     turns_processed = 0
