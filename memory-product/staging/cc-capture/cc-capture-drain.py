@@ -61,6 +61,7 @@ def post(rec, timeout=30):
     req = urllib.request.Request(API + "/memories/extract", data=data, method="POST")
     req.add_header("Content-Type", "application/json")
     req.add_header("Accept", "application/json")
+    req.add_header("User-Agent", "cc-capture-drain/1.0")
     req.add_header("X-API-Key", APIKEY)
     # Surface tag, same contract the MCP server uses. NOTE: /memories/extract
     # does not currently consume X-Client — see the PRE-FLIGHT FINDING at the
