@@ -889,7 +889,8 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
 async def async_extract_endpoint(
     req: AsyncExtractRequest, 
     tenant: dict = Depends(require_api_key),
-    x_install_path: Optional[str] = Header(None, alias="X-Install-Path")
+    x_install_path: Optional[str] = Header(None, alias="X-Install-Path"),
+    surface: Optional[str] = Depends(client_surface),
 ):
     """Async memory extraction. Accepts instantly (202), processes in background.
     
@@ -930,6 +931,12 @@ async def async_extract_endpoint(
                 req.session_key or f"session-{job_id[:8]}",  # positional arg 4
                 tenant["id"],  # positional arg 5
                 req.session_timestamp,  # positional arg 6 — ISO date for event_at resolution
+                # positional arg 7 — calling surface, so an MCP-originated
+                # write is distinguishable from untagged API traffic. None
+                # (no/unrecognised X-Client) leaves the worker on its
+                # existing "api_extract" default; existing callers do not
+                # shift attribution.
+                surface,
                 job_timeout=300,  # RQ param: 5 minute timeout
                 result_ttl=3600,  # RQ param: Keep results for 1 hour
             )

@@ -133,7 +133,8 @@ def _split_content_roles(content: str) -> tuple:
 
 def process_extraction_job(job_id: str, content: str, agent_id: str,
                           session_key: str, tenant_id: str,
-                          session_timestamp: str = None):
+                          session_timestamp: str = None,
+                          source: str = None):
     """
     Process a memory extraction job.
     This function is executed by RQ workers in the background.
@@ -145,6 +146,11 @@ def process_extraction_job(job_id: str, content: str, agent_id: str,
         session_key: Session key for grouping
         tenant_id: Tenant identifier
         session_timestamp: ISO 8601 date of this conversation (for event_at resolution)
+        source: Calling surface from X-Client, already allowlisted by the
+            endpoint. None for untagged API traffic, which keeps the
+            historical "api_extract" value. Defaulted so jobs enqueued by a
+            previous build — still in the queue across a deploy — keep
+            working with the old positional signature.
     """
     started = time.perf_counter()
     try:
@@ -173,7 +179,12 @@ def process_extraction_job(job_id: str, content: str, agent_id: str,
             session_key=session_key,
             existing_context=existing_context,
             tenant_id=tenant_id,
-            source="api_extract",  # Track as API extraction, not conversation
+            # Surface tag when the caller announced one, else the historical
+            # default. /memories/extract is the async path the CC capture hook
+            # ships through, and it was the one extraction endpoint with no
+            # surface plumbing: every MCP-originated write landed as
+            # 'api_extract', indistinguishable from untagged API traffic.
+            source=source or "api_extract",
             session_timestamp=session_timestamp,
         )
         
