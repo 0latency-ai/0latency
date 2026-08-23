@@ -63,9 +63,10 @@ def post(rec, timeout=30):
     req.add_header("Accept", "application/json")
     req.add_header("User-Agent", "cc-capture-drain/1.0")
     req.add_header("X-API-Key", APIKEY)
-    # Surface tag, same contract the MCP server uses. NOTE: /memories/extract
-    # does not currently consume X-Client — see the PRE-FLIGHT FINDING at the
-    # top of docs/CC-CAPTURE-HOOK-DESIGN.md.
+    # Surface tag, same contract the MCP server uses. Since 64255e7,
+    # /memories/extract consumes X-Client and threads it through to
+    # extract_memories(source=...), so these turns land with
+    # source_type=claude_code_mcp rather than api_extract.
     req.add_header("X-Client", SURFACE)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
