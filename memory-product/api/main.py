@@ -298,6 +298,39 @@ _rate_limits_fallback: dict[str, list[float]] = {}
 _tenant_cache: dict[str, tuple[dict, float]] = {}
 _TENANT_CACHE_TTL = 30  # 30 seconds
 
+# --- Calling surface ---
+# memories.source_type already carries per-surface tags for the browser
+# extensions (claude_extension / gemini_extension / chatgpt_extension). MCP
+# callers had no tag of their own, so Claude Code writes landed as
+# source_type='api', agent_id='default' — indistinguishable from extension
+# traffic, which made per-surface coverage unmeasurable.
+#
+# Surfaces announce themselves with X-Client, the same way the extension
+# announces its identity with agent_id: the caller states who it is, the
+# server decides what to record. Allowlisted rather than free-form so a caller
+# cannot write arbitrary values into source_type.
+#
+# agent_id convention for Claude Code sessions: 'claude-code', optionally
+# 'claude-code:<label>' to separate sessions. It stays opt-in per call rather
+# than becoming the MCP default: agent_id scopes recall, and tenant 'thomas'
+# alone holds 4,739 rows under agent_id='default' that flipping the default
+# would strand.
+CLIENT_SURFACES = {
+    "claude_code_mcp",
+    "claude_extension",
+    "gemini_extension",
+    "chatgpt_extension",
+}
+
+
+def client_surface(x_client: str = Header(None)) -> "Optional[str]":
+    """Resolve the calling surface from X-Client. None = untagged API traffic."""
+    if not x_client:
+        return None
+    tag = x_client.strip().lower()
+    return tag if tag in CLIENT_SURFACES else None
+
+
 async def require_api_key(
     authorization: str = Header(None),
     x_api_key: str = Header(None, alias="X-API-Key")
@@ -630,7 +663,7 @@ class HealthResponse(BaseModel):
 # --- Endpoints ---
 @app.post("/extract", response_model=ExtractResponse)
 @track_critical_errors
-async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_api_key)):
+async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_api_key), surface: str = Depends(client_surface)):
     """Extract memories from a conversation turn."""
     # Secret scanning — reject if secrets detected in inbound content
     check_for_secrets(req.human_message, "human_message")
@@ -674,7 +707,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
             turn_id=req.turn_id,
             existing_context=existing_context,
             tenant_id=tenant["id"],
-            source="api",
+            source=surface or "api",
             session_timestamp=req.session_timestamp,
         )
         if not memories:
@@ -768,7 +801,7 @@ async def extract_endpoint(req: ExtractRequest, tenant: dict = Depends(require_a
 
 @app.post("/memories/seed", response_model=SeedResponse)
 @track_critical_errors
-async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key)):
+async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key), surface: str = Depends(client_surface)):
     """Seed memories directly from raw facts, bypassing the extraction pipeline.
     
     Use this to bulk-load known facts, preferences, or context into an agent's
@@ -820,7 +853,7 @@ async def seed_endpoint(req: SeedRequest, tenant: dict = Depends(require_api_key
                 "scope": "/",
                 "source_session": "seed",
                 "source_turn": None,
-                "source_type": "api_seed",
+                "source_type": surface or "api_seed",
                 "metadata": {**(fact.metadata or {}), "source": (fact.metadata or {}).get("source", "seed_api")},
             })
 
@@ -2135,7 +2168,7 @@ class BatchExtractRequest(BaseModel):
     turns: list[BatchExtractItem] = Field(..., min_length=1, max_length=50)
 
 @app.post("/extract/batch")
-async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require_api_key)):
+async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require_api_key), surface: str = Depends(client_surface)):
     """Extract memories from multiple conversation turns in one request."""
     import traceback as _tb
     logger.info(f"[BATCH DEBUG] /extract/batch called with {len(req.turns)} turns, tenant={tenant['id']}")
@@ -2178,7 +2211,7 @@ async def batch_extract(req: BatchExtractRequest, tenant: dict = Depends(require
                 turn_id=turn.turn_id,
                 existing_context=existing_context,
                 tenant_id=tenant["id"],
-                source="api",
+                source=surface or "api",
             )
             logger.info(f"[BATCH DEBUG] Turn {i}: extract_memories returned {len(memories) if memories else 0} memories")
             if memories:
@@ -2258,7 +2291,7 @@ def _chunk_text(text: str, chunk_size: int = 2000, overlap: int = 200) -> list[s
 
 @app.post("/memories/import")
 @track_critical_errors
-async def bulk_import_endpoint(req: BulkImportRequest, tenant: dict = Depends(require_api_key)):
+async def bulk_import_endpoint(req: BulkImportRequest, tenant: dict = Depends(require_api_key), surface: str = Depends(client_surface)):
     """Bulk import: accepts a large text document, chunks it, extracts memories from each chunk.
     
     Use this to import project briefs, wiki pages, documentation, or any large text block.
@@ -2312,7 +2345,7 @@ async def bulk_import_endpoint(req: BulkImportRequest, tenant: dict = Depends(re
                 session_key=req.source or "bulk-import",
                 existing_context=existing_context,
                 tenant_id=tenant["id"],
-                source="api",
+                source=surface or "api",
             )
             if memories:
                 result = store_memories(memories, tenant["id"])
@@ -2338,7 +2371,7 @@ async def bulk_import_endpoint(req: BulkImportRequest, tenant: dict = Depends(re
 
 
 @app.post("/memories/import-thread")
-async def thread_import_endpoint(req: ThreadImportRequest, tenant: dict = Depends(require_api_key)):
+async def thread_import_endpoint(req: ThreadImportRequest, tenant: dict = Depends(require_api_key), surface: str = Depends(client_surface)):
     """Thread import: accepts a conversation export and extracts memories from each turn pair.
     
     Use this to import Claude Desktop exports, ChatGPT exports, or any conversation in
@@ -2419,7 +2452,7 @@ async def thread_import_endpoint(req: ThreadImportRequest, tenant: dict = Depend
                 existing_context=existing_context,
                 recent_turns=recent_pairs[-4:] if recent_pairs else None,
                 tenant_id=tenant["id"],
-                source="api",
+                source=surface or "api",
             )
             if memories:
                 result = store_memories(memories, tenant["id"])
