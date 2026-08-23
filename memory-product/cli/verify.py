@@ -46,7 +46,10 @@ def build_url(base_url, memory_id):
 
 def call_api(url, api_key):
     """Call the API and return (status_code, body_dict). Raises on network errors."""
-    req = urllib.request.Request(url, headers={"X-API-Key": api_key})
+    req = urllib.request.Request(
+        url,
+        headers={"X-API-Key": api_key, "User-Agent": "0latency-cli/1.0"},
+    )
     try:
         with urllib.request.urlopen(req) as resp:
             body = json.loads(resp.read().decode("utf-8"))
