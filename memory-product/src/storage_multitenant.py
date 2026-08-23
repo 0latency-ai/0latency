@@ -329,6 +329,108 @@ def _db_execute_rows(query: str, params: tuple = None, tenant_id: str = None, fe
     return []
 
 
+# ---------------------------------------------------------------------------
+# Write-time secret redaction
+# ---------------------------------------------------------------------------
+
+_REDACT_TEXT_FIELDS = ("headline", "context", "full_content")
+
+
+def _redact_str(text, scanner, mode):
+    """Redact one string. Returns (text, n_findings); never raises."""
+    if not text or not isinstance(text, str):
+        return text, 0
+    try:
+        result = scanner.scan(text, mode=mode)
+    except Exception:
+        return text, 0
+    if not result.has_secrets:
+        return text, 0
+    return (result.redacted_text or text), len(result.detected)
+
+
+def _redact_obj(obj, scanner, mode):
+    """Recursively redact string leaves of a JSON-ish structure."""
+    if isinstance(obj, str):
+        return _redact_str(obj, scanner, mode)
+    if isinstance(obj, dict):
+        out, n = {}, 0
+        for k, v in obj.items():
+            out[k], c = _redact_obj(v, scanner, mode)
+            n += c
+        return out, n
+    if isinstance(obj, list):
+        out, n = [], 0
+        for v in obj:
+            rv, c = _redact_obj(v, scanner, mode)
+            out.append(rv)
+            n += c
+        return out, n
+    return obj, 0
+
+
+def redact_secrets_for_storage(memory: dict) -> dict:
+    """Strip secrets out of a memory immediately before it is persisted.
+
+    This is the last point every normal write passes through, which is why the
+    redaction lives here rather than at the endpoints. check_for_secrets() only
+    guards the endpoints that remember to call it: /memories/checkpoint,
+    /demo/extract and the verbatim /atoms path never did, so a pasted key
+    reached the row untouched. Anything that reaches store_memory() is covered
+    here no matter which endpoint produced it.
+
+    It runs before embeddings are computed, so a secret is never sent to the
+    embedding provider either.
+
+    Redaction, not rejection: dropping a whole turn because one key appeared in
+    it loses the rest of the turn's memory. The placeholder keeps the memory
+    useful and the secret out of it.
+    """
+    if not isinstance(memory, dict):
+        return memory
+    try:
+        from sentinel import SentinelScanner, SentinelMode
+    except ImportError:
+        try:
+            from src.sentinel import SentinelScanner, SentinelMode
+        except ImportError:
+            return memory  # scanner unavailable: never block a write on it
+
+    scanner = SentinelScanner()
+    mode = SentinelMode.REDACT
+    total = 0
+    kinds = set()
+
+    for field in _REDACT_TEXT_FIELDS:
+        val = memory.get(field)
+        if not isinstance(val, str) or not val:
+            continue
+        try:
+            res = scanner.scan(val, mode=mode)
+        except Exception:
+            continue
+        if res.has_secrets:
+            memory[field] = res.redacted_text or val
+            total += len(res.detected)
+            kinds.update(f.pattern_name for f in res.detected)
+
+    meta = memory.get("metadata")
+    if isinstance(meta, (dict, list)):
+        redacted_meta, n = _redact_obj(meta, scanner, mode)
+        if n:
+            memory["metadata"] = redacted_meta
+            total += n
+
+    if total:
+        # Never log the secret itself — only how many and what kind.
+        import logging as _log
+        _log.getLogger(__name__).warning(
+            "Sentinel: redacted %d secret(s) at write time (%s)",
+            total, ", ".join(sorted(kinds)) or "metadata",
+        )
+    return memory
+
+
 def store_memory(memory: dict, tenant_id: str = None) -> dict:
     """
     Store a single extracted memory with embedding and tenant isolation.
@@ -342,7 +444,11 @@ def store_memory(memory: dict, tenant_id: str = None) -> dict:
     current_tenant = tenant_id or _current_tenant_id
     if not current_tenant:
         raise ValueError("No tenant context set")
-    
+
+    # Strip secrets before anything else touches this memory — before the
+    # embedding call, before dedup, before the INSERT.
+    memory = redact_secrets_for_storage(memory)
+
     # Extract scope fields from top-level or metadata (dual-source for compatibility)
     meta_dict = memory.get('metadata', {})
     thread_id_val = memory.get('thread_id') or meta_dict.get('thread_id')

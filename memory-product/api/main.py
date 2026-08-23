@@ -4454,6 +4454,30 @@ async def write_atom(
         role = req['role']
         content = req['content']
         content_raw_b64 = req.get('content_raw', '')
+
+        # /atoms writes verbatim CLI turns straight into memories via raw SQL,
+        # so it never passes through store_memory() and never called
+        # check_for_secrets(). That is how a key pasted into a session reached
+        # full_content intact. Redact here, before the headline is derived from
+        # content and before either copy is persisted.
+        from storage_multitenant import redact_secrets_for_storage
+        _atom = redact_secrets_for_storage({
+            'headline': '', 'context': '', 'full_content': content,
+        })
+        content = _atom['full_content']
+        if content_raw_b64:
+            # The base64 copy holds the same text; a secret hides from every
+            # regex in there unless it is decoded first.
+            try:
+                _raw = base64.b64decode(content_raw_b64).decode('utf-8', 'replace')
+                _clean = redact_secrets_for_storage({
+                    'headline': '', 'context': '', 'full_content': _raw,
+                })['full_content']
+                if _clean != _raw:
+                    content_raw_b64 = base64.b64encode(_clean.encode('utf-8')).decode('ascii')
+            except Exception:
+                # Undecodable payload: drop it rather than store an unscannable blob.
+                content_raw_b64 = ''
         verbatim = req.get('verbatim', True)
         surface = req.get('surface', 'cli')
         agent_name = req.get('agent_name', 'unknown')

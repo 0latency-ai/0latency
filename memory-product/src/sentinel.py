@@ -150,6 +150,14 @@ SENTINEL_PATTERNS: list[tuple[str, str, str, str, Confidence]] = [
     ("Mailgun Key", "api_key", r'\bkey-[a-f0-9]{32}\b', "Mailgun API key", Confidence.HIGH),
     ("Supadata Key", "api_key", r'\bsd_[a-f0-9]{32,}\b', "Supadata API key", Confidence.HIGH),
     ("ZeroBounce Key", "api_key", r'\bzb_[A-Za-z0-9]{20,}\b', "ZeroBounce API key", Confidence.HIGH),
+    # 0Latency's own key format. Its absence was the reason zl_live_ values
+    # sailed through every scanned endpoint: a bare key matches no other
+    # pattern here — "Generic Secret Assignment" needs an api_key= prefix and
+    # "Environment Variable Secret" needs SOMETHING_KEY=, so a pasted key on
+    # its own reached storage unflagged. Issued keys are zl_live_ + 32 chars
+    # (src/auth.py); the bound is loosened to 16 so truncated or test-shaped
+    # values are caught too.
+    ("0Latency Key", "api_key", r'\bzl_(?:live|test)_[A-Za-z0-9]{16,}\b', "0Latency API key", Confidence.HIGH),
     
     # ── Tokens (HIGH confidence) ──────────────────────────────────────────
     ("JWT", "token", r'\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b', "JSON Web Token", Confidence.HIGH),
