@@ -1,6 +1,7 @@
 # Claude Code capture: hook design brief
 
-**Status: PRE-FLIGHTED 2026-08-23 — STAGED, TESTED, NOT INSTALLED.**
+**Status: INSTALLED ON THE MAC 2026-08-23 — proven end to end.**
+Box (`164.90.156.169`) is deliberately NOT installed. See §0-POST.
 Design author: Claude Opus 5 · 2026-08-22 · Pre-flight: Claude Opus 5 · 2026-08-23
 Follows: `docs/CAPTURE-COVERAGE-AUDIT.md`
 
@@ -11,8 +12,8 @@ Follows: `docs/CAPTURE-COVERAGE-AUDIT.md`
 Everything below §0 is the original design brief and is unchanged. This
 section records what was built and tested against the live API, the one
 acceptance criterion that did **not** pass, and the exact commands to install
-and to roll back. **Nothing has been installed.** `~/.claude/settings.json` is
-still `{}` and `~/.claude/hooks/` still does not exist.
+and to roll back. It is retained as written for provenance; **what was
+actually installed, and where, is recorded in §0-POST below.**
 
 ### Artifacts (staged, not wired)
 
@@ -147,6 +148,78 @@ rm -rf ~/.claude/hooks/cc-capture-hook.py ~/.claude/hooks/cc-capture-drain.py
 
 The spool at `~/.claude/cc-capture/` is left in place deliberately so nothing
 captured is lost on rollback; `rm -rf ~/.claude/cc-capture` removes it too.
+
+---
+
+## 0-POST. Install record — 2026-08-23
+
+Installed and verified on **the Mac only** (`MacBook-Air-7.local`,
+`/Users/justin/.claude/`). Claude Code runs there; that is the only host where
+a `Stop` hook can fire.
+
+### The box is deliberately NOT installed
+
+`root@164.90.156.169:~/.claude/settings.json` is still `{}`, mtime still
+2026-05-10, and was never opened for writing. Claude Code has not run on the
+box since 2026-05-10 — no binary on `PATH`, no process, no transcript since.
+A hook installed there would be inert and would capture nothing, forever.
+**Do not "complete" the install by wiring the box.** That is not an omission.
+
+### What deviated from §0-PRE's install steps
+
+| step | as written | as installed | why |
+|---|---|---|---|
+| 4 | `cat > settings.json <<'JSON'` | merged via `python3`, `hooks` key appended | the Mac's `settings.json` is a live 867-byte config (`mcpServers.jupyter`, `permissions`, `model`, …), not `{}`. The heredoc would have destroyed it. A JSON round-trip was proven byte-identical first, so the merge could not reformat the untouched keys. |
+| 4 | `python3 ~/.claude/hooks/...` | `/usr/bin/python3 /Users/justin/.claude/hooks/...` | absolute paths: PATH-independent in the hook's shell, and immune to a Homebrew Python upgrade |
+| 5 | cron on the box | cron on the Mac | follows the hook |
+
+### Rollback, corrected for the Mac
+
+§0-PRE's rollback ends `|| echo '{}' > ~/.claude/settings.json`. On the Mac
+that is destructive: if the backup were ever missing, it would replace a live
+config with an empty object. Use this instead — it removes only the `hooks`
+key, needs no backup, and fails loudly rather than truncating:
+
+```bash
+/usr/bin/python3 -c "import json;p='/Users/justin/.claude/settings.json';d=json.load(open(p));d.pop('hooks',None);open(p,'w').write(json.dumps(d,indent=2,ensure_ascii=False)+'\n')" && crontab -l 2>/dev/null | grep -v cc-capture-drain | crontab - && rm -f ~/.claude/hooks/cc-capture-hook.py ~/.claude/hooks/cc-capture-drain.py
+```
+
+Verified against a copy: output is byte-identical to the pre-install backup.
+
+### KNOWN GAP — `claude -p` does not fire `Stop` hooks
+
+Headless/print mode runs the session and writes a transcript, but the `Stop`
+hook is **never invoked**. Tested twice on CLI 2.1.241, with and without
+`--max-turns`; `hook.log` never moved and the spool stayed empty. The same
+hook fires reliably in interactive sessions.
+
+**Consequence: unattended Claude Code chains are not captured.** Anything
+driven by `claude -p` — scripts, cron jobs, CI, agent pipelines — is invisible
+to this hook, and the more automated the usage the larger the blind spot.
+`docs/CAPTURE-COVERAGE-AUDIT.md` coverage numbers should not be read as
+covering headless traffic. Closing this needs a different surface (an
+SDK-side wrapper or a drain over transcript files); it is not a tuning issue.
+
+### Cloudflare blocks the urllib default User-Agent
+
+The drainer could not POST at all from the Mac: Cloudflare 403s the default
+`Python-urllib/3.x` (Error 1010). Fixed in `e2cdee8`. Pre-flight missed it
+because it ran entirely on the box, whose traffic never reaches that edge
+path. The same defect was found and fixed in `cli/verify.py` (`3ba7574`),
+where it had been breaking the CLI for every customer not on the box. Both
+SDKs set or inherit an acceptable User-Agent and are unaffected.
+
+### Proof of capture
+
+Real interactive turn → natural hook fire → cron drain → row:
+
+```
+                  id                  |  agent_id   |   source_type   | memory_type
+--------------------------------------+-------------+-----------------+-------------
+ f99cc1d1-0641-4d47-809d-759685b1b33f | claude-code | claude_code_mcp | raw_turn
+```
+
+Verbatim source confirmed through `cli/verify.py` against that id.
 
 ---
 
