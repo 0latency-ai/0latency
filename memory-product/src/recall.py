@@ -1600,9 +1600,23 @@ def recall_cross_agent(
     """
     import time as _time
     
-    # Default to all known agents if not specified
+    # Default to all known agents if not specified.
+    # 'user-justin' was missing: it is tenant thomas's default_agent_id and holds
+    # ~17k of its ~24.8k rows, so cross-agent recall reached 2,395 rows and could
+    # not see the primary store at all. 'justin' (9 rows, April-2026 migration
+    # residue) was in the list and looks like it but is not it.
+    # Deliberately NOT derived from a "select distinct agent_id" over the tenant:
+    # that would pull in the 4,690 LongMemEval fixture rows under 'default' and
+    # the lme-*/test-* namespaces. See docs/NAMESPACE-UNIFICATION-SCOPE.md.
     if not agent_ids:
-        agent_ids = ["thomas", "wall-e", "steve", "scout", "reed", "atlas", "sheila", "lance", "justin", "loop", "echo"]
+        agent_ids = ["user-justin", "thomas", "wall-e", "steve", "scout", "reed", "atlas", "sheila", "lance", "justin", "loop", "echo"]
+
+    # The caller's own namespace must always be searched. recall_with_fallback()
+    # RETURNS this function's result in place of the primary result, so any
+    # primary_agent_id absent from the list was silently dropped from its own
+    # fallback. Keeps the fix from rotting the next time a namespace is added.
+    if primary_agent_id and primary_agent_id not in agent_ids:
+        agent_ids = [primary_agent_id] + agent_ids
     
     # Validate inputs
     if not primary_agent_id or not isinstance(primary_agent_id, str):
