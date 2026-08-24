@@ -17,7 +17,7 @@ Add to your MCP settings:
       "command": "npx",
       "args": ["-y", "@0latency/mcp-server"],
       "env": {
-        "ZEROLATENCY_API_KEY": "your-api-key"
+        "ZERO_LATENCY_API_KEY": "your-api-key"
       }
     }
   }

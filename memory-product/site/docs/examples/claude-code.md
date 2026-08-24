@@ -60,7 +60,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
       "command": "npx",
       "args": ["@0latency/mcp-server"],
       "env": {
-        "ZEROLATENCY_API_KEY": "zl_live_your_key_here"
+        "ZERO_LATENCY_API_KEY": "zl_live_your_key_here"
       }
     }
   }
@@ -78,7 +78,7 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
       "command": "npx.cmd",
       "args": ["@0latency/mcp-server"],
       "env": {
-        "ZEROLATENCY_API_KEY": "zl_live_your_key_here"
+        "ZERO_LATENCY_API_KEY": "zl_live_your_key_here"
       }
     }
   }
@@ -181,7 +181,7 @@ By default, the MCP server uses `agent_id = "claude_desktop"`. To customize:
       "command": "npx",
       "args": ["@0latency/mcp-server"],
       "env": {
-        "ZEROLATENCY_API_KEY": "zl_live_your_key_here",
+        "ZERO_LATENCY_API_KEY": "zl_live_your_key_here",
         "ZEROLATENCY_AGENT_ID": "my_custom_agent"
       }
     }
@@ -204,7 +204,7 @@ Control how much memory context to include:
       "command": "npx",
       "args": ["@0latency/mcp-server"],
       "env": {
-        "ZEROLATENCY_API_KEY": "zl_live_your_key_here",
+        "ZERO_LATENCY_API_KEY": "zl_live_your_key_here",
         "ZEROLATENCY_TOKEN_BUDGET": "4000"
       }
     }
@@ -367,7 +367,7 @@ Run different memory spaces for different contexts:
       "command": "npx",
       "args": ["@0latency/mcp-server"],
       "env": {
-        "ZEROLATENCY_API_KEY": "zl_live_work_key",
+        "ZERO_LATENCY_API_KEY": "zl_live_work_key",
         "ZEROLATENCY_AGENT_ID": "claude_work"
       }
     },
@@ -375,7 +375,7 @@ Run different memory spaces for different contexts:
       "command": "npx",
       "args": ["@0latency/mcp-server"],
       "env": {
-        "ZEROLATENCY_API_KEY": "zl_live_personal_key",
+        "ZERO_LATENCY_API_KEY": "zl_live_personal_key",
         "ZEROLATENCY_AGENT_ID": "claude_personal"
       }
     }
