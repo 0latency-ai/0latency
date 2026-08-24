@@ -60,9 +60,14 @@ fi
 # ── 3. Validate the API key ─────────────────────────────────────────
 info "Validating API key…"
 
+# Must be an AUTHENTICATED endpoint. /health requires no auth and returns 200
+# for any string -- including no Authorization header at all -- so validating
+# against it confirmed every typo and every fabricated key as valid and wrote
+# it to disk. GET /memories 401s properly. The Bearer scheme is correct and
+# unchanged; only the endpoint was wrong.
 HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
   -H "Authorization: Bearer ${API_KEY}" \
-  "https://api.0latency.ai/health" 2>/dev/null) || true
+  "https://api.0latency.ai/memories?limit=1" 2>/dev/null) || true
 
 if [ "$HTTP_STATUS" = "200" ]; then
   ok "API key is valid"
