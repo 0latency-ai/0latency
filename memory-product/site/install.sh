@@ -16,6 +16,24 @@ fail()  { printf "${RED}✖${RESET} %s\n" "$*"; exit 1; }
 # When run as `curl ... | bash`, stdin is the script itself.
 # We read from /dev/tty directly in all prompts below.
 
+# ── 0b. Refuse to run anywhere but macOS ────────────────────────────
+# CONFIG_DIR below is hardcoded to the macOS location. Without this guard the
+# script happily creates "$HOME/Library/Application Support/Claude" on Linux,
+# writes a config nothing will ever read, and prints the success block. The
+# only statement that this is macOS-only used to be the comment on line 2,
+# which a `curl … | bash` user never sees.
+OS_NAME=$(uname -s 2>/dev/null || echo unknown)
+if [ "$OS_NAME" != "Darwin" ]; then
+  printf "${RED}✖${RESET} %s\n" "This installer is macOS-only (detected: ${OS_NAME})."
+  echo ""
+  echo "  Claude Desktop reads its MCP config from a different location on your platform."
+  echo "  Configure it by hand instead — the exact path and JSON block are here:"
+  echo ""
+  echo "      https://0latency.ai/docs/#mcp-setup"
+  echo ""
+  exit 1
+fi
+
 # ── 1. Check for Node.js >= 18 ──────────────────────────────────────
 if ! command -v node &>/dev/null; then
   fail "Node.js is not installed. Install it from https://nodejs.org (v18+) and re-run this script."
@@ -123,7 +141,7 @@ if "mcpServers" not in config or not isinstance(config["mcpServers"], dict):
 # Add / update our entry only
 config["mcpServers"]["0latency"] = {
     "command": "npx",
-    "args": ["@0latency/mcp-server"],
+    "args": ["-y", "@0latency/mcp-server"],
     "env": {
         "ZERO_LATENCY_API_KEY": api_key
     }
