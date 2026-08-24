@@ -139,8 +139,26 @@ ok "Config written to $CONFIG_FILE"
 
 # ── 6. Pre-fetch the package (optional, speeds up first launch) ─────
 info "Pre-fetching @0latency/mcp-server…"
-npx --yes @0latency/mcp-server --version &>/dev/null || true
-ok "Package cached"
+# stdin MUST be redirected. On a cold npm cache npx does not forward the
+# trailing --version, so the bin receives no args, starts the stdio server
+# instead of printing a version, and blocks on stdin forever. Under
+# `curl … | bash` that child also drains the rest of this script out of
+# bash stdin, so the install dies silently before the success block and the
+# user is never told to restart Claude Desktop.
+# The watchdog is plain bash on purpose: macOS ships no timeout(1).
+npx --yes @0latency/mcp-server --version </dev/null >/dev/null 2>&1 &
+PREFETCH_PID=$!
+( sleep 90; kill -9 "$PREFETCH_PID" ) >/dev/null 2>&1 &
+WATCHDOG_PID=$!
+# Drop the watchdog from the job table, or bash announces "Terminated" into
+# the middle of the success block when we kill it below.
+disown "$WATCHDOG_PID" 2>/dev/null || true
+if wait "$PREFETCH_PID" 2>/dev/null; then
+  ok "Package cached"
+else
+  warn "Could not pre-cache the package — Claude Desktop will fetch it on first launch."
+fi
+kill "$WATCHDOG_PID" >/dev/null 2>&1 || true
 
 # ── 7. Done ──────────────────────────────────────────────────────────
 echo ""
