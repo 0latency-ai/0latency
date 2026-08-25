@@ -1,5 +1,5 @@
 -- Migration 022: synthesis_jobs table for persistent async job state
--- Replaces in-memory dict; survives memory-api restarts.
+-- Replaces in-memory dict; survives zerolatency-api restarts.
 
 CREATE TABLE memory_service.synthesis_jobs (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),

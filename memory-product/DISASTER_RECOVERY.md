@@ -54,7 +54,7 @@ echo "Backup complete: 0latency-$DATE.sql.gz"
 2. If prolonged (>2h):
    - Restore latest backup to new Supabase project
    - Update `MEMORY_DB_CONN` environment variable
-   - Restart API servers (`systemctl restart memory-api`)
+   - Restart API servers (`systemctl restart zerolatency-api`)
    - Estimated downtime: 2-4 hours
 
 #### Scenario 2: Data Corruption
@@ -65,7 +65,7 @@ echo "Backup complete: 0latency-$DATE.sql.gz"
 5. Resume operations
 
 #### Scenario 3: Accidental Data Deletion
-1. Stop API immediately (`systemctl stop memory-api`)
+1. Stop API immediately (`systemctl stop zerolatency-api`)
 2. Restore from most recent backup before deletion
 3. Compare with production to identify gap
 4. Manually reconcile missing data (if any)

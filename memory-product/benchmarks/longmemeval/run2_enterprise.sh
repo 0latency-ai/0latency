@@ -23,7 +23,7 @@ cp .env .env.backup-before-run2
 sed -i.bak "s/^EXTRACTION_MODEL=.*/EXTRACTION_MODEL=claude-sonnet-4-6/" .env
 
 # Restart API
-sudo systemctl restart memory-api
+sudo systemctl restart zerolatency-api
 sleep 10
 echo "API restarted with Sonnet extraction"
 
@@ -37,5 +37,5 @@ echo "Completed: $(date)"
 # Restore .env and API
 cd ../../
 mv .env.backup-before-run2 .env
-sudo systemctl restart memory-api
+sudo systemctl restart zerolatency-api
 echo "API restored to Haiku extraction"

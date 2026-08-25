@@ -606,7 +606,7 @@ All components are modular and can be disabled independently without breaking ex
 **Issues?** Check logs:
 ```bash
 # Application logs
-tail -f /var/log/memory-api.log
+journalctl -u zerolatency-api.service -f
 
 # Audit logs (database)
 psql $MEMORY_DB_CONN -c "SELECT * FROM memory_service.audit_logs ORDER BY timestamp DESC LIMIT 20;"

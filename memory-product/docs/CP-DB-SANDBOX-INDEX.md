@@ -46,7 +46,7 @@ git pull origin master
 git log -1 --oneline     # record HEAD for the run
 set -a && source .env && set +a
 psql "$DATABASE_URL" -c "SELECT 1;" | head -3
-systemctl is-active memory-api    # must be "active"
+systemctl is-active zerolatency-api    # must be "active"
 ls *BLOCKED.md 2>/dev/null         # must be empty
 ```
 

@@ -209,7 +209,7 @@ When Justin returns, in order:
 2. **Check git log.** \`git log master --oneline -10\`. New commits should match the scope doc's expected commit count.
 3. **Read commit message receipts.** \`git log -1 -p\`. Receipts should be concrete (actual outputs), not narrative.
 4. **Run the scope doc's "verification suite"** if defined. (Most scope docs end with a final smoke test that proves the change works.)
-5. **Check journal logs.** \`journalctl -u memory-api --since "<run start>" --no-pager | grep -E "ERROR|CRITICAL"\`. Should be clean modulo pre-existing known-issue lines.
+5. **Check journal logs.** \`journalctl -u zerolatency-api --since "<run start>" --no-pager | grep -E "ERROR|CRITICAL"\`. Should be clean modulo pre-existing known-issue lines.
 6. **Decide:** ship (push), revert (\`git reset --hard <prior HEAD>\`), or fix-forward (manual cleanup, then push).
 
 ---

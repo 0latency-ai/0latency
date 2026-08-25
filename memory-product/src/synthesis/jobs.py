@@ -2,7 +2,7 @@
 Synthesis Jobs — Persistent Job State Management
 
 DB-backed job queue for synthesis operations.
-Replaces in-memory jobs dict; survives memory-api restarts.
+Replaces in-memory jobs dict; survives zerolatency-api restarts.
 
 Status state machine (allowed transitions):
   queued → running (start_job)

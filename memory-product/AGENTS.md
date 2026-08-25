@@ -29,14 +29,14 @@ When deploying merged code to production:
 
 4. **Restart application service:**
    ```bash
-   systemctl restart memory-api.service
+   systemctl restart zerolatency-api.service
    ```
    WARNING: Service restart MUST follow git pull. uvicorn workers do not hot-reload.
 
 5. **Wait for startup (SentenceTransformer preload takes 17-20s):**
    ```bash
    sleep 20
-   journalctl -u memory-api.service -n 5 --no-pager | grep "Application startup complete"
+   journalctl -u zerolatency-api.service -n 5 --no-pager | grep "Application startup complete"
    ```
 
 6. **Verify health:**
@@ -47,7 +47,7 @@ When deploying merged code to production:
 
 7. **Check for startup errors:**
    ```bash
-   journalctl -u memory-api.service -n 50 --no-pager | grep -iE "error|exception|traceback"
+   journalctl -u zerolatency-api.service -n 50 --no-pager | grep -iE "error|exception|traceback"
    ```
 
 ### Nginx Configuration (Tier 1 - Autonomous)
@@ -70,18 +70,18 @@ When deploying merged code to production:
 
 ### Service Management
 
-**memory-api.service:**
-- Unit file: `/etc/systemd/system/memory-api.service`
+**zerolatency-api.service:**
+- Unit file: `/etc/systemd/system/zerolatency-api.service`
 - Command: `uvicorn api.main:app --host 127.0.0.1 --port 8420 --workers 2 --access-log`
 - Workspace: `/root/.openclaw/workspace/memory-product/`
 - Startup time: ~20s (includes SentenceTransformer model preload)
 
 **Useful commands:**
 ```bash
-systemctl status memory-api.service
-journalctl -u memory-api.service -f
-journalctl -u memory-api.service -n 100 --no-pager
-systemctl restart memory-api.service
+systemctl status zerolatency-api.service
+journalctl -u zerolatency-api.service -f
+journalctl -u zerolatency-api.service -n 100 --no-pager
+systemctl restart zerolatency-api.service
 ```
 
 ## Tier System
@@ -89,7 +89,7 @@ systemctl restart memory-api.service
 **Tier 1 (Autonomous - No approval needed):**
 - Code deploys (pull master + restart service)
 - Nginx config edits (with backups)
-- Service restarts (memory-api, 0latency-mcp, nginx reload)
+- Service restarts (zerolatency-api, 0latency-mcp, nginx reload)
 - Read-only database queries
 - Running `bash scripts/db_migrate.sh up` when migration head matches latest
 - Smoke tests with Enterprise tenant API keys (read from DB)

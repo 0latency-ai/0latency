@@ -1,7 +1,7 @@
 [Unit]
 Description=0Latency synthesis cron worker
-After=memory-api.service postgresql.service
-Requires=memory-api.service
+After=zerolatency-api.service postgresql.service
+Requires=zerolatency-api.service
 
 [Service]
 Type=oneshot
