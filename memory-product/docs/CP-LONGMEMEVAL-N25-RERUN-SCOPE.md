@@ -12,9 +12,22 @@
 > reached `master`. Its pre-flight instruction to confirm `git rev-parse HEAD` = `9333c04`
 > cannot succeed on `master`. The banked 76%@20 / MRR 0.5366 / precision 0.9851 figures
 > it cites are attributed to `0ceb578`, which IS in `master`, so those specific numbers
-> are unaffected. Q22 was re-applied to `master` on 2026-08-25 as `8d8785c`; Q21 was
-> found to be superseded by `session_timestamp` (introduced by `e50694d`) and was not
-> re-applied.
+> are unaffected. Q22 was re-applied to `master` on 2026-08-25 as `8d8785c`.
+>
+> **Q21 (`243309e`) is CLOSED — do not recover it.** Its purpose was to let the
+> LongMemEval harness anchor relative-date resolution to the story timeline instead of
+> wall-clock now, via a `today_date` override threaded from the ingest request into
+> extraction. `master` already does exactly that under a different name: `e50694d`
+> introduced `session_timestamp`, which is exposed on the ingest request
+> (`api/main.py`), threaded through `api/extraction_worker.py` into
+> `extract_memories()`, and used to derive `conversation_date` (`src/extraction.py`).
+> The harness already forwards it — `benchmarks/longmemeval/run_benchmark.py` sets
+> `payload["session_timestamp"] = session_date`. Cherry-picking `243309e` would add a
+> redundant second date-override path beside the working one. Assessed 2026-08-25.
+>
+> This also explains the future-dated `event_at` rows in the benchmark namespace: they
+> were written 2026-05-21, one day before `e50694d` landed, so they predate the anchor
+> rather than demonstrating its absence.
 >
 > The body below is preserved verbatim and has not been corrected. See
 > `docs/RECENCY-WEIGHTING-ANALYSIS.md` §7 for the full reconstruction.

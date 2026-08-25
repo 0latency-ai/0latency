@@ -14,6 +14,10 @@
 > `8d8785c`. The locked root-cause analysis and fix shape in this document were verified
 > correct during that re-application; only the commit provenance was wrong.
 >
+> `243309e` itself (Q21) is CLOSED and must not be recovered — `master` already has
+> its behaviour via `session_timestamp`, introduced by `e50694d`. See the closeout
+> note in `docs/CP-LONGMEMEVAL-N25-RERUN-SCOPE.md`.
+>
 > The body below is preserved verbatim and has not been corrected. See
 > `docs/RECENCY-WEIGHTING-ANALYSIS.md` §7 for the full reconstruction.
 
