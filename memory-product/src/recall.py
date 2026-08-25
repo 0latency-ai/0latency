@@ -1808,6 +1808,7 @@ def recall_with_fallback(
     project_id: str = None,
     caller_role: str = "public",
     expand: str = None,
+    include_synthesis: bool = True,
 ) -> dict:
     """Recall with automatic cross-agent fallback.
     
@@ -1820,7 +1821,7 @@ def recall_with_fallback(
     logger.info(f"🎯 Recall with fallback: agent={agent_id}, threshold={confidence_threshold}")
     
     # Step 1: Try primary agent first
-    primary_result = recall_fixed(agent_id, conversation_context, budget_tokens, tenant_id, project_id=project_id, caller_role=caller_role, expand=expand)
+    primary_result = recall_fixed(agent_id, conversation_context, budget_tokens, tenant_id, project_id=project_id, caller_role=caller_role, expand=expand, include_synthesis=include_synthesis)
     
     # Step 2: Check confidence
     if primary_result["recall_details"]:
