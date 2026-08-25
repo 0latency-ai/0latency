@@ -1,5 +1,7 @@
 # HANDOFF: System-wide Venv Drift Hardening — 2026-05-09
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Operator:** AI Engineer (Claude Sonnet 4.5)  
 **Date:** 2026-05-09 13:17 - 13:28 UTC  
 **Server:** root@164.90.156.169  

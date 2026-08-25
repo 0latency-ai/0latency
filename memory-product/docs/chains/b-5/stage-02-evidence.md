@@ -1,5 +1,7 @@
 # Stage 02 Evidence — analytics_events schema-qualifier fix
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 ## Goal
 Fix unqualified analytics_events table references causing "relation does not exist" errors.
 

@@ -1,4 +1,7 @@
 # CP9 Phase 2 Tracks B2+B3 Implementation - COMPLETE
+
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Date**: 2026-05-11 06:20 UTC  
 **Branch**: cp9-p2-t2-t3-error-and-recall-demo  
 **Status**: ✅ READY FOR MERGE TO MASTER

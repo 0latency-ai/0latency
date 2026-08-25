@@ -1,5 +1,7 @@
 # CP9 PHASE 2 — TRACK B1: TIME-TO-FIRST-MEMORY INSTRUMENTATION
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Date**: 2026-05-11  
 **Status**: ✅ COMPLETE  
 **Branch**: cp9-p2-t1-instrumentation (pushed to origin)  

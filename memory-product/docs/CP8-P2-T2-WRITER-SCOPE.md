@@ -1,5 +1,7 @@
 # CP8 Phase 2 Task 2 — Autonomous Scope: Synthesis Writer (with T7 audit & rate-limit-aware writes)
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Task:** Build `synthesis/writer.py` — the synchronous single-agent synthesis writer that runs against a cluster, calls Haiku, validates, and writes one synthesis row plus its audit trail.
 **Mode:** Autonomous (CC in `--dangerously-skip-permissions`).
 **Protocol:** Per `docs/AUTONOMY-PROTOCOL.md`.

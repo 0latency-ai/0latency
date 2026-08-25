@@ -1,5 +1,7 @@
 # CHECKPOINT 6 — Pre-flight: Vector Phase DB RTT Measurement
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Timestamp:** 2026-04-24T21:51:04Z  
 **Measurement Session:** CP6 Vector Phase Subinstrumentation (Final Gate Check)  
 **Agent:** user-justin  

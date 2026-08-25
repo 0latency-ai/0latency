@@ -1,5 +1,7 @@
 # CP8 Phase 5.1 Stage 2 — Redaction Cascade: Implementation
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Task:** Wire end-to-end redaction cascade. Add HTTP endpoint, complete cascade for evidence-chain depth, implement async resynthesis worker, ship migration to backfill `synthesis_state`, integration test on validation cluster.
 **Mode:** Autonomous (CC in `--dangerously-skip-permissions`).
 **Protocol:** Per `docs/AUTONOMY-PROTOCOL.md`.

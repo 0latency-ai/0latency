@@ -1,5 +1,7 @@
 # CP8 Phase 2 Task 4 — Autonomous Scope: DB-Backed Jobs Table
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Task:** Replace in-memory job dict with `synthesis_jobs` table; add `src/synthesis/jobs.py` module wrapping it.
 **Mode:** **Hybrid autonomous** — autonomous through migration drafting, **human review required mid-run** before applying migration to prod.
 **Protocol:** Per `docs/AUTONOMY-PROTOCOL.md`, with the explicit migration-review halt baked in.

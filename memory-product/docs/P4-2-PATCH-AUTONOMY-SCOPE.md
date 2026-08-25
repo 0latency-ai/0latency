@@ -1,5 +1,7 @@
 # P4.2-PATCH — Single-task autonomy scope
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Mode:** Autonomous CC, single task, no multi-stage gating.
 **Branch in:** `p4-2-fix` (4 commits ahead of master, NOT YET MERGED).
 **Master HEAD at handoff:** `220d95a`.

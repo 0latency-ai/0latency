@@ -1,5 +1,7 @@
 # CP-SYNTHESIS-PERF Phase 4B Results: SQL WHERE Filter Push
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Date:** 2026-05-04  
 **Platform:** pgvector 0.8.1 on DigitalOcean Managed PostgreSQL  
 **Goal:** Push Python post-filters into SQL WHERE clause without breaking HNSW index usage  

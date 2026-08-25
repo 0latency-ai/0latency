@@ -1,5 +1,7 @@
 # HANDOFF — CP-SYNTHESIS-PERF closure → Phase 5 kickoff
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Date:** 2026-05-05
 **Thread state at handoff:** CP-SYNTHESIS-PERF fully shipped. CP8 Phase 4 + perf chain both closed.
 **Master HEAD at handoff:** post Stage 2.B merge + STATE-LOG entry (CC merged + cleaned up; SSH `git log master --oneline -5` will show exact SHA).

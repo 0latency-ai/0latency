@@ -1,5 +1,7 @@
 # CP-SYNTHESIS-PERF Stage 2.B — Embedding model preload (fix + verify + merge)
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Mode:** Autonomous CC, single task.
 **Branch in:** `cp-synthesis-perf-s1` (continue, NOT a new branch).
 **Estimated wall-clock:** 30–45 min.

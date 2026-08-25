@@ -1,3 +1,5 @@
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **This chain conforms to docs/CC-CHAIN-FRAMEWORK.md. Estimated wall-clock: 25–35 min. Stages: 5. Tier: 1 Stage 01 (additive migration, halts at prod-apply boundary), Tier 0 Stages 02–05 (code/doc only).**
 
 # CHAIN B-5 — Mechanical hardening + Tier 2 schema unblock

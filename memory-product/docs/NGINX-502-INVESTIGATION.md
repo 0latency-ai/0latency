@@ -1,5 +1,7 @@
 # NGINX 502 Investigation - Phase 6 Benchmark Launch
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 Date: 2026-05-11 18:56-19:02 UTC
 Status: DIAGNOSED - Transient connection backlog exhaustion
 Severity: Medium (does not block benchmark completion)

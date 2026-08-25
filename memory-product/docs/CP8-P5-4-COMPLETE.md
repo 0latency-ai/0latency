@@ -1,5 +1,7 @@
 # CP8 P5.4 — Diff Webhooks (Completion Document)
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Status:** ✅ Complete
 **Branch:** `cp-p5-4-diff-webhooks`
 **Execution time:** ~90 minutes (autonomous)

@@ -1,5 +1,7 @@
 # Stage 04 Evidence — _db_execute cleanup #2 (recall.py:292)
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 ## Goal
 Convert second _db_execute() + split anti-pattern to _db_execute_rows() in _load_agent_config function.
 

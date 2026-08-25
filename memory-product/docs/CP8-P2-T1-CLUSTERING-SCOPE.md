@@ -1,5 +1,7 @@
 # CP8 Phase 2 Task 1 — Autonomous Scope: Clustering Engine
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Task:** Build `synthesis/clustering.py` — find clusters of related atoms suitable for synthesis.
 **Mode:** Autonomous (CC in `--dangerously-skip-permissions`).
 **Protocol:** Per `docs/AUTONOMY-PROTOCOL.md`.

@@ -1,3 +1,5 @@
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **This chain conforms to docs/CC-CHAIN-FRAMEWORK.md. Estimated wall-clock: 3–4 hours. Stages: 6. Tier: 0 (code + docs only, no migrations).**
 
 === CHAIN: Synthesis Hardening + LongMemEval Kickoff ===

@@ -1,5 +1,7 @@
 # Namespace Unification — Scope
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Date:** 2026-08-24
 **Status:** SCOPE — nothing migrated, nothing written to `memories`. Investigation was read-only.
 **Box:** 164.90.156.169 (= `mcp.0latency.ai`, same machine-id `bfcb6149…`)

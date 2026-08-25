@@ -1,5 +1,7 @@
 # CP8 Phase 2 T5+T6 — Cron Installation Review
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 ## Summary
 
 Implementation of manual synthesis trigger endpoint (T5) and automated cron schedule (T6) is COMPLETE.

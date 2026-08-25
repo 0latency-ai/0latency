@@ -1,5 +1,7 @@
 # CP-SYNTHESIS-PERF Phase 2 Results
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 ## Objective
 
 Profile sub-phases inside find_clusters() to identify the dominant bottleneck within the clustering phase identified in Phase 1.

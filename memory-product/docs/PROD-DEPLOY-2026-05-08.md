@@ -1,4 +1,7 @@
 # Production Deployment Report: P5.3 Decision Journals
+
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Date:** 2026-05-08  
 **Agent:** Autonomous deployment verification  
 **Status:** ✅ RESOLVED

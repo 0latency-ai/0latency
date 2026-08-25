@@ -1,5 +1,7 @@
 # CP8 Phase 2 Tasks 5 + 6 — Autonomous Scope: Manual Trigger Endpoint + Cron Schedule
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Task:** Ship `POST /synthesis/run` (tier-gated manual trigger) AND a cron entry that runs the synthesis writer at tenant-local 03:00 daily.
 **Mode:** Autonomous (CC in `--dangerously-skip-permissions`).
 **Protocol:** Per `docs/AUTONOMY-PROTOCOL.md`.

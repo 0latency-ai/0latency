@@ -1,5 +1,7 @@
 # CP8 P4.1 — Phase 4 closure chain
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Naming:** P{phase}.{chain} → this is Phase 4, chain 1.
 **Branch:** `p4-1-chain` (cut from `master` at HEAD `3e7b677`).
 **Target:** 6 stages, 30–40 min wall-clock, framework-conformant.

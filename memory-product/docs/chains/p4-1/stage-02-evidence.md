@@ -1,5 +1,7 @@
 # Stage 02 Evidence — Audit-aware reads on Enterprise /recall
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Outcome:** SHIPPED
 **Commit:** 7cde7a0
 **Files touched:** api/main.py

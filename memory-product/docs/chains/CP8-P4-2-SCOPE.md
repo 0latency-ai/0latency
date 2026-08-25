@@ -1,5 +1,7 @@
 # CP8 P4.2 — Recall-empty-results structural fix
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Branch:** `p4-2-fix` (cut from `master`, NOT from `p4-2-investigation`).
 **Diagnosis source of truth:** `docs/chains/p4-2/stage-01-recall-empty-diagnosis.md` (already on `p4-2-investigation` branch).
 **Target:** 3 stages, 25-40 min wall-clock.

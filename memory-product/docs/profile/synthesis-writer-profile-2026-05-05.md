@@ -1,5 +1,7 @@
 # Synthesis Writer Profile Report
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Date:** 2026-05-05 06:28:16
 **Cluster ID:** 6af31b14-900a-4c64-8031-6a7b5a1ea5b3
 **Cluster Size:** 12 memories

@@ -1,5 +1,7 @@
 # P4.1 Chain Report
 
+> **Historical record.** `memory-api.service` was renamed `zerolatency-api.service` on 2026-05-18, and the dead unit was deleted on 2026-08-24. Service names below are preserved as they were written; do not follow them as current operational steps.
+
 **Branch:** p4-1-chain
 **Started from master HEAD:** 3e7b677 (B-5 chain report)
 **Final HEAD:** e1f33e9 (Stage 06 closure verification)
