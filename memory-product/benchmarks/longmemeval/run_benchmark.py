@@ -26,6 +26,12 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import anthropic
 
+from cost_killswitch import (
+    preflight_estimate, CostAccumulator,
+    estimate_tokens_from_content, ESTIMATED_OUTPUT_TOKENS_PER_EXTRACTION,
+    get_prices,
+)
+
 
 _HAYSTACK_DATE_RE = re.compile(r"^(\d{4})/(\d{2})/(\d{2})")
 
@@ -124,7 +130,7 @@ def _answer_coverage(expected: str, recall_details: list, threshold: float = 0.5
 class LongMemEvalRunner:
     def __init__(self, dataset_path: str, max_questions: int = 5, max_sessions: int = None,
                  smoke_mode: bool = False, max_zero_streak: int = 10, confirm_cost: bool = False,
-                 scorer: str = "substring", max_workers: int = 8):
+                 scorer: str = "substring", max_workers: int = 8, max_cost: float = 20.0):
         self.dataset_path = Path(dataset_path)
         self.max_questions = max_questions
         self.max_sessions = max_sessions
@@ -146,6 +152,14 @@ class LongMemEvalRunner:
         self.consecutive_failures = 0
         self.focus_ids = []
         self.skip_extraction = False
+
+        # COST KILL-SWITCH state. The accumulator is priced in the extraction
+        # model's units; judge tokens are scaled into those units by the ratios
+        # below so one ceiling covers both spend streams.
+        self.max_cost = max_cost
+        self.accumulator = None
+        self._judge_input_ratio = 1.0
+        self._judge_output_ratio = 1.0
 
         if self.scorer == "llm":
             if not ANTHROPIC_API_KEY:
@@ -207,6 +221,15 @@ class LongMemEvalRunner:
     
     def submit_extraction_job(self, payload: Dict) -> Tuple[str, str, int]:
         """Submit single extraction job to async endpoint. Returns (job_id, error, status_code)."""
+        # COST KILL-SWITCH: Hook B1 - accumulate + check before extraction submission.
+        # Placed above the retry loop so an aborted run issues no request at all.
+        if self.accumulator:
+            if self.accumulator.aborted:
+                return None, "cost_abort", 0
+            est_input = estimate_tokens_from_content(payload.get("content", ""))
+            if self.accumulator.add(est_input, ESTIMATED_OUTPUT_TOKENS_PER_EXTRACTION):
+                return None, "cost_abort", 0
+
         max_retries = 1  # Only 1 retry at benchmark layer (workers retry 3x internally)
 
         for attempt in range(max_retries + 1):
@@ -612,6 +635,11 @@ Recalled context:
 
 Reply with ONLY "YES" if the context contains or clearly implies the expected answer, or "NO" otherwise."""
 
+        # COST KILL-SWITCH: Hook B2 - no judge call once the ceiling is breached.
+        # Degrade to the substring scorer rather than failing the question.
+        if self.accumulator and self.accumulator.aborted:
+            return expected.lower() in context.lower()
+
         try:
             response = self.anthropic_client.messages.create(
                 model="claude-sonnet-4-6",
@@ -621,6 +649,12 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
             )
             verdict = response.content[0].text.strip().upper()
             self.total_judge_tokens += response.usage.input_tokens + response.usage.output_tokens
+            # COST KILL-SWITCH: Hook B2 - charge actual judge usage, scaled by price ratio.
+            if self.accumulator:
+                self.accumulator.add(
+                    int(response.usage.input_tokens * self._judge_input_ratio),
+                    int(response.usage.output_tokens * self._judge_output_ratio),
+                )
             return verdict == "YES"
         except Exception as e:
             print(f"WARN: LLM judge failed ({e}), falling back to substring", file=sys.stderr)
@@ -669,6 +703,52 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
         """Run benchmark and save results."""
         questions = self.load_dataset()
         total_in_dataset = self.dataset_total_count
+
+        # COST KILL-SWITCH: Hook A - pre-flight gate, after dataset load and
+        # before any API call. Refuses to start a run whose projection already
+        # exceeds the ceiling.
+        _extraction_model = os.getenv("EXTRACTION_MODEL", "claude-haiku-4-5-20251001")
+        _turns_for_estimate = []
+        for _q in questions:
+            _sessions = _q.get("haystack_sessions", [])
+            if self.max_sessions is not None:
+                _sessions = _sessions[:self.max_sessions]
+            for _session in _sessions:
+                _idx = 0
+                while _idx < len(_session) - 1:
+                    if _session[_idx].get("role") == "user" and _session[_idx + 1].get("role") == "assistant":
+                        _turns_for_estimate.append({
+                            "content": f"Human: {_session[_idx]['content']}\n\nAssistant: {_session[_idx + 1]['content']}"
+                        })
+                        _idx += 2
+                    else:
+                        _idx += 1
+        _preflight = preflight_estimate(
+            turns=_turns_for_estimate,
+            num_questions=len(questions),
+            model=_extraction_model,
+            enable_reasoning=False,
+            max_cost=self.max_cost,
+        )
+        self.accumulator = CostAccumulator(max_cost=self.max_cost, model=_extraction_model)
+        _ext_prices = get_prices(_extraction_model)
+        _judge_prices = get_prices("claude-sonnet-4-6")
+        if _ext_prices["input"] > 0:
+            self._judge_input_ratio = _judge_prices["input"] / _ext_prices["input"]
+        if _ext_prices["output"] > 0:
+            self._judge_output_ratio = _judge_prices["output"] / _ext_prices["output"]
+        if self.scorer == "llm":
+            _est_judge_in, _est_judge_out = 5200, 3
+            _judge_est = (
+                _est_judge_in * len(questions) * _judge_prices["input"] / 1_000_000 +
+                _est_judge_out * len(questions) * _judge_prices["output"] / 1_000_000
+            )
+            _combined = _preflight["estimated_cost_usd"] + _judge_est
+            print(f"  + LLM Judge (Sonnet): ~${_judge_est:.4f} ({len(questions)} questions)", file=sys.stderr)
+            print(f"  COMBINED ESTIMATE:    ${_combined:.4f}", file=sys.stderr)
+            if _combined > self.max_cost:
+                print(f"  HALT: combined estimate exceeds --max-cost ${self.max_cost:.2f}", file=sys.stderr)
+                sys.exit(5)
         
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         if output_path is None:
@@ -687,6 +767,14 @@ Reply with ONLY "YES" if the context contains or clearly implies the expected an
         print("", file=sys.stderr)
         
         for i, item in enumerate(questions, 1):
+            # COST KILL-SWITCH: stop the run outright once the ceiling is breached.
+            # Mirrors the max_zero_streak abort: break, then fall through to the
+            # existing post-loop write so partial results are still saved.
+            if self.accumulator and self.accumulator.aborted:
+                print(f"\n✗ COST ABORT: {self.accumulator.abort_reason}", file=sys.stderr)
+                print(f"  Stopped before question {i}/{len(questions)}; writing partial results.", file=sys.stderr)
+                break
+
             question_id = item["question_id"]
             question = item["question"]
             question_type = item.get("question_type", "unknown")
@@ -957,6 +1045,8 @@ if __name__ == "__main__":
     parser.add_argument("--smoke", action="store_true", help="Smoke test mode: run n=3, exit 1 if failures")
     parser.add_argument("--max-zero-streak", type=int, default=10, help="Auto-kill after N consecutive 0-char recalls")
     parser.add_argument("--confirm-cost", action="store_true", help="Confirm willingness to pay projected cost")
+    parser.add_argument("--max-cost", type=float, default=20.0,
+                        help="Hard USD ceiling. Refuses to start above it and aborts mid-run on breach (default: 20.0)")
     parser.add_argument("--scorer", choices=["substring", "llm"], default="substring",
                         help="Scoring method: substring (exact match) or llm (Claude Sonnet judge)")
     parser.add_argument("--max-workers", type=int, default=8, help="Max concurrent sessions for extraction")
@@ -980,6 +1070,7 @@ if __name__ == "__main__":
         confirm_cost=args.confirm_cost,
         scorer=args.scorer,
         max_workers=args.max_workers,
+        max_cost=args.max_cost,
     )
     runner.focus_ids = [x.strip() for x in args.focus_ids.split(",") if x.strip()]
     runner.skip_extraction = args.skip_extraction
