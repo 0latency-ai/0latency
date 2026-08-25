@@ -22,6 +22,11 @@ from typing import Dict, List, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
+from cost_killswitch import (
+    preflight_estimate, CostAccumulator,
+    estimate_tokens_from_content, ESTIMATED_OUTPUT_TOKENS_PER_EXTRACTION,
+)
+
 import re as _re
 
 def _fuzzy_answer_match(answer_keywords: list, headline: str, threshold: float = 0.35) -> bool:
@@ -129,9 +134,11 @@ HEADERS = {
 }
 
 class BenchmarkRunner:
-    def __init__(self, dataset_path: str, max_workers: int = 16):
+    def __init__(self, dataset_path: str, max_workers: int = 16, max_cost: float = 20.0):
         self.dataset_path = Path(dataset_path)
         self.max_workers = max_workers
+        self.max_cost = max_cost
+        self.accumulator = None
 
     def preflight_wipe(self) -> Dict:
         """Delete all longmemeval benchmark memories from the tenant.
@@ -280,6 +287,14 @@ class BenchmarkRunner:
 
     def submit_job(self, turn: Dict) -> Tuple[str, Dict]:
         """Submit one extraction job. Returns (job_id or None, turn_metadata)."""
+        # COST KILL-SWITCH: Hook B - accumulate + check before submission
+        if self.accumulator:
+            if self.accumulator.aborted:
+                return None, {**turn, "error": "cost_abort"}
+            est_input = estimate_tokens_from_content(turn.get("content", ""))
+            if self.accumulator.add(est_input, ESTIMATED_OUTPUT_TOKENS_PER_EXTRACTION):
+                return None, {**turn, "error": "cost_abort"}
+
         # CP-RECALL Phase 3 quarantine: always set an explicit benchmark-namespaced
         # agent_id (mirrors run_benchmark.py's longmemeval_<qid> scheme) so the server's
         # `or "default"` write fallback (api/main.py:610) is never reached.
@@ -627,6 +642,20 @@ class BenchmarkRunner:
                   f"Q: {q['question'][:55]}")
         print(f"\n  Total: {len(questions)} questions, {total_turns_all} turns")
 
+        # COST KILL-SWITCH: Pre-flight gate (Hook A)
+        _extraction_model = os.getenv("EXTRACTION_MODEL", "claude-haiku-4-5-20251001")
+        all_flat_turns = []
+        for turns_list in question_turns_map.values():
+            all_flat_turns.extend(turns_list)
+        preflight_estimate(
+            turns=all_flat_turns,
+            num_questions=len(questions),
+            model=_extraction_model,
+            enable_reasoning=False,
+            max_cost=self.max_cost,
+        )
+        self.accumulator = CostAccumulator(max_cost=self.max_cost, model=_extraction_model)
+
         # Pre-flight wipe: remove stale benchmark memories
         wipe_result = None
         if not recall_only and not skip_wipe:
@@ -777,6 +806,29 @@ class BenchmarkRunner:
             }
             all_question_results.append(q_result)
 
+            # COST KILL-SWITCH: clean abort check
+            if self.accumulator and self.accumulator.aborted:
+                print(f"\n  COST ABORT: {self.accumulator.abort_reason}")
+                print(f"  Writing partial results...")
+                if output_path:
+                    partial_data = {
+                        "gate": "gate_06",
+                        "dataset": self.dataset_path.name,
+                        "total_questions": len(questions),
+                        "completed_questions": q_idx + 1,
+                        "halted_reason": "cost_abort",
+                        "cost_summary": self.accumulator.summary(),
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "per_question": all_question_results,
+                    }
+                    output_file = Path(output_path)
+                    output_file.parent.mkdir(parents=True, exist_ok=True)
+                    with open(output_file, "w") as f:
+                        json.dump(partial_data, f, indent=2)
+                    print(f"  Partial results written to: {output_file}")
+                print(f"  {self.accumulator.summary()}")
+                sys.exit(5)
+
             # Adaptive inter-question cool-down: wait for API to drain backlog
             if not recall_only and q_idx < len(questions) - 1:
                 consecutive_fast = 0
@@ -911,6 +963,9 @@ class BenchmarkRunner:
             print(f"\n  FAILED: Aggregate failure rate ({agg_failure_rate*100:.1f}%) exceeds 10% threshold")
             sys.exit(1)
 
+        if self.accumulator:
+            print(f"  {self.accumulator.summary()}")
+
         print(f"\n  Benchmark completed successfully ({len(questions)} questions)")
 
 
@@ -924,6 +979,8 @@ if __name__ == "__main__":
                         help="Skip preflight wipe (dangerous: allows contamination)")
     parser.add_argument("--max-workers", type=int, default=16,
                         help="Max concurrent workers for ingestion (default: 16)")
+    parser.add_argument("--max-cost", type=float, default=20.0,
+                        help="Hard cost ceiling in USD (default: $20)")
     args = parser.parse_args()
 
     if not Path(args.dataset).exists():
@@ -934,5 +991,5 @@ if __name__ == "__main__":
         print("ERROR: DATABASE_URL required for preflight wipe. Set it or use --skip-wipe", file=sys.stderr)
         sys.exit(4)
 
-    runner = BenchmarkRunner(args.dataset, max_workers=args.max_workers)
+    runner = BenchmarkRunner(args.dataset, max_workers=args.max_workers, max_cost=args.max_cost)
     runner.run(output_path=args.output, recall_only=args.recall_only, skip_wipe=args.skip_wipe)
