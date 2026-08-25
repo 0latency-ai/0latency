@@ -32,6 +32,9 @@ RECALL_ENTITY_STRATEGY_ENABLED = os.getenv("RECALL_ENTITY_STRATEGY_ENABLED", "fa
 # F4: Entity-aware type bonus tuning (flag-gated)
 RECALL_TYPE_BONUS_ENTITY_AWARE = os.getenv("RECALL_TYPE_BONUS_ENTITY_AWARE", "false").lower() in ("true", "1", "yes")
 
+# Recency clamp: bound days_since >= 0, IQR adaptive spread [q22-recency-clamp]
+RECENCY_CLAMP_ENABLED = os.getenv("RECENCY_CLAMP_ENABLED", "true").lower() in ("true", "1", "yes")
+
 # F5: Provenance-aware down-weight. Assistant-stated content is lower-trust than
 # user-stated facts; when the assistant pass floods a namespace with topic-adjacent
 # memories, they out-rank the user's actual answer facts. This gently demotes
@@ -79,6 +82,17 @@ def _compute_signal_spread(scores: list) -> float:
     return math.sqrt(variance)
 
 
+def _compute_signal_spread_iqr(scores: list) -> float:
+    """Compute IQR of scores — robust spread metric immune to outliers. [q22-recency-clamp]"""
+    if len(scores) < 2:
+        return 0.0
+    sorted_scores = sorted(scores)
+    n = len(sorted_scores)
+    q1 = sorted_scores[n // 4]
+    q3 = sorted_scores[(3 * n) // 4]
+    return q3 - q1
+
+
 def _compute_adaptive_weights(
     recency_scores: list,
     semantic_scores: list,
@@ -106,7 +120,7 @@ def _compute_adaptive_weights(
               type_bonus_dampening, recency_spread, semantic_spread,
               recency_informative, semantic_informative)
     """
-    recency_spread = _compute_signal_spread(recency_scores)
+    recency_spread = _compute_signal_spread_iqr(recency_scores) if RECENCY_CLAMP_ENABLED else _compute_signal_spread(recency_scores)  # [q22-recency-clamp]
     semantic_spread = _compute_signal_spread(semantic_scores) if semantic_scores else 0.0
 
     # Recency informativeness (sigmoid)
@@ -1116,6 +1130,8 @@ def recall_fixed(
     for c in candidates:
         temporal_ref = c.get("event_at") or c["created_at"]
         days_since = (now - temporal_ref).total_seconds() / 86400
+        if RECENCY_CLAMP_ENABLED:
+            days_since = max(0.0, days_since)  # [q22-recency-clamp] Nothing is more recent than now
         raw_recencies.append(math.exp(-0.693 * days_since / max(half_life_days, 0.01)))
 
     # Adaptive weight rebalancing based on signal quality
