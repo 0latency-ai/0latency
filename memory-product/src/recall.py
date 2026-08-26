@@ -34,6 +34,10 @@ RECALL_TYPE_BONUS_ENTITY_AWARE = os.getenv("RECALL_TYPE_BONUS_ENTITY_AWARE", "fa
 
 # Recency clamp: bound days_since >= 0, IQR adaptive spread [q22-recency-clamp]
 RECENCY_CLAMP_ENABLED = os.getenv("RECENCY_CLAMP_ENABLED", "true").lower() in ("true", "1", "yes")
+# Peak of the tapered sub-day boost in the cross-agent scorer. 1.0 disables the
+# boost entirely and leaves plain exponential decay; the result is capped at 1.0
+# regardless, so this widens the fresh-window plateau rather than raising the ceiling.
+CROSS_AGENT_SUBDAY_BOOST_MAX = float(os.getenv("CROSS_AGENT_SUBDAY_BOOST_MAX", "2.5"))
 
 # F5: Provenance-aware down-weight. Assistant-stated content is lower-trust than
 # user-stated facts; when the assistant pass floods a namespace with topic-adjacent
@@ -91,6 +95,38 @@ def _compute_signal_spread_iqr(scores: list) -> float:
     q1 = sorted_scores[n // 4]
     q3 = sorted_scores[(3 * n) // 4]
     return q3 - q1
+
+
+def _cross_agent_recency(days_since: float, half_life_days: float) -> float:
+    """Recency score for the cross-agent scorer. Bounded to [0, 1].
+
+    The sub-day boost used to be a flat `recency *= 2.5` applied to every
+    candidate under one day old. That was uncapped while similarity, importance
+    and access are all normalised to [0, 1], so a row minutes old scored 0.875 on
+    recency alone against a 0.4 selection gate -- recency could clear the gate by
+    itself, before relevance was considered. It was also discontinuous: at
+    exactly one day the score fell by 1.5 * exp(-0.693/H) in one instant, 0.4169
+    of composite at H=3, which is larger than the gate. Two memories written
+    minutes apart either side of that mark were ranked as different classes of
+    object.
+
+    The boost is retained but tapered linearly to 1.0 as days_since approaches
+    the one-day mark, which removes the step, and the result is capped at 1.0,
+    which puts recency back on the same scale as every other signal. The cap is
+    the load-bearing half: with recency in [0, 1] and a weight of 0.35, recency
+    can no longer clear the 0.4 gate on its own at any age.
+
+    Monotone non-increasing in days_since, and continuous everywhere including
+    at the boundary, where both sides evaluate to exp(-0.693 / H).
+    """
+    recency = math.exp(-0.693 * days_since / max(half_life_days, 0.01))
+
+    if days_since < 1.0:
+        # taper to exactly 1.0 at days_since == 1 so the two branches meet
+        boost = 1.0 + (CROSS_AGENT_SUBDAY_BOOST_MAX - 1.0) * (1.0 - days_since)
+        recency *= boost
+
+    return min(recency, 1.0)
 
 
 def _compute_adaptive_weights(
@@ -1716,10 +1752,7 @@ def recall_cross_agent(
             semantic_sim = c["similarity"]
             
             days_since = (now - c["created_at"]).total_seconds() / 86400
-            recency = math.exp(-0.693 * days_since / max(half_life_days, 0.01))
-            
-            if days_since < 1:
-                recency *= 2.5
+            recency = _cross_agent_recency(days_since, half_life_days)
             
             importance = c["importance"] * (1 + 0.1 * min(c["reinforcement_count"], 5))
             importance = min(importance, 1.0)
