@@ -1,0 +1,143 @@
+{
+  "version": "1",
+  "created": "2026-08-21",
+  "description": "Recall eval for the 0Latency memory product. Each question is asked against the live /recall endpoint; an LLM judge scores the returned context_block against an expected-facts rubric. Questions marked answer_changed_over_time have a stale prior answer still present in the store, so passing requires recall to surface the CURRENT answer and not present the superseded one as current.",
+  "judge_model": "claude-sonnet-5",
+  "default_agent_id": "user-justin",
+  "questions": [
+    {
+      "id": "Q01",
+      "answer_changed_over_time": true,
+      "question": "What is the current state of the 0latency API key \u2014 is it usable?",
+      "conversation_context": "Checking whether the 0latency API key currently works before making API calls.",
+      "expected_facts": [
+        "The 0latency API key is currently invalid or expired",
+        "The user does have / did have a key in the zl_live_ format"
+      ],
+      "must_not_assert": [
+        "That the API key is currently valid and working, stated without any mention that it is invalid or expired"
+      ],
+      "notes": "The canonical F3 silent-supersession pair: 340de444 (has key) and b2b76357 (key invalid/expired), both live, both typed fact, neither carrying contradicts. Recall must surface the later state. This question is the direct user-visible cost of the F3 gap."
+    },
+    {
+      "id": "Q02",
+      "answer_changed_over_time": true,
+      "question": "Which git branch is the Chrome extension work currently on?",
+      "conversation_context": "Resuming work on the 0Latency Chrome extension repo and need the current working branch.",
+      "expected_facts": [
+        "The current chrome-extension branch is fix/dup-turns-auth-gate"
+      ],
+      "must_not_assert": [
+        "That the current extension working branch is master or main"
+      ],
+      "notes": "Branch changed 2026-08-21. The workspace clone on the box is still on master with a single initial commit, so a wrong answer here is plausible-looking."
+    },
+    {
+      "id": "Q03",
+      "answer_changed_over_time": true,
+      "question": "Is Chrome extension memory capture actually working, or is it broken when the extension reports 0 memories stored?",
+      "conversation_context": "The extension shows memories_stored: 0 on many turns and we need to know whether capture is failing.",
+      "expected_facts": [
+        "Capture is working / not broken",
+        "memories_stored counts only newly-extracted salient atoms, not the raw turn",
+        "The verbatim raw turn is stored every turn regardless, so 0 does not mean nothing was captured"
+      ],
+      "must_not_assert": [
+        "That Chrome extension capture is failing or dropping turns when it reports 0"
+      ],
+      "notes": "Answer inverted at the CP-INJECT P3-A1 diagnostic (2026-06-26): the earlier read was 'capture failure', the verified answer is 'observability/interpretation issue'."
+    },
+    {
+      "id": "Q04",
+      "answer_changed_over_time": true,
+      "question": "What is the defensible LongMemEval benchmark number for 0Latency, and how must it be reported?",
+      "conversation_context": "Preparing an investor-facing comparison against Mem0 and need the number we can actually defend.",
+      "expected_facts": [
+        "The banked/defensible result is 76% at Recall@20",
+        "Reported together with MRR 0.5366 and precision 0.9851",
+        "A lone ceiling number is not defensible; the full metric set must be reported"
+      ],
+      "must_not_assert": [
+        "That 88% is the achieved defensible benchmark number",
+        "That 40% is the current result without noting it was not comparable"
+      ],
+      "notes": "The store holds three competing live numbers: 76%@20 (banked, correct), 88% (an aspirational target that leaked into a headline as if achieved), and a 40% run explicitly recorded as not comparable. This question tests whether recall resolves the conflict or just returns the loudest row."
+    },
+    {
+      "id": "Q05",
+      "answer_changed_over_time": false,
+      "question": "Why was the embedding-similarity fallback for finding a supersession target removed?",
+      "conversation_context": "Considering adding a similarity fallback when the extraction LLM gives no contradicts_id.",
+      "expected_facts": [
+        "It produced a large number of wrong supersessions (roughly 500+ per benchmark run)",
+        "Corrections vague-matched onto unrelated memories",
+        "It was removed deliberately; precision is the binding constraint"
+      ],
+      "must_not_assert": [],
+      "notes": "Stable design constraint. Guards against a future chain reintroducing the trap."
+    },
+    {
+      "id": "Q06",
+      "answer_changed_over_time": false,
+      "question": "How does a correction memory supersede an older memory \u2014 what has to be present for it to fire?",
+      "conversation_context": "Debugging why some corrections never superseded anything.",
+      "expected_facts": [
+        "The memory must be typed as a correction",
+        "It must carry a contradicts_id naming the target memory",
+        "The target must still exist and be unsuperseded"
+      ],
+      "must_not_assert": [],
+      "notes": "Tests recall of the three-gate mechanism documented in the contradiction-detection design."
+    },
+    {
+      "id": "Q07",
+      "answer_changed_over_time": false,
+      "question": "Does the recall candidate pool include raw_turn rows?",
+      "conversation_context": "Investigating why a verbatim conversation turn appeared in recall results.",
+      "expected_facts": [
+        "The vector path excludes raw_turn rows (extracted atoms only)",
+        "The BM25 keyword fast-path does not filter raw_turn, so keyword-dominant queries can surface them"
+      ],
+      "must_not_assert": [
+        "That raw_turn rows are excluded from every recall path with no exception"
+      ],
+      "notes": "CP-INJECT P3-B1 finding. A split answer \u2014 a judge should not accept only half."
+    },
+    {
+      "id": "Q08",
+      "answer_changed_over_time": false,
+      "question": "Where does the memory product run and how is it reached?",
+      "conversation_context": "Need to connect to the memory service to run a diagnostic.",
+      "expected_facts": [
+        "It runs on the box at 164.90.156.169",
+        "Reached over SSH as root"
+      ],
+      "must_not_assert": [],
+      "notes": "Basic environment recall. Scoped to agent thomas: the host fact is held under thomas, not user-justin. Exercises the per-question agent_id override.",
+      "agent_id": "thomas"
+    },
+    {
+      "id": "Q09",
+      "answer_changed_over_time": false,
+      "question": "What is the hard spending control on benchmark runs and why does it exist?",
+      "conversation_context": "About to launch a LongMemEval run.",
+      "expected_facts": [
+        "--max-cost 3 is mandatory on the runner invocation",
+        "It exists because of a prior unbraked-spend incident (roughly $400+ against a configured limit)"
+      ],
+      "must_not_assert": [],
+      "notes": "Tests recall of a hard operational constraint with a stated cause."
+    },
+    {
+      "id": "Q10",
+      "answer_changed_over_time": false,
+      "question": "Where are the Project Explore Season 2 scripts stored?",
+      "conversation_context": "Looking for the Season 2 script files for Project Explore.",
+      "expected_facts": [
+        "In the clawd-workspace layla-friends season2 area"
+      ],
+      "must_not_assert": [],
+      "notes": "Non-engineering domain fact \u2014 checks the store is not only good at recalling its own build history."
+    }
+  ]
+}
