@@ -57,9 +57,20 @@ def _list_revisions():
     out = _run("alembic history -r 0001_baseline:head | grep -E '^[a-z0-9_]+ ->' || true")
     revs = []
     for line in out.strip().splitlines():
-        if "->" in line and "(head)" not in line:
-            # Format: "<rev> -> <next>, <message>"
-            after = line.split("->")[1].strip().split(",")[0].strip()
+        if "->" not in line:
+            continue
+        # Format: "<rev> -> <next>[ (head)][ (branchpoint)], <message>"
+        after = line.split("->")[1].strip().split(",")[0].strip()
+        # Strip the alembic annotations rather than skipping the line. The old
+        # form was `if "->" in line and "(head)" not in line`, which dropped the
+        # head revision entirely -- and a newly written migration is ALWAYS head,
+        # so the gate that exists to test new migrations could never test one.
+        # Every revision only became testable once a later one was stacked on
+        # top of it, which is precisely backwards.
+        for annotation in ("(head)", "(branchpoint)", "(mergepoint)", "(effective head)"):
+            after = after.replace(annotation, "")
+        after = after.strip()
+        if after:
             revs.append(after)
     # Reverse to get oldest-first
     return list(reversed(revs))
