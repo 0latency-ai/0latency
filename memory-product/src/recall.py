@@ -38,6 +38,11 @@ RECENCY_CLAMP_ENABLED = os.getenv("RECENCY_CLAMP_ENABLED", "true").lower() in ("
 # boost entirely and leaves plain exponential decay; the result is capped at 1.0
 # regardless, so this widens the fresh-window plateau rather than raising the ceiling.
 CROSS_AGENT_SUBDAY_BOOST_MAX = float(os.getenv("CROSS_AGENT_SUBDAY_BOOST_MAX", "2.5"))
+# Selection gates for the cross-agent scorer. Named so the query-independence
+# invariant in tests/test_query_independent_ceiling.py can assert against the
+# value the scorer actually uses rather than a copy of it.
+CROSS_AGENT_L1_THRESHOLD = float(os.getenv("CROSS_AGENT_L1_THRESHOLD", "0.7"))
+CROSS_AGENT_L0_THRESHOLD = float(os.getenv("CROSS_AGENT_L0_THRESHOLD", "0.4"))
 
 # F5: Provenance-aware down-weight. Assistant-stated content is lower-trust than
 # user-stated facts; when the assistant pass floods a namespace with topic-adjacent
@@ -1805,10 +1810,10 @@ def recall_cross_agent(
         # Add source prefix to headline for attribution
         source_prefix = f"[From {candidate['source_agent']}] "
         
-        if candidate["composite"] > 0.7:
+        if candidate["composite"] > CROSS_AGENT_L1_THRESHOLD:
             text = source_prefix + candidate["context"]
             tier = "L1"
-        elif candidate["composite"] > 0.4:
+        elif candidate["composite"] > CROSS_AGENT_L0_THRESHOLD:
             text = source_prefix + candidate["headline"]
             tier = "L0"
         else:
