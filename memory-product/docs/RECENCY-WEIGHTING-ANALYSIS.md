@@ -1,4 +1,37 @@
 # RECENCY WEIGHTING — ANALYSIS
+> **PARTIALLY SUPERSEDED — §7 / §7.1.** This document was written against `33d3916`.
+> Its highest-severity finding, the unbounded recency from future-dated `event_at`,
+> was fixed on 2026-08-25 by `8d8785c` ("restore the q22 recency clamp"). §7.1's
+> verification block is therefore stale in every line: `RECENCY_CLAMP_ENABLED` now
+> exists, `_compute_signal_spread_iqr()` now exists and is wired into
+> `_compute_adaptive_weights`, `tests/test_recency_clamp.py` is present, and the
+> `exp()` call is preceded by `days_since = max(0.0, days_since)`. §9's claim that
+> "the missing clamp ... [is] still live exactly as measured" no longer holds.
+>
+> **The clamp landed on the PRIMARY PATH ONLY.** `recall_fixed` is clamped;
+> `recall_cross_agent` is not — it still reads raw `created_at` with no floor at
+> zero. The nine future-dated rows in §7's table remain unbounded on the
+> cross-agent path. Do not read `8d8785c` as having closed §7 for both scorers;
+> the asymmetry between the two paths that §6 documents is exactly what let the
+> clamp land on one of them and not the other.
+>
+> `9333c04` itself remains contained by no branch. It was re-implemented, not
+> cherry-picked, so §7.1's `git merge-base` and `git branch --contains` results
+> still reproduce as written and are not evidence that the fix is absent.
+>
+> **Line numbers throughout this document are pre-`19f73cf`** and have shifted.
+> `_load_agent_config` 423→437, `_retrieve_candidates_cross_agent` 1526→1542,
+> `recall_cross_agent` 1579→1595, the 2.5x sub-day boost 1702→1718, the falsy-zero
+> block 440-443→453-460. Resolve every `src/recall.py:NNN` citation by symbol, not
+> by line.
+>
+> Everything outside §7 / §7.1 — the two-scorer divergence, the falsy-zero loader,
+> the absent `agent_config` rows, the cross-tenant bleed, the 2.5x boost and the
+> 0.4169 discontinuity — was re-verified against `19f73cf` on 2026-08-25 and still
+> holds. Census figures drift with live ingestion; candidate-eligible measured
+> 16,630 on 2026-08-25, against the 16,295 recorded in §2.1.
+>
+> The body below is preserved verbatim and has not been corrected.
 
 **Date:** 2026-08-25
 **Box:** 164.90.156.169 · `/root/.openclaw/workspace/memory-product`
