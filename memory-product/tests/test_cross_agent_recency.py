@@ -148,5 +148,42 @@ class TestBoostIsConfigurable(unittest.TestCase):
             recall.CROSS_AGENT_SUBDAY_BOOST_MAX = orig
 
 
+
+class TestNegativeAgeClamp(unittest.TestCase):
+    """Nothing is more recent than now — cross-agent parity with 8d8785c."""
+
+    def test_future_rows_do_not_exceed_a_present_row(self):
+        for hl in HALF_LIVES:
+            at_now = _cross_agent_recency(0.0, hl)
+            for ahead in (1.9, 5.9, 34.9, 79.9, 111.9, 126.9):
+                self.assertLessEqual(
+                    _cross_agent_recency(-ahead, hl), at_now,
+                    f"a row {ahead} days in the future outscored a row written "
+                    f"now (half_life={hl})")
+
+    def test_negative_age_is_still_bounded(self):
+        for hl in HALF_LIVES:
+            for ahead in (0.5, 10.0, 100.0, 1000.0, 100000.0):
+                r = _cross_agent_recency(-ahead, hl)
+                self.assertLessEqual(r, 1.0)
+                self.assertGreaterEqual(r, 0.0)
+
+    def test_far_future_does_not_raise_overflow(self):
+        """Unclamped, exp() overflows past roughly -3000 days and the caller
+        turns that into a silently dropped candidate."""
+        for hl in HALF_LIVES:
+            try:
+                _cross_agent_recency(-365 * 600, hl)
+            except OverflowError:
+                self.fail(f"OverflowError at half_life={hl}; days_since is not "
+                          f"floored at zero")
+
+    def test_clamp_matches_the_primary_path_treatment(self):
+        """recall_fixed floors days_since before exp(); so must this."""
+        for hl in HALF_LIVES:
+            self.assertAlmostEqual(_cross_agent_recency(-50.0, hl),
+                                   _cross_agent_recency(0.0, hl), places=12)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

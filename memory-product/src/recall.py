@@ -118,7 +118,15 @@ def _cross_agent_recency(days_since: float, half_life_days: float) -> float:
 
     Monotone non-increasing in days_since, and continuous everywhere including
     at the boundary, where both sides evaluate to exp(-0.693 / H).
+
+    days_since is floored at zero for the same reason recall_fixed floors it
+    (8d8785c, [q22-recency-clamp]): nothing is more recent than now. A negative
+    age inverts the exponent, and past roughly -3000 days exp() raises
+    OverflowError, which the caller swallows per-candidate and turns into a
+    silently dropped memory rather than an error.
     """
+    if RECENCY_CLAMP_ENABLED:
+        days_since = max(0.0, days_since)  # [q22-recency-clamp] cross-agent parity
     recency = math.exp(-0.693 * days_since / max(half_life_days, 0.01))
 
     if days_since < 1.0:
