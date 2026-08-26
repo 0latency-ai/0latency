@@ -450,12 +450,16 @@ def _load_agent_config(agent_id: str, tenant_id: str = None) -> dict:
         if rows:
             row = rows[0]
             return {
-                "context_budget": int(row[0]) if row[0] else 4000,
-                "recency_weight": float(row[1]) if row[1] else 0.35,
-                "semantic_weight": float(row[2]) if row[2] else 0.4,
-                "importance_weight": float(row[3]) if row[3] else 0.15,
-                "access_weight": float(row[4]) if row[4] else 0.1,
-                "recency_half_life_days": int(row[5]) if row[5] else 3,
+                # `is not None`, not truthiness: a configured 0 is a real value.
+                # Under `if row[N]` a deliberate 0.0 weight is falsy and silently
+                # becomes the default, so recency could not be disabled through
+                # config -- setting recency_weight=0 yielded 0.35.
+                "context_budget": int(row[0]) if row[0] is not None else 4000,
+                "recency_weight": float(row[1]) if row[1] is not None else 0.35,
+                "semantic_weight": float(row[2]) if row[2] is not None else 0.4,
+                "importance_weight": float(row[3]) if row[3] is not None else 0.15,
+                "access_weight": float(row[4]) if row[4] is not None else 0.1,
+                "recency_half_life_days": int(row[5]) if row[5] is not None else 3,
                 "identity": json.loads(row[6]) if row[6] and row[6] != '{}' else {},
                 "user_profile": json.loads(row[7]) if row[7] and row[7] != '{}' else {},
             }
